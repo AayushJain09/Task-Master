@@ -325,6 +325,105 @@ class ProfileResponseDTO {
   }
 }
 
+/**
+ * Biometric Setup Response DTO
+ *
+ * Response after successfully setting up biometric authentication.
+ * Returns the biometric token and confirmation status.
+ *
+ * @class BiometricSetupResponseDTO
+ *
+ * @property {string} biometricToken - Secure biometric token for authentication
+ * @property {boolean} biometricEnabled - Confirmation that biometric auth is enabled
+ * @property {string} message - Success message
+ *
+ * @example
+ * const response = new BiometricSetupResponseDTO(token, true);
+ * // Returns biometric setup confirmation with token
+ */
+class BiometricSetupResponseDTO {
+  /**
+   * Creates a biometric setup response DTO
+   *
+   * @constructor
+   * @param {string} biometricToken - Secure biometric token
+   * @param {boolean} biometricEnabled - Whether biometric auth is enabled
+   * @param {string} [message='Biometric authentication enabled successfully'] - Success message
+   */
+  constructor(biometricToken, biometricEnabled, message = 'Biometric authentication enabled successfully') {
+    this.message = message;
+    this.biometricToken = biometricToken;
+    this.biometricEnabled = biometricEnabled;
+    this.setupTimestamp = new Date().toISOString();
+  }
+
+  /**
+   * Converts DTO to plain JSON object
+   *
+   * @returns {Object} Plain object representation
+   */
+  toJSON() {
+    return {
+      message: this.message,
+      biometricToken: this.biometricToken,
+      biometricEnabled: this.biometricEnabled,
+      setupTimestamp: this.setupTimestamp,
+    };
+  }
+}
+
+/**
+ * Biometric Login Response DTO
+ *
+ * Complete response after successful biometric login.
+ * Includes authenticated user details and new authentication tokens.
+ *
+ * @class BiometricLoginResponseDTO
+ *
+ * @property {UserResponseDTO} user - Authenticated user data
+ * @property {TokensDTO} tokens - Authentication tokens
+ * @property {string} message - Success message
+ * @property {Date|string} loginTimestamp - Login timestamp
+ * @property {string} authMethod - Authentication method used
+ *
+ * @example
+ * const response = new BiometricLoginResponseDTO(user, accessToken, refreshToken);
+ * // Returns complete biometric login response
+ */
+class BiometricLoginResponseDTO {
+  /**
+   * Creates a biometric login response DTO
+   *
+   * @constructor
+   * @param {Object} user - Mongoose user document
+   * @param {string} accessToken - JWT access token
+   * @param {string} refreshToken - JWT refresh token
+   * @param {string} [message='Biometric login successful'] - Success message
+   */
+  constructor(user, accessToken, refreshToken, message = 'Biometric login successful') {
+    this.message = message;
+    this.user = new UserResponseDTO(user);
+    this.tokens = new TokensDTO(accessToken, refreshToken);
+    this.loginTimestamp = new Date().toISOString();
+    this.authMethod = 'biometric';
+  }
+
+  /**
+   * Converts DTO to plain JSON object
+   *
+   * @returns {Object} Plain object representation
+   */
+  toJSON() {
+    return {
+      message: this.message,
+      user: this.user.toJSON(),
+      tokens: this.tokens.toJSON(),
+      loginTimestamp: this.loginTimestamp,
+      authMethod: this.authMethod,
+    };
+  }
+}
+
 module.exports = {
   TokensDTO,
   RegisterResponseDTO,
@@ -333,4 +432,6 @@ module.exports = {
   LogoutResponseDTO,
   PasswordChangeResponseDTO,
   ProfileResponseDTO,
+  BiometricSetupResponseDTO,
+  BiometricLoginResponseDTO,
 };

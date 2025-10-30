@@ -6,8 +6,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, router, useRouter } from 'expo-router';
 
 import { useAuth } from '@/context/AuthContext';
@@ -19,14 +19,17 @@ import { APP_CONFIG } from '@/config/constants';
 export default function RegisterScreen() {
   const { register } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleRegister = async (credentials: RegisterCredentials) => {
     try {
       setIsLoading(true);
+      setError(null); // Clear previous errors
       await register(credentials);
       router.replace('/(tabs)/home');
-    } catch (error) {
-      throw error;
+    } catch (error: any) {
+      console.error('Registration error:', error);
+      setError(error.message || 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -39,7 +42,7 @@ export default function RegisterScreen() {
         className="flex-1"
       >
         <ScrollView
-          contentContainerClassName="flex-grow justify-center px-6 py-8"
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 32, paddingBottom: 100 }}
           keyboardShouldPersistTaps="handled"
         >
           {/* Header */}
@@ -59,7 +62,7 @@ export default function RegisterScreen() {
 
           {/* Register Form */}
           <Card variant="elevated" padding="lg">
-            <RegisterForm onSubmit={handleRegister} loading={isLoading} />
+            <RegisterForm onSubmit={handleRegister} loading={isLoading} error={error} />
           </Card>
 
           {/* Login Link */}

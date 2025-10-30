@@ -121,6 +121,17 @@ class ApiService {
 
   private handleError(error: any): ApiError {
     if (axios.isAxiosError(error)) {
+      // Network error (no response received)
+      if (!error.response) {
+        return {
+          message: 'Network error. Please check your internet connection and try again.',
+          status: 0,
+          code: 'ERR_NETWORK',
+          details: null,
+        };
+      }
+
+      // Server responded with error status
       const apiError: ApiError = {
         message:
           error.response?.data?.message ||
@@ -136,6 +147,7 @@ class ApiService {
     return {
       message: 'An unexpected error occurred',
       status: 0,
+      code: 'ERR_UNKNOWN',
     };
   }
 
@@ -181,7 +193,14 @@ class ApiService {
     const response = await this.retryRequest(() =>
       this.client.post<ApiResponse<T> | T>(url, data, config)
     );
-    return (response.data as ApiResponse<T>).data || (response.data as T);
+    
+    // Check if response has the ApiResponse wrapper format
+    const responseData = response.data as any;
+    if (responseData && typeof responseData === 'object' && 'success' in responseData && 'data' in responseData) {
+      return responseData.data as T;
+    }
+    
+    return response.data as T;
   }
 
   async put<T = any>(

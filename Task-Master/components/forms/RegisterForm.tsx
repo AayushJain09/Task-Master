@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, Alert } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,26 +18,42 @@ import KeyboardAvoidingWrapper from '../ui/KeyboardAvoidingWrapper';
 
 const registerSchema = z
   .object({
-    name: z
+    firstName: z
       .string()
       .min(
         VALIDATION_RULES.NAME_MIN_LENGTH,
-        `Name must be at least ${VALIDATION_RULES.NAME_MIN_LENGTH} characters`
+        `First name must be at least ${VALIDATION_RULES.NAME_MIN_LENGTH} characters`
       )
       .max(
         VALIDATION_RULES.NAME_MAX_LENGTH,
-        `Name must be less than ${VALIDATION_RULES.NAME_MAX_LENGTH} characters`
-      ),
+        `First name must be less than ${VALIDATION_RULES.NAME_MAX_LENGTH} characters`
+      )
+      .regex(/^[a-zA-Z\s]*$/, 'First name can only contain letters'),
+    lastName: z
+      .string()
+      .min(
+        VALIDATION_RULES.NAME_MIN_LENGTH,
+        `Last name must be at least ${VALIDATION_RULES.NAME_MIN_LENGTH} characters`
+      )
+      .max(
+        VALIDATION_RULES.NAME_MAX_LENGTH,
+        `Last name must be less than ${VALIDATION_RULES.NAME_MAX_LENGTH} characters`
+      )
+      .regex(/^[a-zA-Z\s]*$/, 'Last name can only contain letters'),
     email: z
       .string()
       .min(1, 'Email is required')
-      .regex(VALIDATION_RULES.EMAIL_REGEX, 'Please enter a valid email'),
+      .regex(VALIDATION_RULES.EMAIL_REGEX, 'Please enter a valid email')
+      .email('Please enter a valid email address'),
     password: z
       .string()
       .min(
         VALIDATION_RULES.PASSWORD_MIN_LENGTH,
         `Password must be at least ${VALIDATION_RULES.PASSWORD_MIN_LENGTH} characters`
-      ),
+      )
+      .regex(/(?=.*[a-z])/, 'Password must contain at least one lowercase letter')
+      .regex(/(?=.*[A-Z])/, 'Password must contain at least one uppercase letter')
+      .regex(/(?=.*\d)/, 'Password must contain at least one number'),
     confirmPassword: z.string().min(1, 'Please confirm your password'),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -48,58 +64,111 @@ const registerSchema = z
 interface RegisterFormProps {
   onSubmit: (data: RegisterCredentials) => Promise<void>;
   loading?: boolean;
+  error?: string | null;
 }
 
 const RegisterForm: React.FC<RegisterFormProps> = ({
   onSubmit,
   loading = false,
+  error = null,
 }) => {
   const {
     control,
     handleSubmit,
     formState: { errors, isValid },
     reset,
+    watch,
   } = useForm<RegisterCredentials>({
     resolver: zodResolver(registerSchema),
     mode: 'onChange',
     defaultValues: {
-      name: '',
+      firstName: '',
+      lastName: '',
       email: '',
       password: '',
       confirmPassword: '',
     },
   });
 
+  const password = watch('password');
+
+  // Password strength calculation
+  const passwordStrength = useMemo(() => {
+    if (!password) return { score: 0, label: '', color: '' };
+    
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/\d/.test(password)) score++;
+    if (/[^a-zA-Z\d]/.test(password)) score++;
+
+    const strengthMap = {
+      0: { label: '', color: '' },
+      1: { label: 'Very Weak', color: 'text-red-600' },
+      2: { label: 'Weak', color: 'text-orange-600' },
+      3: { label: 'Fair', color: 'text-yellow-600' },
+      4: { label: 'Good', color: 'text-blue-600' },
+      5: { label: 'Strong', color: 'text-green-600' },
+    };
+
+    return { score, ...strengthMap[score as keyof typeof strengthMap] };
+  }, [password]);
+
   const handleFormSubmit = async (data: RegisterCredentials) => {
     try {
       await onSubmit(data);
       reset();
     } catch (error: any) {
-      Alert.alert(
-        'Registration Failed',
-        error.message || 'An unexpected error occurred. Please try again.',
-        [{ text: 'OK' }]
-      );
+      // Error handling is now done by parent component
+      console.error('Registration form error:', error);
     }
   };
 
   return (
     <KeyboardAvoidingWrapper className="p-4 w-full flex-1">
       <View className="w-full space-y-4">
+        {/* Error Display */}
+        {error && (
+          <View className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+            <Text className="text-red-800 text-sm font-medium">
+              Registration Failed
+            </Text>
+            <Text className="text-red-600 text-sm mt-1">{error}</Text>
+          </View>
+        )}
         <Controller
           control={control}
-          name="name"
+          name="firstName"
           render={({ field: { onChange, onBlur, value } }) => (
             <Input
-              label="Full Name"
-              placeholder="Enter your full name"
+              label="First Name"
+              placeholder="Enter your first name"
               value={value}
               onChangeText={onChange}
               onBlur={onBlur}
-              error={errors.name?.message}
+              error={errors.firstName?.message}
               leftIcon={<User size={20} color="#6B7280" />}
               autoCapitalize="words"
-              autoComplete="name"
+              autoComplete="given-name"
+            />
+          )}
+        />
+
+        <Controller
+          control={control}
+          name="lastName"
+          render={({ field: { onChange, onBlur, value } }) => (
+            <Input
+              label="Last Name"
+              placeholder="Enter your last name"
+              value={value}
+              onChangeText={onChange}
+              onBlur={onBlur}
+              error={errors.lastName?.message}
+              leftIcon={<User size={20} color="#6B7280" />}
+              autoCapitalize="words"
+              autoComplete="family-name"
             />
           )}
         />
@@ -127,17 +196,49 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
           control={control}
           name="password"
           render={({ field: { onChange, onBlur, value } }) => (
-            <Input
-              label="Password"
-              placeholder="Enter your password"
-              value={value}
-              onChangeText={onChange}
-              onBlur={onBlur}
-              error={errors.password?.message}
-              leftIcon={<Lock size={20} color="#6B7280" />}
-              secureTextEntry
-              autoComplete="password-new"
-            />
+            <View>
+              <Input
+                label="Password"
+                placeholder="Enter your password"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+                error={errors.password?.message}
+                leftIcon={<Lock size={20} color="#6B7280" />}
+                secureTextEntry
+                autoComplete="password-new"
+              />
+              {/* Password Strength Indicator */}
+              {password && password.length > 0 && (
+                <View className="mt-2">
+                  <View className="flex-row space-x-1 mb-1">
+                    {[1, 2, 3, 4, 5].map((level) => (
+                      <View
+                        key={level}
+                        className={`flex-1 h-1 rounded-full ${
+                          level <= passwordStrength.score
+                            ? passwordStrength.score === 1
+                              ? 'bg-red-500'
+                              : passwordStrength.score === 2
+                              ? 'bg-orange-500'
+                              : passwordStrength.score === 3
+                              ? 'bg-yellow-500'
+                              : passwordStrength.score === 4
+                              ? 'bg-blue-500'
+                              : 'bg-green-500'
+                            : 'bg-gray-200'
+                        }`}
+                      />
+                    ))}
+                  </View>
+                  {passwordStrength.label && (
+                    <Text className={`text-xs ${passwordStrength.color}`}>
+                      Password strength: {passwordStrength.label}
+                    </Text>
+                  )}
+                </View>
+              )}
+            </View>
           )}
         />
 

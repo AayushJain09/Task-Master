@@ -1,5 +1,5 @@
 export const API_CONFIG = {
-  BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL || 'https://jsonplaceholder.typicode.com',
+  BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL || 'http://10.0.2.2:2000/api/v1',
   TIMEOUT: parseInt(process.env.EXPO_PUBLIC_API_TIMEOUT || '10000', 10),
   RETRY_ATTEMPTS: 3,
   RETRY_DELAY: 1000,

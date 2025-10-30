@@ -17,6 +17,8 @@ const {
   mapPasswordChangeToResponse,
   mapProfileToResponse,
   mapProfileUpdateToResponse,
+  mapBiometricSetupToResponse,
+  mapBiometricLoginToResponse,
 } = require('../dtos');
 
 /**
@@ -408,6 +410,210 @@ const changePassword = asyncHandler(async (req, res) => {
   res.status(200).json(mapPasswordChangeToResponse(true));
 });
 
+/**
+ * Setup Biometric Authentication
+ *
+ * Enables biometric authentication for the authenticated user by generating
+ * and storing a secure biometric token.
+ *
+ * @async
+ * @function setupBiometric
+ * @param {Object} req - Express request object
+ * @param {Object} req.user - User object (attached by authenticate middleware)
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON response with biometric token
+ *
+ * @throws {404} If user not found
+ * @throws {500} If biometric setup fails
+ *
+ * Response Format:
+ * {
+ *   success: true,
+ *   message: "Biometric authentication enabled successfully",
+ *   data: {
+ *     biometricToken: "...",
+ *     biometricEnabled: true
+ *   }
+ * }
+ */
+const setupBiometric = asyncHandler(async (req, res) => {
+  // Get user from database
+  const user = await User.findById(req.user.userId);
+
+  if (!user) {
+    throw new ApiError(404, 'User not found');
+  }
+
+  // Generate biometric token
+  const biometricToken = user.generateBiometricToken();
+
+  // Store hashed biometric token in database
+  await user.setBiometricToken(biometricToken);
+
+  // Map to DTO and send success response
+  res.status(200).json(mapBiometricSetupToResponse(biometricToken, user.biometricEnabled));
+});
+
+/**
+ * Login with Biometric Authentication
+ *
+ * Authenticates user using biometric token and returns authentication tokens.
+ *
+ * @async
+ * @function loginWithBiometric
+ * @param {Object} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {string} req.body.biometricToken - Biometric token
+ * @param {string} req.body.email - User's email address
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON response with user data and tokens
+ *
+ * @throws {401} If biometric token is invalid
+ * @throws {404} If user not found
+ * @throws {403} If biometric authentication is disabled
+ * @throws {500} If login fails
+ *
+ * Response Format:
+ * {
+ *   success: true,
+ *   message: "Login successful",
+ *   data: {
+ *     user: {...},
+ *     tokens: {
+ *       accessToken: "...",
+ *       refreshToken: "..."
+ *     }
+ *   }
+ * }
+ */
+const loginWithBiometric = asyncHandler(async (req, res) => {
+  const { biometricToken, email } = req.body;
+
+  // Normalize email to lowercase for case-insensitive comparison
+  const normalizedEmail = email.toLowerCase().trim();
+
+  // Find user by email (including biometric token field)
+  const user = await User.findOne({ 
+    email: normalizedEmail, 
+    isActive: true 
+  }).select('+biometricToken +refreshTokens');
+
+  if (!user) {
+    throw new ApiError(404, 'User not found');
+  }
+
+  // Check if biometric authentication is enabled
+  if (!user.biometricEnabled) {
+    throw new ApiError(403, 'Biometric authentication is not enabled for this account');
+  }
+
+  // Compare provided biometric token with stored hash
+  const isBiometricValid = await user.compareBiometricToken(biometricToken);
+
+  if (!isBiometricValid) {
+    throw new ApiError(401, 'Invalid biometric credentials');
+  }
+
+  // Generate new authentication tokens
+  const accessToken = user.generateAccessToken();
+  const refreshToken = user.generateRefreshToken();
+
+  // Store refresh token in user's token list
+  await user.addRefreshToken(refreshToken);
+
+  // Update last login timestamp
+  user.lastLogin = new Date();
+  await user.save();
+
+  // Map to DTO and send success response
+  res.status(200).json(mapBiometricLoginToResponse(user, accessToken, refreshToken));
+});
+
+/**
+ * Disable Biometric Authentication
+ *
+ * Disables biometric authentication for the authenticated user and removes
+ * stored biometric token.
+ *
+ * @async
+ * @function disableBiometric
+ * @param {Object} req - Express request object
+ * @param {Object} req.user - User object (attached by authenticate middleware)
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON response confirming biometric disable
+ *
+ * @throws {404} If user not found
+ * @throws {500} If biometric disable fails
+ *
+ * Response Format:
+ * {
+ *   success: true,
+ *   message: "Biometric authentication disabled successfully",
+ *   data: {
+ *     biometricEnabled: false
+ *   }
+ * }
+ */
+const disableBiometric = asyncHandler(async (req, res) => {
+  // Get user from database
+  const user = await User.findById(req.user.userId);
+
+  if (!user) {
+    throw new ApiError(404, 'User not found');
+  }
+
+  // Disable biometric authentication
+  await user.disableBiometricAuth();
+
+  // Send success response
+  res.status(200).json({
+    success: true,
+    message: 'Biometric authentication disabled successfully',
+    data: {
+      biometricEnabled: false,
+    },
+  });
+});
+
+/**
+ * Get Biometric Status
+ *
+ * Returns the current biometric authentication status for the authenticated user.
+ *
+ * @async
+ * @function getBiometricStatus
+ * @param {Object} req - Express request object
+ * @param {Object} req.user - User object (attached by authenticate middleware)
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON response with biometric status
+ *
+ * @throws {404} If user not found
+ *
+ * Response Format:
+ * {
+ *   success: true,
+ *   data: {
+ *     biometricEnabled: boolean
+ *   }
+ * }
+ */
+const getBiometricStatus = asyncHandler(async (req, res) => {
+  // Get user from database
+  const user = await User.findById(req.user.userId);
+
+  if (!user) {
+    throw new ApiError(404, 'User not found');
+  }
+
+  // Send biometric status
+  res.status(200).json({
+    success: true,
+    data: {
+      biometricEnabled: user.biometricEnabled || false,
+    },
+  });
+});
+
 module.exports = {
   register,
   login,
@@ -417,4 +623,8 @@ module.exports = {
   getProfile,
   updateProfile,
   changePassword,
+  setupBiometric,
+  loginWithBiometric,
+  disableBiometric,
+  getBiometricStatus,
 };

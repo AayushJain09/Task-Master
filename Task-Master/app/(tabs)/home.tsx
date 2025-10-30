@@ -4,13 +4,14 @@ import {
   Text,
   FlatList,
   RefreshControl,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MessageCircle, Heart, Share, Calendar } from 'lucide-react-native';
 
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -18,8 +19,9 @@ import { Post } from '@/types/api.types';
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const { isDark } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
-  const [error, seterror] = useState('');
+  const [error, setError] = useState('');
 
   const [posts, setPosts] = useState<Post[]>([]);
 
@@ -29,7 +31,7 @@ export default function HomeScreen() {
       const response = { data: [] };
       setPosts(response.data);
     } catch (error) {
-      seterror('Error fetching posts');
+      setError('Error fetching posts');
       console.error('Error fetching posts:', error);
     }
   }, []);
@@ -56,46 +58,46 @@ export default function HomeScreen() {
             <Text className="text-white font-bold text-sm">#{item.userId}</Text>
           </View>
           <View className="flex-1">
-            <Text className="font-semibold text-gray-900">
+            <Text className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
               User {item.userId}
             </Text>
             <View className="flex-row items-center">
-              <Calendar size={12} color="#6B7280" />
-              <Text className="text-xs text-gray-500 ml-1">2 hours ago</Text>
+              <Calendar size={12} color={isDark ? '#9CA3AF' : '#6B7280'} />
+              <Text className={`text-xs ml-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>2 hours ago</Text>
             </View>
           </View>
         </View>
 
-        <Text className="text-lg font-semibold text-gray-900 mb-2">
+        <Text className={`text-lg font-semibold mb-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {item.title}
         </Text>
-        <Text className="text-base text-gray-700 leading-6">{item.body}</Text>
+        <Text className={`text-base leading-6 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{item.body}</Text>
       </View>
 
       {/* Action Buttons */}
-      <View className="flex-row items-center justify-between pt-3 border-t border-gray-200">
+      <View className={`flex-row items-center justify-between pt-3 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}>
         <TouchableOpacity
           className="flex-row items-center flex-1 justify-center py-2"
           onPress={() => handlePostAction('Like', item.id)}
         >
-          <Heart size={18} color="#6B7280" />
-          <Text className="text-gray-600 ml-2 font-medium">Like</Text>
+          <Heart size={18} color={isDark ? '#9CA3AF' : '#6B7280'} />
+          <Text className={`ml-2 font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Like</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           className="flex-row items-center flex-1 justify-center py-2"
           onPress={() => handlePostAction('Comment', item.id)}
         >
-          <MessageCircle size={18} color="#6B7280" />
-          <Text className="text-gray-600 ml-2 font-medium">Comment</Text>
+          <MessageCircle size={18} color={isDark ? '#9CA3AF' : '#6B7280'} />
+          <Text className={`ml-2 font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Comment</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           className="flex-row items-center flex-1 justify-center py-2"
           onPress={() => handlePostAction('Share', item.id)}
         >
-          <Share size={18} color="#6B7280" />
-          <Text className="text-gray-600 ml-2 font-medium">Share</Text>
+          <Share size={18} color={isDark ? '#9CA3AF' : '#6B7280'} />
+          <Text className={`ml-2 font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>Share</Text>
         </TouchableOpacity>
       </View>
     </Card>
@@ -107,11 +109,11 @@ export default function HomeScreen() {
 
   if (error && !posts) {
     return (
-      <SafeAreaView className="flex-1 justify-center items-center px-6 bg-white">
-        <Text className="text-xl font-bold text-gray-900 mb-2 text-center">
+      <SafeAreaView className={`flex-1 justify-center items-center px-6 ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
+        <Text className={`text-xl font-bold mb-2 text-center ${isDark ? 'text-white' : 'text-gray-900'}`}>
           Unable to load posts
         </Text>
-        <Text className="text-base text-gray-600 mb-6 text-center">
+        <Text className={`text-base mb-6 text-center ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
           {error}
         </Text>
         <Button
@@ -124,13 +126,14 @@ export default function HomeScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <View className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+    
       {/* Header */}
-      <View className="bg-white px-4 py-4 border-b border-gray-200">
-        <Text className="text-2xl font-bold text-gray-900">
-          Welcome back, {user?.name}! 👋
+      <View className={`px-4 py-4 border-b ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}` }>
+        <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          Welcome back, {user?.firstName || 'User'}! 👋
         </Text>
-        <Text className="text-base text-gray-600 mt-1">
+        <Text className={`text-base mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
           Here are the latest updates for you
         </Text>
       </View>
@@ -140,7 +143,7 @@ export default function HomeScreen() {
         data={posts || []}
         renderItem={renderPost}
         keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={{ paddingVertical: 16 }}
+        contentContainerStyle={{ flex:1, paddingVertical: 16, paddingBottom: 100 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -152,15 +155,15 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={() => (
           <View className="flex-1 justify-center items-center py-20">
-            <Text className="text-lg font-semibold text-gray-600 mb-2">
+            <Text className={`text-lg font-semibold mb-2 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               No posts available
             </Text>
-            <Text className="text-base text-gray-500 text-center">
+            <Text className={`text-base text-center ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
               Pull down to refresh and check for new posts
             </Text>
           </View>
         )}
       />
-    </SafeAreaView>
+    </View>
   );
 }

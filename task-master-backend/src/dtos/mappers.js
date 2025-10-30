@@ -35,6 +35,8 @@ const {
   LogoutResponseDTO,
   PasswordChangeResponseDTO,
   ProfileResponseDTO,
+  BiometricSetupResponseDTO,
+  BiometricLoginResponseDTO,
 } = require('./auth.dto');
 
 /**
@@ -318,6 +320,52 @@ const mapProfileToResponse = (user) => {
 };
 
 /**
+ * Map Biometric Setup to Response
+ *
+ * Creates a biometric setup response with token.
+ *
+ * @function mapBiometricSetupToResponse
+ * @param {string} biometricToken - Generated biometric token
+ * @param {boolean} biometricEnabled - Whether biometric auth is enabled
+ * @returns {Object} Biometric setup response wrapped in success response
+ *
+ * @example
+ * const response = mapBiometricSetupToResponse(token, true);
+ */
+const mapBiometricSetupToResponse = (biometricToken, biometricEnabled) => {
+  const dto = new BiometricSetupResponseDTO(biometricToken, biometricEnabled).toJSON();
+  return createSuccessResponse(dto.message, {
+    biometricToken: dto.biometricToken,
+    biometricEnabled: dto.biometricEnabled,
+    setupTimestamp: dto.setupTimestamp,
+  });
+};
+
+/**
+ * Map Biometric Login to Response
+ *
+ * Creates a biometric login response with user data and tokens.
+ *
+ * @function mapBiometricLoginToResponse
+ * @param {Object} user - User document
+ * @param {string} accessToken - JWT access token
+ * @param {string} refreshToken - JWT refresh token
+ * @returns {Object} Biometric login response wrapped in success response
+ *
+ * @example
+ * const response = mapBiometricLoginToResponse(user, accessToken, refreshToken);
+ */
+const mapBiometricLoginToResponse = (user, accessToken, refreshToken) => {
+  const dto = new BiometricLoginResponseDTO(user, accessToken, refreshToken).toJSON();
+  return createSuccessResponse(dto.message, {
+    user: dto.user,
+    tokens: dto.tokens,
+    loginTimestamp: dto.loginTimestamp,
+    authMethod: dto.authMethod,
+  });
+};
+
+/**
  * ========================================
  * USER MANAGEMENT RESPONSE MAPPERS
  * ========================================
@@ -431,6 +479,8 @@ module.exports = {
   mapLogoutToResponse,
   mapPasswordChangeToResponse,
   mapProfileToResponse,
+  mapBiometricSetupToResponse,
+  mapBiometricLoginToResponse,
 
   // User management mappers
   mapUsersListToResponse,

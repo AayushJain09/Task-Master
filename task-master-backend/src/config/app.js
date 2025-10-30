@@ -30,9 +30,9 @@ const appConfig = {
   // CORS (Cross-Origin Resource Sharing) configuration
   cors: {
     // Allowed origins for CORS requests
-    // In development: allow localhost
+    // In development: allow all origins for mobile development
     // In production: specify exact domains
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: process.env.CORS_ORIGIN || true,
 
     // Allowed HTTP methods
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

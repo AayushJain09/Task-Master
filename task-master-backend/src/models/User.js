@@ -104,6 +104,19 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+
+    // Biometric authentication settings
+    biometricEnabled: {
+      type: Boolean,
+      default: false,
+    },
+
+    // Biometric authentication token (hashed)
+    biometricToken: {
+      type: String,
+      default: null,
+      select: false, // Don't include in query results by default
+    },
   },
   {
     // Enable automatic timestamps
@@ -115,6 +128,7 @@ const userSchema = new mongoose.Schema(
         // Remove sensitive fields from JSON output
         delete ret.password;
         delete ret.refreshTokens;
+        delete ret.biometricToken;
         delete ret.__v;
         return ret;
       },
@@ -260,6 +274,84 @@ userSchema.methods.removeRefreshToken = async function (token) {
  */
 userSchema.methods.clearAllRefreshTokens = async function () {
   this.refreshTokens = [];
+  await this.save();
+};
+
+/**
+ * Instance Method: Generate Biometric Token
+ *
+ * Generates a secure token for biometric authentication
+ *
+ * @method generateBiometricToken
+ * @returns {string} JWT biometric token
+ */
+userSchema.methods.generateBiometricToken = function () {
+  // Payload for biometric token
+  const payload = {
+    userId: this._id,
+    email: this.email,
+    type: 'biometric',
+  };
+
+  // Sign token with refresh token secret (same security level)
+  return jwt.sign(payload, jwtConfig.refreshTokenSecret, {
+    expiresIn: '30d', // Biometric tokens last 30 days
+    issuer: jwtConfig.issuer,
+    audience: jwtConfig.audience,
+  });
+};
+
+/**
+ * Instance Method: Set Biometric Token
+ *
+ * Hashes and stores a biometric token for the user
+ *
+ * @async
+ * @method setBiometricToken
+ * @param {string} token - Plain biometric token to hash and store
+ * @returns {Promise<void>}
+ */
+userSchema.methods.setBiometricToken = async function (token) {
+  const salt = await bcrypt.genSalt(10);
+  this.biometricToken = await bcrypt.hash(token, salt);
+  this.biometricEnabled = true;
+  await this.save();
+};
+
+/**
+ * Instance Method: Compare Biometric Token
+ *
+ * Compares a provided biometric token with the hashed token in database
+ *
+ * @async
+ * @method compareBiometricToken
+ * @param {string} candidateToken - Plain text biometric token to compare
+ * @returns {Promise<boolean>} True if tokens match, false otherwise
+ */
+userSchema.methods.compareBiometricToken = async function (candidateToken) {
+  if (!this.biometricToken || !this.biometricEnabled) {
+    return false;
+  }
+  
+  try {
+    return await bcrypt.compare(candidateToken, this.biometricToken);
+  } catch (error) {
+    throw new Error('Biometric token comparison failed');
+  }
+};
+
+/**
+ * Instance Method: Disable Biometric Authentication
+ *
+ * Disables biometric authentication and removes stored token
+ *
+ * @async
+ * @method disableBiometricAuth
+ * @returns {Promise<void>}
+ */
+userSchema.methods.disableBiometricAuth = async function () {
+  this.biometricEnabled = false;
+  this.biometricToken = null;
   await this.save();
 };
 

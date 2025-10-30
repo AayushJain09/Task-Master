@@ -299,6 +299,44 @@ const updateProfileValidation = [
     .withMessage('Account status cannot be modified through this endpoint'),
 ];
 
+/**
+ * Biometric Login Validation Rules
+ *
+ * Validates biometric login request data.
+ *
+ * Validation Rules:
+ * - email: Must be valid email format
+ * - biometricToken: Required, must be a JWT string format
+ *
+ * @constant {Array} biometricLoginValidation
+ *
+ * @example
+ * router.post('/biometric/login',
+ *   biometricLoginValidation,
+ *   handleValidationErrors,
+ *   authController.loginWithBiometric
+ * );
+ */
+const biometricLoginValidation = [
+  // Email validation
+  body('email')
+    .trim()
+    .notEmpty()
+    .withMessage('Email is required')
+    .isEmail()
+    .withMessage('Please provide a valid email address')
+    .normalizeEmail(),
+
+  // Biometric token validation
+  body('biometricToken')
+    .notEmpty()
+    .withMessage('Biometric token is required')
+    .isString()
+    .withMessage('Biometric token must be a string')
+    .matches(/^[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*$/)
+    .withMessage('Invalid biometric token format'),
+];
+
 module.exports = {
   registerValidation,
   loginValidation,
@@ -306,4 +344,5 @@ module.exports = {
   changePasswordValidation,
   emailValidation,
   updateProfileValidation,
+  biometricLoginValidation,
 };

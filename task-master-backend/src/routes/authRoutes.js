@@ -24,6 +24,7 @@ const {
   refreshTokenValidation,
   changePasswordValidation,
   updateProfileValidation,
+  biometricLoginValidation,
 } = require('../validators/authValidator');
 
 /**
@@ -228,6 +229,99 @@ router.post(
   changePasswordValidation,
   handleValidationErrors,
   authController.changePassword
+);
+
+/**
+ * @route   POST /api/v1/auth/biometric/setup
+ * @desc    Setup biometric authentication for user
+ * @access  Private (requires authentication)
+ *
+ * Response:
+ * {
+ *   success: true,
+ *   message: "Biometric authentication enabled successfully",
+ *   data: {
+ *     biometricToken: "...",
+ *     biometricEnabled: true,
+ *     setupTimestamp: "..."
+ *   }
+ * }
+ */
+router.post(
+  '/biometric/setup',
+  authenticate,
+  authController.setupBiometric
+);
+
+/**
+ * @route   POST /api/v1/auth/biometric/login
+ * @desc    Login using biometric authentication
+ * @access  Public
+ *
+ * Request Body:
+ * {
+ *   email: string,
+ *   biometricToken: string
+ * }
+ *
+ * Response:
+ * {
+ *   success: true,
+ *   message: "Biometric login successful",
+ *   data: {
+ *     user: {...},
+ *     tokens: {
+ *       accessToken: "...",
+ *       refreshToken: "..."
+ *     },
+ *     authMethod: "biometric"
+ *   }
+ * }
+ */
+router.post(
+  '/biometric/login',
+  biometricLoginValidation,
+  handleValidationErrors,
+  authController.loginWithBiometric
+);
+
+/**
+ * @route   POST /api/v1/auth/biometric/disable
+ * @desc    Disable biometric authentication for user
+ * @access  Private (requires authentication)
+ *
+ * Response:
+ * {
+ *   success: true,
+ *   message: "Biometric authentication disabled successfully",
+ *   data: {
+ *     biometricEnabled: false
+ *   }
+ * }
+ */
+router.post(
+  '/biometric/disable',
+  authenticate,
+  authController.disableBiometric
+);
+
+/**
+ * @route   GET /api/v1/auth/biometric/status
+ * @desc    Get biometric authentication status for user
+ * @access  Private (requires authentication)
+ *
+ * Response:
+ * {
+ *   success: true,
+ *   data: {
+ *     biometricEnabled: boolean
+ *   }
+ * }
+ */
+router.get(
+  '/biometric/status',
+  authenticate,
+  authController.getBiometricStatus
 );
 
 module.exports = router;

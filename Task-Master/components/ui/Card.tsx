@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import { View, ViewProps } from 'react-native';
+import { useTheme } from '@/context/ThemeContext';
 
 interface CardProps extends ViewProps {
   children: ReactNode;
@@ -15,14 +16,18 @@ const Card: React.FC<CardProps> = ({
   className,
   ...props
 }) => {
+  const { isDark } = useTheme();
+
   const getVariantStyles = (): string => {
+    const baseStyles = isDark ? 'bg-gray-800' : 'bg-white';
+    
     switch (variant) {
       case 'elevated':
-        return 'bg-white rounded-xl shadow-lg';
+        return `${baseStyles} rounded-xl ${isDark ? 'border border-gray-700' : 'shadow-lg'}`;
       case 'outlined':
-        return 'bg-white rounded-xl border border-gray-200';
+        return `${baseStyles} rounded-xl border ${isDark ? 'border-gray-600' : 'border-gray-200'}`;
       default:
-        return 'bg-white rounded-lg shadow-sm';
+        return `${baseStyles} rounded-lg ${isDark ? 'border border-gray-700' : 'shadow-sm'}`;
     }
   };
 
