@@ -50,7 +50,7 @@ export default function ThemeToggle({ showLabel = false, size = 'md' }: ThemeTog
         ${isDark ? 'bg-gray-700' : 'bg-gray-100'}
         ${isDark ? 'border-gray-600' : 'border-gray-200'}
         border
-        ${showLabel ? 'flex-row items-center space-x-3' : 'items-center justify-center'}
+        ${showLabel ? 'flex-row items-center gap-x-3' : 'items-center justify-center'}
       `}
       activeOpacity={0.7}
     >
@@ -120,7 +120,7 @@ export function ThemeSegmentedControl({ className = '' }: ThemeSegmentedControlP
               py-2
               px-3
               rounded-md
-              space-x-2
+              gap-x-2
               ${isSelected 
                 ? isDark 
                   ? 'bg-gray-600' 

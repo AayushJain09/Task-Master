@@ -1,3 +1,39 @@
+/**
+ * Button Component
+ * 
+ * A comprehensive button component with the following features:
+ * - Dark/light mode theme support with proper contrast
+ * - Multiple variants (primary, secondary, outline, ghost)
+ * - Multiple sizes (sm, md, lg) with appropriate spacing
+ * - Built-in loading state with activity indicator
+ * - Left and right icon support with proper spacing
+ * - Full width option for responsive design
+ * - Accessibility features and proper touch feedback
+ * - Disabled state handling with visual feedback
+ * 
+ * Variants:
+ * - primary: Main action button with brand colors
+ * - secondary: Secondary action with muted colors
+ * - outline: Bordered button with transparent background
+ * - ghost: Minimal button with hover/press effects
+ * 
+ * States:
+ * - Default: Normal interactive state
+ * - Loading: Shows activity indicator, disables interaction
+ * - Disabled: Muted appearance, no interaction
+ * - Pressed: Visual feedback during touch
+ * 
+ * @component
+ * @example
+ * <Button
+ *   title="Submit"
+ *   variant="primary"
+ *   loading={isLoading}
+ *   leftIcon={<Check size={20} />}
+ *   onPress={handleSubmit}
+ * />
+ */
+
 import React, { ReactNode } from 'react';
 import {
   TouchableOpacity,
@@ -7,17 +43,37 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
+import { useTheme } from '@/context/ThemeContext';
 
+/**
+ * Props interface for Button component
+ * Extends React Native TouchableOpacityProps with additional features
+ */
 interface ButtonProps extends TouchableOpacityProps {
+  /** Button text content */
   title: string;
+  /** Visual variant of the button */
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost';
+  /** Size variant affecting padding and text size */
   size?: 'sm' | 'md' | 'lg';
+  /** Loading state showing activity indicator */
   loading?: boolean;
+  /** Icon displayed on the left side */
   leftIcon?: ReactNode;
+  /** Icon displayed on the right side */
   rightIcon?: ReactNode;
+  /** Whether button should take full width of container */
   fullWidth?: boolean;
 }
 
+/**
+ * Button Component
+ * 
+ * Comprehensive button with theming, loading states, and accessibility features.
+ * Supports multiple variants and sizes with proper theme-aware styling.
+ * 
+ * @param {ButtonProps} props - Component props
+ */
 const Button: React.FC<ButtonProps> = ({
   title,
   variant = 'primary',
@@ -30,21 +86,57 @@ const Button: React.FC<ButtonProps> = ({
   className,
   ...props
 }) => {
+  // ================================
+  // HOOKS AND STATE
+  // ================================
+  
+  /** Theme context for dark/light mode styling */
+  const { isDark } = useTheme();
+  
+  /** Combined disabled state from prop and loading */
+  const isDisabled = disabled || loading;
+
+  // ================================
+  // STYLING HELPERS
+  // ================================
+  
+  /**
+   * Get variant-specific styles with theme support
+   * 
+   * Handles different button variants and applies appropriate
+   * theme-aware colors for backgrounds, borders, and states.
+   * 
+   * @returns {string} Tailwind CSS classes for button container
+   */
   const getVariantStyles = (): string => {
     switch (variant) {
       case 'primary':
-        return 'bg-blue-600 active:bg-blue-700';
+        return isDark 
+          ? 'bg-blue-600 active:bg-blue-700' 
+          : 'bg-blue-600 active:bg-blue-700';
       case 'secondary':
-        return 'bg-gray-600 active:bg-gray-700';
+        return isDark 
+          ? 'bg-gray-600 active:bg-gray-700' 
+          : 'bg-gray-600 active:bg-gray-700';
       case 'outline':
-        return 'bg-transparent border-2 border-blue-600 active:bg-blue-50';
+        return isDark 
+          ? 'bg-transparent border-2 border-blue-400 active:bg-blue-900/20' 
+          : 'bg-transparent border-2 border-blue-600 active:bg-blue-50';
       case 'ghost':
-        return 'bg-transparent active:bg-gray-100';
+        return isDark 
+          ? 'bg-transparent active:bg-gray-700' 
+          : 'bg-transparent active:bg-gray-100';
       default:
-        return 'bg-blue-600 active:bg-blue-700';
+        return isDark 
+          ? 'bg-blue-600 active:bg-blue-700' 
+          : 'bg-blue-600 active:bg-blue-700';
     }
   };
 
+  /**
+   * Get size-specific padding and border radius styles
+   * @returns {string} Tailwind CSS classes for button sizing
+   */
   const getSizeStyles = (): string => {
     switch (size) {
       case 'sm':
@@ -58,20 +150,28 @@ const Button: React.FC<ButtonProps> = ({
     }
   };
 
+  /**
+   * Get variant-specific text colors with theme support
+   * @returns {string} Tailwind CSS color classes for button text
+   */
   const getTextVariantStyles = (): string => {
     switch (variant) {
       case 'primary':
       case 'secondary':
-        return 'text-white';
+        return 'text-white'; // Always white on colored backgrounds
       case 'outline':
-        return 'text-blue-600';
+        return isDark ? 'text-blue-400' : 'text-blue-600';
       case 'ghost':
-        return 'text-gray-700';
+        return isDark ? 'text-gray-200' : 'text-gray-700';
       default:
         return 'text-white';
     }
   };
 
+  /**
+   * Get size-specific text styles
+   * @returns {string} Tailwind CSS classes for text sizing
+   */
   const getTextSizeStyles = (): string => {
     switch (size) {
       case 'sm':
@@ -85,8 +185,27 @@ const Button: React.FC<ButtonProps> = ({
     }
   };
 
-  const isDisabled = disabled || loading;
+  /**
+   * Get theme-appropriate loading indicator color
+   * @returns {string} Hex color for ActivityIndicator
+   */
+  const getLoadingColor = (): string => {
+    switch (variant) {
+      case 'outline':
+        return isDark ? '#60A5FA' : '#2563eb'; // Blue-400 / Blue-600
+      case 'ghost':
+        return isDark ? '#E5E7EB' : '#374151'; // Gray-200 / Gray-700
+      case 'primary':
+      case 'secondary':
+      default:
+        return '#ffffff'; // White for colored backgrounds
+    }
+  };
 
+  // ================================
+  // COMPONENT RENDER
+  // ================================
+  
   return (
     <TouchableOpacity
       className={`
@@ -98,18 +217,24 @@ const Button: React.FC<ButtonProps> = ({
         ${className || ''}
       `}
       disabled={isDisabled}
+      accessibilityRole="button"
+      accessibilityState={{ disabled: isDisabled }}
+      accessibilityLabel={loading ? `${title} loading` : title}
       {...props}
     >
+      {/* Loading Indicator */}
       {loading && (
         <ActivityIndicator
           size="small"
-          color={
-            variant === 'outline' || variant === 'ghost' ? '#2563eb' : '#ffffff'
-          }
+          color={getLoadingColor()}
           className="mr-2"
         />
       )}
+      
+      {/* Left Icon (only when not loading) */}
       {!loading && leftIcon && <>{leftIcon}</>}
+      
+      {/* Button Text */}
       <Text
         className={`
           ${getTextVariantStyles()}
@@ -119,6 +244,8 @@ const Button: React.FC<ButtonProps> = ({
       >
         {title}
       </Text>
+      
+      {/* Right Icon (only when not loading) */}
       {!loading && rightIcon && <>{rightIcon}</>}
     </TouchableOpacity>
   );

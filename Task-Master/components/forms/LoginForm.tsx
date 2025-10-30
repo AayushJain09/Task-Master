@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Mail, Lock } from 'lucide-react-native';
 
+import { useTheme } from '@/context/ThemeContext';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import { LoginCredentials } from '@/types/auth.types';
@@ -29,6 +30,8 @@ interface LoginFormProps {
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, loading = false }) => {
+  const { isDark } = useTheme();
+  
   const {
     control,
     handleSubmit,
@@ -56,8 +59,10 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, loading = false }) => {
     }
   };
 
+  const getIconColor = () => isDark ? '#9CA3AF' : '#6B7280';
+
   return (
-    <View className="w-full space-y-4">
+    <View className="w-full gap-y-4">
       <Controller
         control={control}
         name="email"
@@ -69,7 +74,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, loading = false }) => {
             onChangeText={onChange}
             onBlur={onBlur}
             error={errors.email?.message}
-            leftIcon={<Mail size={20} color="#6B7280" />}
+            leftIcon={<Mail size={20} color={getIconColor()} />}
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
@@ -88,14 +93,14 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, loading = false }) => {
             onChangeText={onChange}
             onBlur={onBlur}
             error={errors.password?.message}
-            leftIcon={<Lock size={20} color="#6B7280" />}
+            leftIcon={<Lock size={20} color={getIconColor()} />}
             secureTextEntry
             autoComplete="password"
           />
         )}
       />
 
-      <View className="pt-2">
+      <View className="pt-2 mt-5">
         <Button
           title="Sign In"
           onPress={handleSubmit(handleFormSubmit)}
@@ -107,11 +112,6 @@ const LoginForm: React.FC<LoginFormProps> = ({ onSubmit, loading = false }) => {
         />
       </View>
 
-      <View className="items-center pt-4">
-        <Text className="text-sm text-gray-600">
-          Demo credentials: any email and password
-        </Text>
-      </View>
     </View>
   );
 };

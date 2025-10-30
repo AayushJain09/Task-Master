@@ -274,12 +274,21 @@ const logoutAll = asyncHandler(async (req, res) => {
  * }
  */
 const getProfile = asyncHandler(async (req, res) => {
-  // Get full user data from database
+  // Get full user data from database with active user check
   const user = await User.findById(req.user.userId);
 
   if (!user) {
     throw new ApiError(404, 'User not found');
   }
+
+  // Check if user account is still active
+  if (!user.isActive) {
+    throw new ApiError(403, 'User account has been deactivated. Please contact support.');
+  }
+
+  // Update last login timestamp to track user activity
+  user.lastLogin = new Date();
+  await user.save();
 
   // Map to DTO and send success response
   res.status(200).json(mapProfileToResponse(user));

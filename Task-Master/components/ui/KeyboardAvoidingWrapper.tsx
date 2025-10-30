@@ -29,7 +29,7 @@ const KeyboardAvoidingWrapper: React.FC<KeyboardAvoidingWrapperProps> = ({
         accessible={false}
       >
         <ScrollView
-          className={`flex-1 bg-white ${className || ''}`}
+          className={`flex-1 ${className || ''}`}
           contentContainerStyle={{ flexGrow: 1 }}
           keyboardShouldPersistTaps="handled" // 👈 allow taps when keyboard is open
           showsVerticalScrollIndicator={false}

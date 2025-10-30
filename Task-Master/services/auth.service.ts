@@ -274,6 +274,111 @@ class AuthService {
       return { biometricEnabled: false };
     }
   }
+
+  async getProfile(): Promise<User> {
+    try {
+      const response: User = await apiService.get('/auth/profile');
+      
+      if (!response) {
+        throw new Error('Invalid response format');
+      }
+
+      // Update stored user data with fresh profile data
+      await SecureStore.setItemAsync(AUTH_CONFIG.USER_KEY, JSON.stringify(response));
+
+      return response;
+    } catch (error: any) {
+      console.error('Profile fetch error:', error);
+      
+      // Handle network errors first
+      if (error?.code === 'ERR_NETWORK' || !error?.status) {
+        throw new Error('Unable to connect to server. Please check your internet connection and try again.');
+      }
+      
+      // Handle specific HTTP status codes
+      switch (error?.status) {
+        case 401:
+          // Token expired or invalid - clear stored data and force re-login
+          await this.logout();
+          throw new Error('Session expired. Please login again.');
+        case 403:
+          // Account deactivated
+          await this.logout();
+          throw new Error('Your account has been deactivated. Please contact support.');
+        case 404:
+          // User not found
+          await this.logout();
+          throw new Error('Account not found. Please login again.');
+        case 500:
+        case 502:
+        case 503:
+        case 504:
+          throw new Error('Server error. Please try again later.');
+        default:
+          // Use the server's error message if available
+          const serverMessage = error?.message;
+          if (serverMessage && !serverMessage.includes('Network') && !serverMessage.includes('timeout')) {
+            throw new Error(serverMessage);
+          }
+          throw new Error('Failed to fetch profile. Please try again.');
+      }
+    }
+  }
+
+  async updateProfile(profileData: { firstName?: string; lastName?: string }): Promise<User> {
+    try {
+      const response: User = await apiService.put('/auth/profile', profileData);
+      
+      if (!response) {
+        throw new Error('Invalid response format');
+      }
+
+      // Update stored user data with updated profile
+      await SecureStore.setItemAsync(AUTH_CONFIG.USER_KEY, JSON.stringify(response));
+
+      return response;
+    } catch (error: any) {
+      console.error('Profile update error:', error);
+      
+      // Handle network errors first
+      if (error?.code === 'ERR_NETWORK' || !error?.status) {
+        throw new Error('Unable to connect to server. Please check your internet connection and try again.');
+      }
+      
+      // Handle specific HTTP status codes
+      switch (error?.status) {
+        case 400:
+          const validationErrors = error?.response?.data?.errors;
+          if (validationErrors && Array.isArray(validationErrors)) {
+            const errorMessages = validationErrors.map((err: any) => err.message).join(', ');
+            throw new Error(errorMessages);
+          }
+          throw new Error(error?.message || 'Invalid profile data. Please check your inputs.');
+        case 401:
+          await this.logout();
+          throw new Error('Session expired. Please login again.');
+        case 403:
+          await this.logout();
+          throw new Error('Your account has been deactivated. Please contact support.');
+        case 404:
+          await this.logout();
+          throw new Error('Account not found. Please login again.');
+        case 422:
+          throw new Error('Invalid profile data. Please check all fields and try again.');
+        case 500:
+        case 502:
+        case 503:
+        case 504:
+          throw new Error('Server error. Please try again later.');
+        default:
+          const serverMessage = error?.message;
+          if (serverMessage && !serverMessage.includes('Network') && !serverMessage.includes('timeout')) {
+            throw new Error(serverMessage);
+          }
+          throw new Error('Failed to update profile. Please try again.');
+      }
+    }
+  }
 }
 
 export const authService = new AuthService();

@@ -73,4 +73,6 @@ export interface AuthContextType {
   setupBiometric: () => Promise<void>;
   disableBiometric: () => Promise<void>;
   checkBiometricStatus: () => Promise<boolean>;
+  refreshProfile: () => Promise<void>;
+  updateUserProfile: (profileData: { firstName?: string; lastName?: string }) => Promise<void>;
 }

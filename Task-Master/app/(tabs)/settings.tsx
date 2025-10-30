@@ -224,7 +224,7 @@ export default function SettingsScreen() {
 
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: 0 }}
+        contentContainerStyle={{ paddingTop: 10 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Security */}
