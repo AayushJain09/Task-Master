@@ -753,4 +753,164 @@
  *         $ref: '#/components/responses/NotFoundError'
  */
 
+/**
+ * @swagger
+ * /auth/biometric/login:
+ *   post:
+ *     summary: Login with biometric authentication
+ *     description: Authenticates user using biometric credentials. Returns JWT tokens upon successful authentication.
+ *     tags: [Biometric]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/BiometricCredentials'
+ *     responses:
+ *       200:
+ *         description: Biometric login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 user:
+ *                   $ref: '#/components/schemas/User'
+ *                 tokens:
+ *                   $ref: '#/components/schemas/Tokens'
+ *       401:
+ *         description: Invalid biometric credentials
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: Invalid biometric credentials
+ *       403:
+ *         description: Biometric authentication disabled
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: Biometric authentication is disabled for this account
+ *       404:
+ *         description: Account not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: Account not found
+ */
+
+/**
+ * @swagger
+ * /auth/biometric/setup:
+ *   post:
+ *     summary: Setup biometric authentication
+ *     description: Enables biometric authentication for the authenticated user and returns biometric token.
+ *     tags: [Biometric]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Biometric setup successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/BiometricSetupResponse'
+ *       401:
+ *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: Authentication required
+ *       409:
+ *         description: Biometric already enabled
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: Biometric authentication is already enabled
+ */
+
+/**
+ * @swagger
+ * /auth/biometric/disable:
+ *   post:
+ *     summary: Disable biometric authentication
+ *     description: Disables biometric authentication for the authenticated user.
+ *     tags: [Biometric]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Biometric authentication disabled
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Biometric authentication disabled successfully
+ *       401:
+ *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: Authentication required
+ *       404:
+ *         description: Biometric not enabled
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: Biometric authentication is not enabled
+ */
+
+/**
+ * @swagger
+ * /auth/biometric/status:
+ *   get:
+ *     summary: Get biometric authentication status
+ *     description: Returns the current biometric authentication status for the authenticated user.
+ *     tags: [Biometric]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Biometric status retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/BiometricStatusResponse'
+ *       401:
+ *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: Authentication required
+ */
+
 module.exports = {};

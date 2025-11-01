@@ -285,10 +285,13 @@ class AuthService {
       }
       // console.log("response in get profile", response)
 
+      // Handle different response formats - could be response.user or response directly
+      const user = response.user || response;
+      
       // Update stored user data with fresh profile data
-      await asyncStorageService.storeUserData(response.user);
+      await asyncStorageService.storeUserData(user);
 
-      return response;
+      return user;
     } catch (error: any) {
       console.error('Profile fetch error:', error);
       

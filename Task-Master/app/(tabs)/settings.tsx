@@ -256,7 +256,7 @@ export default function SettingsScreen() {
         </Card>
 
         {/* Preferences */}
-        <Card variant="elevated" className="mx-4 mb-4">
+        {/* <Card variant="elevated" className="mx-4 mb-4">
           <Text className={`text-lg font-semibold mb-4 ${
             isDark ? 'text-white' : 'text-gray-900'
           }`}>
@@ -281,13 +281,7 @@ export default function SettingsScreen() {
             onSwitchChange={setVibrationEnabled}
           />
 
-          <SettingItem
-            icon={<Globe size={20} color="#06B6D4" />}
-            title="Language"
-            subtitle="English (US)"
-            onPress={handleLanguagePress}
-          />
-        </Card>
+        </Card> */}
 
         {/* Theme Selection */}
         <Card variant="elevated" className="mx-4 mb-4">

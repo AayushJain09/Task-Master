@@ -300,7 +300,7 @@ export default function LoginScreen() {
           <View className="flex-row items-center justify-center  gap-1 mt-6">
             <Text className={`text-base ${isDark ? 'text-gray-300' : 'text-gray-600'
               }`}>
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
             </Text>
             <Link href="/(auth)/register" asChild>
               <TouchableOpacity>

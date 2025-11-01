@@ -46,6 +46,10 @@ const swaggerDefinition = {
       description: 'User authentication and authorization endpoints',
     },
     {
+      name: 'Biometric',
+      description: 'Biometric authentication endpoints',
+    },
+    {
       name: 'Profile',
       description: 'User profile management endpoints',
     },
@@ -71,7 +75,7 @@ const swaggerDefinition = {
       User: {
         type: 'object',
         properties: {
-          _id: {
+          id: {
             type: 'string',
             description: 'User ID',
             example: '507f1f77bcf86cd799439011',
@@ -113,6 +117,11 @@ const swaggerDefinition = {
             description: 'Email verification status',
             example: false,
           },
+          biometricEnabled: {
+            type: 'boolean',
+            description: 'Biometric authentication status',
+            example: false,
+          },
           lastLogin: {
             type: 'string',
             format: 'date-time',
@@ -130,6 +139,54 @@ const swaggerDefinition = {
             format: 'date-time',
             description: 'Last update timestamp',
             example: '2024-01-01T00:00:00.000Z',
+          },
+        },
+      },
+      BiometricCredentials: {
+        type: 'object',
+        required: ['email', 'biometricToken'],
+        properties: {
+          email: {
+            type: 'string',
+            format: 'email',
+            description: 'User email address',
+            example: 'user@example.com',
+          },
+          biometricToken: {
+            type: 'string',
+            description: 'Biometric authentication token',
+            example: 'biometric_token_123',
+          },
+        },
+      },
+      BiometricSetupResponse: {
+        type: 'object',
+        properties: {
+          biometricToken: {
+            type: 'string',
+            description: 'Generated biometric token',
+            example: 'biometric_token_123',
+          },
+          biometricEnabled: {
+            type: 'boolean',
+            description: 'Biometric status after setup',
+            example: true,
+          },
+          setupTimestamp: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Setup completion timestamp',
+            example: '2024-01-01T00:00:00.000Z',
+          },
+        },
+      },
+      BiometricStatusResponse: {
+        type: 'object',
+        properties: {
+          biometricEnabled: {
+            type: 'boolean',
+            description: 'Current biometric status',
+            example: false,
           },
         },
       },

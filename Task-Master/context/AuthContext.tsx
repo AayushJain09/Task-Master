@@ -132,6 +132,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       const freshProfile = await authService.getProfile();
+      // console.log("freshProfile in Auth COntext", freshProfile)
       setUser(freshProfile);
       console.log('Profile verified and updated in background');
     } catch (profileError: any) {
