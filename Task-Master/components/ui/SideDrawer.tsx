@@ -120,26 +120,31 @@ export default function SideDrawer({
           }
         });
       });
-    } else if (isAnimating || slideAnim._value !== -DRAWER_WIDTH) {
+    } else if (!isOpen) {
       setIsAnimating(true);
       
+      // EXACT REVERSE of opening animation
       Animated.parallel([
+        // Slide drawer out (reverse of slide in)
         Animated.timing(slideAnim, {
           toValue: -DRAWER_WIDTH,
-          duration: 280,
-          easing: Easing.bezier(0.55, 0.055, 0.675, 0.19),
+          duration: 350, // Same as opening
+          easing: Easing.bezier(0.55, 0.055, 0.675, 0.19), // Reverse easing curve
           useNativeDriver: true,
         }),
+        // Fade overlay (reverse)
         Animated.timing(overlayOpacity, {
           toValue: 0,
-          duration: 280,
-          easing: Easing.in(Easing.quad),
+          duration: 350, // Same as opening
+          easing: Easing.in(Easing.quad), // Reverse of Easing.out
           useNativeDriver: true,
         }),
+        // Fade content (exact reverse timing)
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: 200,
-          easing: Easing.in(Easing.quad),
+          duration: 400, // Same as opening
+          delay: 0, // No delay for reverse (opening had 100ms delay)
+          easing: Easing.in(Easing.quad), // Reverse of Easing.out
           useNativeDriver: true,
         }),
       ]).start((finished) => {
@@ -195,22 +200,59 @@ export default function SideDrawer({
         }}
       >
         {/* Header */}
-        <View
+        <Animated.View
           className={`flex-row items-center justify-between px-6 py-6 border-b ${
             isDark ? 'border-gray-700' : 'border-gray-200'
           }`}
-          style={{ paddingTop: 60 }} // Account for status bar
+          style={{ 
+            paddingTop: 60, // Account for status bar
+            opacity: fadeAnim,
+            transform: [{
+              translateY: fadeAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [-20, 0],
+              })
+            }]
+          }}
         >
-          <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          <Animated.Text 
+            className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}
+            style={{
+              opacity: fadeAnim,
+              transform: [{
+                translateX: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-30, 0], // EXACT SAME as opening
+                })
+              }]
+            }}
+          >
             Menu
-          </Text>
+          </Animated.Text>
           <TouchableOpacity
             onPress={onClose}
             className={`p-2 rounded-full ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}
+            style={{ opacity: 0.9 }}
           >
-            <X size={20} color={isDark ? '#FFFFFF' : '#374151'} />
+            <Animated.View
+              style={{
+                transform: [{
+                  rotate: fadeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['45deg', '0deg'], // EXACT SAME as opening
+                  })
+                }, {
+                  scale: fadeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1], // EXACT SAME as opening
+                  })
+                }]
+              }}
+            >
+              <X size={20} color={isDark ? '#FFFFFF' : '#374151'} />
+            </Animated.View>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
         {/* Options */}
         <Animated.View 
@@ -228,18 +270,32 @@ export default function SideDrawer({
           {options.map((option, index) => {
             const IconComponent = option.icon;
             const isActive = activeOption === option.id;
-
+            
+            // Create staggered animation delay for each option
+            const staggerDelay = index * 50; // 50ms between each item
+            
             return (
               <Animated.View
                 key={option.id}
                 style={{
-                  opacity: fadeAnim,
-                  transform: [{
-                    translateX: fadeAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-50, 0],
-                    })
-                  }]
+                  opacity: fadeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 1],
+                  }),
+                  transform: [
+                    {
+                      translateX: fadeAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [-50, 0], // EXACT SAME as opening: starts at -50, goes to 0
+                      })
+                    },
+                    {
+                      scale: fadeAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.9, 1], // EXACT SAME as opening
+                      })
+                    }
+                  ]
                 }}
               >
                 <TouchableOpacity
@@ -253,7 +309,7 @@ export default function SideDrawer({
                   }`}
                   activeOpacity={0.7}
                 >
-                  <View
+                  <Animated.View
                     className={`w-10 h-10 rounded-full items-center justify-center mr-4 ${
                       isActive
                         ? 'bg-blue-600'
@@ -261,6 +317,14 @@ export default function SideDrawer({
                         ? 'bg-gray-700'
                         : 'bg-gray-100'
                     }`}
+                    style={{
+                      transform: [{
+                        rotate: fadeAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['-10deg', '0deg'], // EXACT SAME as opening
+                        })
+                      }]
+                    }}
                   >
                     <IconComponent
                       size={20}
@@ -270,7 +334,7 @@ export default function SideDrawer({
                           : option.color || (isDark ? '#9CA3AF' : '#6B7280')
                       }
                     />
-                  </View>
+                  </Animated.View>
                   <Text
                     className={`text-base font-medium ${
                       isActive
@@ -285,7 +349,18 @@ export default function SideDrawer({
                     {option.title}
                   </Text>
                   {isActive && (
-                    <View className="ml-auto w-2 h-2 bg-blue-600 rounded-full" />
+                    <Animated.View 
+                      className="ml-auto w-2 h-2 bg-blue-600 rounded-full"
+                      style={{
+                        opacity: fadeAnim,
+                        transform: [{
+                          scale: fadeAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, 1],
+                          })
+                        }]
+                      }}
+                    />
                   )}
                 </TouchableOpacity>
               </Animated.View>
@@ -294,15 +369,30 @@ export default function SideDrawer({
         </Animated.View>
 
         {/* Footer */}
-        <View
+        <Animated.View
           className={`px-6 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
+          style={{
+            opacity: fadeAnim,
+            transform: [{
+              translateY: fadeAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [20, 0],
+              })
+            }]
+          }}
         >
-          <Text
+          <Animated.Text
             className={`text-sm text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+            style={{
+              opacity: fadeAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 0.7],
+              })
+            }}
           >
             Task Master v1.0
-          </Text>
-        </View>
+          </Animated.Text>
+        </Animated.View>
       </Animated.View>
     </View>
   );
