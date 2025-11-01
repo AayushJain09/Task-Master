@@ -84,51 +84,50 @@ export default function SideDrawer({
   const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
-    // Stop any running animations first
-    slideAnim.stopAnimation();
-    overlayOpacity.stopAnimation();
-    fadeAnim.stopAnimation();
-    
     if (isOpen) {
       setIsAnimating(true);
-      // Reset fade animation to 0 first, then animate to 1
+      
+      // Reset all animations to starting position immediately
+      slideAnim.setValue(-DRAWER_WIDTH);
+      overlayOpacity.setValue(0);
       fadeAnim.setValue(0);
       
-      // Open drawer with smooth, attractive animation
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 350,
-          easing: Easing.bezier(0.25, 0.46, 0.45, 0.94), // Smooth ease-out
-          useNativeDriver: true,
-        }),
-        Animated.timing(overlayOpacity, {
-          toValue: 0.6,
-          duration: 350,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-        // Fade in content with slight delay
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 400,
-          delay: 100,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]).start((finished) => {
-        if (finished) {
-          setIsAnimating(false);
-        }
+      // Start animations with a small delay to ensure reset is complete
+      requestAnimationFrame(() => {
+        Animated.parallel([
+          Animated.timing(slideAnim, {
+            toValue: 0,
+            duration: 350,
+            easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
+            useNativeDriver: true,
+          }),
+          Animated.timing(overlayOpacity, {
+            toValue: 0.6,
+            duration: 350,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 400,
+            delay: 100,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]).start((finished) => {
+          if (finished) {
+            setIsAnimating(false);
+          }
+        });
       });
-    } else {
+    } else if (isAnimating || slideAnim._value !== -DRAWER_WIDTH) {
       setIsAnimating(true);
-      // Close drawer with smooth animation
+      
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: -DRAWER_WIDTH,
           duration: 280,
-          easing: Easing.bezier(0.55, 0.055, 0.675, 0.19), // Smooth ease-in
+          easing: Easing.bezier(0.55, 0.055, 0.675, 0.19),
           useNativeDriver: true,
         }),
         Animated.timing(overlayOpacity, {
@@ -137,7 +136,6 @@ export default function SideDrawer({
           easing: Easing.in(Easing.quad),
           useNativeDriver: true,
         }),
-        // Fade out content quickly
         Animated.timing(fadeAnim, {
           toValue: 0,
           duration: 200,
@@ -150,14 +148,14 @@ export default function SideDrawer({
         }
       });
     }
-  }, [isOpen, slideAnim, overlayOpacity, fadeAnim]);
+  }, [isOpen]);
 
   const handleOptionPress = (optionId: string) => {
     onOptionSelect(optionId);
     onClose();
   };
 
-  // Don't render the drawer if it's closed and not animating
+  // Don't render if completely closed
   if (!isOpen && !isAnimating) {
     return null;
   }
