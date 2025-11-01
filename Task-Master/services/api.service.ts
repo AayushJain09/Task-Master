@@ -4,9 +4,9 @@ import axios, {
   AxiosResponse,
   AxiosError,
 } from 'axios';
-import * as SecureStore from 'expo-secure-store';
-import { API_CONFIG, AUTH_CONFIG } from '@/config/constants';
+import { API_CONFIG } from '@/config/constants';
 import { ApiResponse, ApiError } from '@/types/api.types';
+import { secureStorageService } from './secureStorage.service';
 
 class ApiService {
   private client: AxiosInstance;
@@ -33,9 +33,9 @@ class ApiService {
     // Request interceptor
     this.client.interceptors.request.use(
       async (config) => {
-        const token = await SecureStore.getItemAsync(AUTH_CONFIG.TOKEN_KEY);
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        const tokens = await secureStorageService.getAuthTokens();
+        if (tokens.accessToken) {
+          config.headers.Authorization = `Bearer ${tokens.accessToken}`;
         }
         return config;
       },
@@ -68,21 +68,19 @@ class ApiService {
           this.isRefreshing = true;
           // refresh logic
           try {
-            const refreshToken = await SecureStore.getItemAsync(
-              AUTH_CONFIG.REFRESH_TOKEN_KEY
-            );
-            if (refreshToken) {
+            const tokens = await secureStorageService.getAuthTokens();
+            if (tokens.refreshToken) {
               const response = await this.client.post('/auth/refresh', {
-                refreshToken,
+                refreshToken: tokens.refreshToken,
               });
-              const { token } = response.data;
+              const { tokens: newTokens } = response.data;
 
-              await SecureStore.setItemAsync(AUTH_CONFIG.TOKEN_KEY, token);
+              await secureStorageService.storeAuthTokens(newTokens.accessToken, newTokens.refreshToken);
 
-              this.processQueue(null, token);
+              this.processQueue(null, newTokens.accessToken);
 
               if (originalRequest.headers) {
-                originalRequest.headers.Authorization = `Bearer ${token}`;
+                originalRequest.headers.Authorization = `Bearer ${newTokens.accessToken}`;
               }
               return this.client(originalRequest);
             }
@@ -114,9 +112,7 @@ class ApiService {
   }
 
   private async clearAuthData(): Promise<void> {
-    await SecureStore.deleteItemAsync(AUTH_CONFIG.TOKEN_KEY);
-    await SecureStore.deleteItemAsync(AUTH_CONFIG.REFRESH_TOKEN_KEY);
-    await SecureStore.deleteItemAsync(AUTH_CONFIG.USER_KEY);
+    await secureStorageService.clearAllAuthData();
   }
 
   private handleError(error: any): ApiError {

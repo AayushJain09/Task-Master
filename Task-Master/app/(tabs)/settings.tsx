@@ -297,7 +297,7 @@ export default function SettingsScreen() {
             Theme
           </Text>
           
-          <View className="mb-3">
+          <View className="mb-1">
             <Text className={`text-sm font-medium mb-3 ${
               isDark ? 'text-gray-300' : 'text-gray-700'
             }`}>
@@ -306,7 +306,7 @@ export default function SettingsScreen() {
             <ThemeSegmentedControl />
           </View>
 
-          <View className={`pt-3 mt-3 ${
+          {/* <View className={`pt-3 mt-3 ${
             isDark ? 'border-gray-700' : 'border-gray-100'
           } border-t`}>
             <Text className={`text-xs ${
@@ -314,24 +314,11 @@ export default function SettingsScreen() {
             }`}>
               Current theme: {theme === 'system' ? 'System (Auto)' : theme === 'dark' ? 'Dark' : 'Light'}
             </Text>
-          </View>
+          </View> */}
         </Card>
 
         {/* Support */}
-        <Card variant="elevated" className="mx-4 mb-4">
-          <Text className={`text-lg font-semibold mb-4 ${
-            isDark ? 'text-white' : 'text-gray-900'
-          }`}>
-            Support
-          </Text>
-
-          <SettingItem
-            icon={<HelpCircle size={20} color="#F59E0B" />}
-            title="Help & Support"
-            subtitle="Get help and contact support"
-            onPress={handleHelpPress}
-          />
-
+        <Card variant="elevated" className="mx-4 mb-4">          
           <SettingItem
             icon={<Info size={20} color="#6366F1" />}
             title="About"

@@ -141,7 +141,7 @@ export function ThemeSegmentedControl({ className = '' }: ThemeSegmentedControlP
               {option.icon}
             </View>
             <Text className={`
-              text-sm
+              text-lg
               font-medium
               ${isSelected 
                 ? isDark 

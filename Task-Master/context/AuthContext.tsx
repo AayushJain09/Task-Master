@@ -118,6 +118,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // ================================
   // AUTHENTICATION INITIALIZATION
   // ================================
+
+  /**
+   * Verifies user profile in background during app initialization
+   * 
+   * This function runs profile verification silently without blocking the UI
+   * or causing startup errors. It handles auth failures gracefully by logging
+   * the user out only for critical issues.
+   */
+  const verifyProfileInBackground = async () => {
+    try {
+      // Small delay to allow UI to render first
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const freshProfile = await authService.getProfile();
+      setUser(freshProfile);
+      console.log('Profile verified and updated in background');
+    } catch (profileError: any) {
+      console.warn('Background profile verification failed:', profileError.message);
+      
+      // Only logout for critical auth failures, not network issues
+      if (profileError.message?.includes('Session expired') || 
+          profileError.message?.includes('deactivated') ||
+          profileError.message?.includes('not found') ||
+          profileError.status === 401 || profileError.status === 403) {
+        console.log('Critical auth failure detected, logging out user');
+        await logout();
+      }
+      // For network errors or server issues, keep user logged in with cached data
+    }
+  };
   
   /**
    * Initializes authentication state on app startup
@@ -149,26 +179,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setToken(storedToken);
         setisAuthenticated(true);
         
-        try {
-          // Fetch fresh profile data to verify user status and get updated info
-          const freshProfile = await authService.getProfile();
-          setUser(freshProfile);
-          console.log('Profile verified and updated successfully');
-        } catch (profileError: any) {
-          console.error('Profile verification failed:', profileError);
-          
-          // If profile fetch fails due to auth issues, logout the user
-          if (profileError.message?.includes('Session expired') || 
-              profileError.message?.includes('deactivated') ||
-              profileError.message?.includes('not found')) {
-            console.log('Logging out due to profile verification failure');
-            await logout();
-            return; // Exit early to prevent setting user state
-          }
-          
-          // For other errors (network, server), use stored data but log the issue
-          console.warn('Using stored profile data due to fetch error:', profileError.message);
-        }
+        // Verify profile in background without blocking UI
+        // This ensures user data is fresh and account is still valid
+        verifyProfileInBackground();
+        console.log('Authentication initialized with stored data');
       }
 
       // Set biometric status regardless of authentication state

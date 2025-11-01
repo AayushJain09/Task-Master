@@ -1,5 +1,6 @@
 import { apiService } from '@/services/api.service';
-import * as SecureStore from 'expo-secure-store';
+import { secureStorageService } from '@/services/secureStorage.service';
+import { asyncStorageService } from '@/services/asyncStorage.service';
 import { AUTH_CONFIG } from '@/config/constants';
 import {
   LoginCredentials,
@@ -23,10 +24,10 @@ class AuthService {
 
       const { user, tokens } = response;
 
-      // Store tokens securely
-      await SecureStore.setItemAsync(AUTH_CONFIG.TOKEN_KEY, tokens.accessToken);
-      await SecureStore.setItemAsync(AUTH_CONFIG.REFRESH_TOKEN_KEY, tokens.refreshToken);
-      await SecureStore.setItemAsync(AUTH_CONFIG.USER_KEY, JSON.stringify(user));
+      // Store authentication data using separated storage architecture
+      // Tokens (sensitive) -> SecureStore, User data (non-sensitive) -> AsyncStorage
+      await secureStorageService.storeAuthTokens(tokens.accessToken, tokens.refreshToken);
+      await asyncStorageService.storeUserData(user);
 
       return response;
     } catch (error: any) {
@@ -77,10 +78,10 @@ class AuthService {
 
       const { user, tokens } = response;
 
-      // Store tokens securely
-      await SecureStore.setItemAsync(AUTH_CONFIG.TOKEN_KEY, tokens.accessToken);
-      await SecureStore.setItemAsync(AUTH_CONFIG.REFRESH_TOKEN_KEY, tokens.refreshToken);
-      await SecureStore.setItemAsync(AUTH_CONFIG.USER_KEY, JSON.stringify(user));
+      // Store authentication data using separated storage architecture
+      // Tokens (sensitive) -> SecureStore, User data (non-sensitive) -> AsyncStorage
+      await secureStorageService.storeAuthTokens(tokens.accessToken, tokens.refreshToken);
+      await asyncStorageService.storeUserData(user);
 
       return response;
     } catch (error: any) {
@@ -128,17 +129,17 @@ class AuthService {
     } catch (error) {
       console.error('Backend logout error:', error);
     } finally {
-      // Always clear stored tokens regardless of backend response
-      await SecureStore.deleteItemAsync(AUTH_CONFIG.TOKEN_KEY);
-      await SecureStore.deleteItemAsync(AUTH_CONFIG.REFRESH_TOKEN_KEY);
-      await SecureStore.deleteItemAsync(AUTH_CONFIG.USER_KEY);
+      // Always clear stored authentication data regardless of backend response
+      // Clear sensitive data (tokens, biometric) from SecureStore
+      await secureStorageService.clearAllAuthData();
+      // Clear user data from AsyncStorage
+      await asyncStorageService.clearUserData();
     }
   }
 
   async getStoredUser(): Promise<User | null> {
     try {
-      const userData = await SecureStore.getItemAsync(AUTH_CONFIG.USER_KEY);
-      return userData ? JSON.parse(userData) : null;
+      return await asyncStorageService.getUserData();
     } catch (error) {
       console.error('Error getting stored user:', error);
       return null;
@@ -147,7 +148,8 @@ class AuthService {
 
   async getStoredToken(): Promise<string | null> {
     try {
-      return await SecureStore.getItemAsync(AUTH_CONFIG.TOKEN_KEY);
+      const tokens = await secureStorageService.getAuthTokens();
+      return tokens.accessToken;
     } catch (error) {
       console.error('Error getting stored token:', error);
       return null;
@@ -156,12 +158,12 @@ class AuthService {
 
   async refreshToken(): Promise<string | null> {
     try {
-      const refreshToken = await SecureStore.getItemAsync(AUTH_CONFIG.REFRESH_TOKEN_KEY);
-      if (!refreshToken) {
+      const tokens = await secureStorageService.getAuthTokens();
+      if (!tokens.refreshToken) {
         throw new Error('No refresh token available');
       }
 
-      const response: any = await apiService.post('/auth/refresh', { refreshToken });
+      const response: any = await apiService.post('/auth/refresh', { refreshToken: tokens.refreshToken });
       
       if (!response.tokens?.accessToken) {
         throw new Error('Token refresh failed');
@@ -170,9 +172,8 @@ class AuthService {
       const newAccessToken = response.tokens.accessToken;
       const newRefreshToken = response.tokens.refreshToken;
 
-      // Store new tokens
-      await SecureStore.setItemAsync(AUTH_CONFIG.TOKEN_KEY, newAccessToken);
-      await SecureStore.setItemAsync(AUTH_CONFIG.REFRESH_TOKEN_KEY, newRefreshToken);
+      // Store new tokens using unified storage service
+      await secureStorageService.storeAuthTokens(newAccessToken, newRefreshToken);
 
       return newAccessToken;
     } catch (error) {
@@ -190,10 +191,10 @@ class AuthService {
         throw new Error('Invalid response format');
       }
 
-      // Store authentication data
-      await SecureStore.setItemAsync(AUTH_CONFIG.TOKEN_KEY, response.tokens.accessToken);
-      await SecureStore.setItemAsync(AUTH_CONFIG.REFRESH_TOKEN_KEY, response.tokens.refreshToken);
-      await SecureStore.setItemAsync(AUTH_CONFIG.USER_KEY, JSON.stringify(response.user));
+      // Store authentication data using separated storage architecture
+      // Tokens (sensitive) -> SecureStore, User data (non-sensitive) -> AsyncStorage
+      await secureStorageService.storeAuthTokens(response.tokens.accessToken, response.tokens.refreshToken);
+      await asyncStorageService.storeUserData(response.user);
 
       return response;
     } catch (error: any) {
@@ -277,14 +278,15 @@ class AuthService {
 
   async getProfile(): Promise<User> {
     try {
-      const response: User = await apiService.get('/auth/profile');
+      const response: {user: User} = await apiService.get('/auth/profile');
       
       if (!response) {
         throw new Error('Invalid response format');
       }
+      // console.log("response in get profile", response)
 
       // Update stored user data with fresh profile data
-      await SecureStore.setItemAsync(AUTH_CONFIG.USER_KEY, JSON.stringify(response));
+      await asyncStorageService.storeUserData(response.user);
 
       return response;
     } catch (error: any) {
@@ -334,7 +336,7 @@ class AuthService {
       }
 
       // Update stored user data with updated profile
-      await SecureStore.setItemAsync(AUTH_CONFIG.USER_KEY, JSON.stringify(response));
+      await asyncStorageService.storeUserData(response);
 
       return response;
     } catch (error: any) {

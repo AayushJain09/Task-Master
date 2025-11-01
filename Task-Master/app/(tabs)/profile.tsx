@@ -73,7 +73,7 @@ export default function ProfileScreen() {
   /** Authentication context for user data and profile operations */
   const { user, logout, refreshProfile } = useAuth();
   
-  console.log("user", user);
+  // console.log("user", user);
   /** Theme context for dark/light mode styling */
   const { isDark } = useTheme();
   

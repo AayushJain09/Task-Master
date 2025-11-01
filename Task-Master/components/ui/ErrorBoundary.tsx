@@ -1,6 +1,5 @@
 import React, { Component, ReactNode } from 'react';
-import { View, Text } from 'react-native';
-import Button from '@/components/ui/Button';
+import { View, Text, TouchableOpacity } from 'react-native';
 
 interface Props {
   children: ReactNode;
@@ -46,11 +45,14 @@ class ErrorBoundary extends Component<Props, State> {
             <Text className="text-base text-gray-600 mb-6 text-center">
               We encountered an unexpected error. Please try again.
             </Text>
-            <Button
-              title="Try Again"
+            <TouchableOpacity
               onPress={this.handleReset}
-              variant="primary"
-            />
+              className="bg-blue-500 px-6 py-3 rounded-lg"
+            >
+              <Text className="text-white font-semibold text-base">
+                Try Again
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       );
