@@ -160,24 +160,43 @@ class AuthService {
     try {
       const tokens = await secureStorageService.getAuthTokens();
       if (!tokens.refreshToken) {
-        throw new Error('No refresh token available');
+        console.error('No refresh token available');
+        await this.logout();
+        return null;
       }
 
       const response: any = await apiService.post('/auth/refresh', { refreshToken: tokens.refreshToken });
       
-      if (!response.tokens?.accessToken) {
-        throw new Error('Token refresh failed');
+      // Handle different response formats
+      let newTokens;
+      if (response && response.tokens) {
+        newTokens = response.tokens;
+      } else if (response && response.accessToken) {
+        newTokens = response;
+      } else {
+        throw new Error('Invalid token refresh response format');
+      }
+      
+      if (!newTokens.accessToken) {
+        throw new Error('Access token not found in refresh response');
       }
 
-      const newAccessToken = response.tokens.accessToken;
-      const newRefreshToken = response.tokens.refreshToken;
+      const newAccessToken = newTokens.accessToken;
+      const newRefreshToken = newTokens.refreshToken || tokens.refreshToken;
 
-      // Store new tokens using unified storage service
+      // Store new tokens
       await secureStorageService.storeAuthTokens(newAccessToken, newRefreshToken);
 
       return newAccessToken;
-    } catch (error) {
-      console.error('Error refreshing token:', error);
+    } catch (error: any) {
+      console.error('Token refresh failed:', error);
+      
+      // Don't auto-logout on network errors, let the caller handle it
+      if (error?.code === 'ERR_NETWORK' || error?.code === 'ERR_UNKNOWN') {
+        throw error;
+      }
+      
+      // Logout on auth-related failures
       await this.logout();
       return null;
     }
@@ -278,15 +297,20 @@ class AuthService {
 
   async getProfile(): Promise<User> {
     try {
+      // The API service now properly unwraps the response, so we get the user directly
       const response: {user: User} = await apiService.get('/auth/profile');
       
-      if (!response) {
-        throw new Error('Invalid response format');
+      // Check if we have a valid response
+      if (!response || typeof response !== 'object') {
+        throw new Error('Invalid response format from server');
       }
-      // console.log("response in get profile", response)
-
-      // Handle different response formats - could be response.user or response directly
-      const user = response.user || response;
+      
+      // Extract user from response - backend returns {user: {...}}
+      const user = response.user;
+      
+      if (!user || !user.id) {
+        throw new Error('Invalid user data received from server');
+      }
       
       // Update stored user data with fresh profile data
       await asyncStorageService.storeUserData(user);
@@ -295,16 +319,24 @@ class AuthService {
     } catch (error: any) {
       console.error('Profile fetch error:', error);
       
-      // Handle network errors first
-      if (error?.code === 'ERR_NETWORK' || !error?.status) {
+      // Handle authentication token expiry specifically
+      if (error?.code === 'AUTH_TOKEN_EXPIRED') {
+        throw new Error('Session expired. Please login again.');
+      }
+      
+      // Handle network errors and unknown errors
+      if (error?.code === 'ERR_NETWORK' || error?.code === 'ERR_UNKNOWN' || !error?.status) {
         throw new Error('Unable to connect to server. Please check your internet connection and try again.');
       }
       
       // Handle specific HTTP status codes
       switch (error?.status) {
         case 401:
-          // Token expired or invalid - clear stored data and force re-login
-          await this.logout();
+          // Token expired or invalid - this should be handled by interceptor, but fallback
+          if (!error?.code || error?.code !== 'AUTH_TOKEN_EXPIRED') {
+            console.warn('401 error not handled by interceptor, clearing auth data');
+            await this.logout();
+          }
           throw new Error('Session expired. Please login again.');
         case 403:
           // Account deactivated

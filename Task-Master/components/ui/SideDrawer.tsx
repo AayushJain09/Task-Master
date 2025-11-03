@@ -10,10 +10,8 @@ import {
 } from 'react-native';
 import {
   Home,
-  BarChart3,
-  Settings,
-  User,
   FileText,
+  Bell,
   Menu,
   X,
 } from 'lucide-react-native';
@@ -45,28 +43,16 @@ const defaultOptions: DrawerOption[] = [
     color: '#3B82F6',
   },
   {
-    id: 'analytics',
-    title: 'Analytics',
-    icon: BarChart3,
-    color: '#10B981',
-  },
-  {
     id: 'tasks',
     title: 'Tasks',
     icon: FileText,
     color: '#F59E0B',
   },
   {
-    id: 'profile',
-    title: 'Profile',
-    icon: User,
-    color: '#8B5CF6',
-  },
-  {
-    id: 'settings',
-    title: 'Settings',
-    icon: Settings,
-    color: '#6B7280',
+    id: 'reminders',
+    title: 'Reminders',
+    icon: Bell,
+    color: '#10B981',
   },
 ];
 

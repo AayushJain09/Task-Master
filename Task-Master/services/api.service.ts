@@ -70,25 +70,75 @@ class ApiService {
           try {
             const tokens = await secureStorageService.getAuthTokens();
             if (tokens.refreshToken) {
-              const response = await this.client.post('/auth/refresh', {
-                refreshToken: tokens.refreshToken,
-              });
-              const { tokens: newTokens } = response.data;
-
-              await secureStorageService.storeAuthTokens(newTokens.accessToken, newTokens.refreshToken);
+              // Use raw axios client to avoid interceptor recursion
+              const refreshResponse = await axios.post(
+                `${API_CONFIG.BASE_URL}/auth/refresh`,
+                { refreshToken: tokens.refreshToken },
+                {
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                  },
+                  timeout: API_CONFIG.TIMEOUT,
+                }
+              );
+              
+              // Handle different response formats from backend
+              let newTokens;
+              const responseData = refreshResponse.data;
+              
+              // Check if response has wrapper format {success: true, data: {tokens: {...}}}
+              if (responseData && responseData.success && responseData.data && responseData.data.tokens) {
+                newTokens = responseData.data.tokens;
+              }
+              // Check if response has direct tokens format {tokens: {...}}
+              else if (responseData && responseData.tokens) {
+                newTokens = responseData.tokens;
+              }
+              // Check if response is tokens directly {accessToken: ..., refreshToken: ...}
+              else if (responseData && responseData.accessToken) {
+                newTokens = responseData;
+              }
+              else {
+                throw new Error('Invalid token refresh response format');
+              }
+              
+              if (!newTokens.accessToken) {
+                throw new Error('Access token not found in refresh response');
+              }
+              
+              // Store new tokens - refreshToken might be optional in some responses
+              const refreshToken = newTokens.refreshToken || tokens.refreshToken;
+              await secureStorageService.storeAuthTokens(newTokens.accessToken, refreshToken);
 
               this.processQueue(null, newTokens.accessToken);
 
+              // Update the original request with new token
               if (originalRequest.headers) {
                 originalRequest.headers.Authorization = `Bearer ${newTokens.accessToken}`;
               }
+              
+              // Retry the original request with new token
               return this.client(originalRequest);
+            } else {
+              throw new Error('No refresh token available');
             }
-          } catch (refreshError) {
+          } catch (refreshError: any) {
+            console.error('Token refresh failed:', refreshError);
             this.processQueue(refreshError, null);
-            // Redirect to login
+            
+            // Clear auth data on refresh failure
             await this.clearAuthData();
-            throw this.handleError(refreshError);
+            
+            // Create proper error for failed refresh
+            const authError = {
+              message: 'Session expired. Please login again.',
+              status: 401,
+              code: 'AUTH_TOKEN_EXPIRED',
+              details: refreshError?.message || 'Token refresh failed',
+            };
+            
+            throw authError;
           } finally {
             this.isRefreshing = false;
           }
@@ -116,6 +166,16 @@ class ApiService {
   }
 
   private handleError(error: any): ApiError {
+    // Handle custom auth errors first
+    if (error?.code === 'AUTH_TOKEN_EXPIRED') {
+      return {
+        message: error.message || 'Session expired. Please login again.',
+        status: 401,
+        code: 'AUTH_TOKEN_EXPIRED',
+        details: error.details || null,
+      };
+    }
+    
     if (axios.isAxiosError(error)) {
       // Network error (no response received)
       if (!error.response) {
@@ -140,10 +200,27 @@ class ApiService {
       return apiError;
     }
 
+    // Handle non-Axios errors (could be network timeouts, DNS issues, etc.)
+    const errorMessage = error?.message || 'An unexpected error occurred';
+    
+    // Check for specific error types that indicate connectivity issues
+    if (errorMessage.includes('Network Error') || 
+        errorMessage.includes('timeout') || 
+        errorMessage.includes('ECONNREFUSED') ||
+        errorMessage.includes('ENOTFOUND')) {
+      return {
+        message: 'Unable to connect to server. Please check your internet connection and try again.',
+        status: 0,
+        code: 'ERR_NETWORK',
+        details: errorMessage,
+      };
+    }
+
     return {
-      message: 'An unexpected error occurred',
+      message: errorMessage,
       status: 0,
       code: 'ERR_UNKNOWN',
+      details: error?.stack || null,
     };
   }
 
@@ -178,7 +255,14 @@ class ApiService {
     const response = await this.retryRequest(() =>
       this.client.get<ApiResponse<T> | T>(url, config)
     );
-    return (response.data as ApiResponse<T>).data || (response.data as T);
+    
+    // Check if response has the ApiResponse wrapper format
+    const responseData = response.data as any;
+    if (responseData && typeof responseData === 'object' && 'success' in responseData && 'data' in responseData) {
+      return responseData.data as T;
+    }
+    
+    return response.data as T;
   }
 
   async post<T = any>(

@@ -38,6 +38,7 @@ export default function HomeScreen() {
       {/* Header */}
       <View className={`px-4 py-4 border-b ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}` }>
         <View className="flex-row items-center justify-between">
+          <DrawerToggle onToggle={handleDrawerToggle} isOpen={isDrawerOpen} />
           <View className="flex-1">
             <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
               Welcome back, {user?.firstName || 'User'}! 👋
@@ -46,7 +47,6 @@ export default function HomeScreen() {
               Here are the latest updates for you
             </Text>
           </View>
-          <DrawerToggle onToggle={handleDrawerToggle} isOpen={isDrawerOpen} />
         </View>
       </View>
 

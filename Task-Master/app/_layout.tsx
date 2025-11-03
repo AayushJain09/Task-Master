@@ -9,6 +9,7 @@ import '../global.css';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import * as SplashScreen from 'expo-splash-screen';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 SplashScreen.preventAutoHideAsync();
 export const MainLayout = () => {
@@ -48,7 +49,9 @@ export default function RootLayout() {
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
+          <GestureHandlerRootView>
           <MainLayout />
+          </GestureHandlerRootView>
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>

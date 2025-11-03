@@ -7,7 +7,7 @@ export interface User {
   role: 'user' | 'admin' | 'moderator';
   isActive: boolean;
   isEmailVerified: boolean;
-  biometricEnabled?: boolean;
+  // biometricEnabled?: boolean;
   lastLogin: string | null;
   createdAt: string;
   updatedAt: string;

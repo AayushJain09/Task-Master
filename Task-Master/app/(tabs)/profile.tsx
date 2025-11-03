@@ -71,7 +71,7 @@ export default function ProfileScreen() {
   // ================================
   
   /** Authentication context for user data and profile operations */
-  const { user, logout, refreshProfile } = useAuth();
+  const { user, biometricEnabled, logout, refreshProfile } = useAuth();
   
   // console.log("user", user);
   /** Theme context for dark/light mode styling */
@@ -130,6 +130,7 @@ export default function ProfileScreen() {
       setIsRefreshing(true);
       await refreshProfile();
       console.log('Profile refreshed successfully');
+
     } catch (error: any) {
       console.error('Profile refresh error:', error);
       Alert.alert(
@@ -184,8 +185,8 @@ export default function ProfileScreen() {
     },
     { 
       label: 'Biometric', 
-      value: user?.biometricEnabled ? 'Enabled' : 'Disabled',
-      color: user?.biometricEnabled ? '#3B82F6' : '#6B7280'
+      value: biometricEnabled ? 'Enabled' : 'Disabled',
+      color: biometricEnabled ? '#3B82F6' : '#6B7280'
     },
     { 
       label: 'Account', 
@@ -391,14 +392,14 @@ export default function ProfileScreen() {
             <View className="flex-row items-center">
               <Fingerprint 
                 size={16} 
-                color={user?.biometricEnabled ? '#3B82F6' : '#6B7280'} 
+                color={biometricEnabled ? '#3B82F6' : '#6B7280'} 
               />
               <Text className={`text-base ml-3 ${
                 isDark ? 'text-gray-300' : 'text-gray-700'
               }`}>
                 Biometric Enabled: {
-                  <Text style={{ color: user?.biometricEnabled ? '#3B82F6' : '#6B7280' }}>
-                    {user?.biometricEnabled ? 'Yes' : 'No'}
+                  <Text style={{ color: biometricEnabled ? '#3B82F6' : '#6B7280' }}>
+                    {biometricEnabled ? 'Yes' : 'No'}
                   </Text>
                 }
               </Text>

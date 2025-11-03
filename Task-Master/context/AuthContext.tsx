@@ -134,6 +134,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const freshProfile = await authService.getProfile();
       // console.log("freshProfile in Auth COntext", freshProfile)
       setUser(freshProfile);
+      // fetch and update the biometric status
+      const biometricStatus = await authService.getBiometricStatus();
+      setBiometricEnabled(biometricStatus.biometricEnabled);
       console.log('Profile verified and updated in background');
     } catch (profileError: any) {
       console.warn('Background profile verification failed:', profileError.message);
@@ -553,6 +556,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Fetch fresh profile data from server
       const freshProfile = await authService.getProfile();
       setUser(freshProfile);
+       // fetch and update the biometric status
+      const biometricStatus = await authService.getBiometricStatus();
+      // console.log("biometricStatus in refreshProfile", biometricStatus)
+      setBiometricEnabled(biometricStatus.biometricEnabled);
       console.log('Profile refreshed successfully');
     } catch (error: any) {
       console.error('Profile refresh error:', error);
