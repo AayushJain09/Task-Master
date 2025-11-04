@@ -67,6 +67,9 @@ import { Task as TaskCardType, ColumnStatus } from '../tasks/TaskCard';
 import { Task, TasksListResponse, TaskError, TaskQueryParams } from '@/types/task.types';
 import { tasksService } from '@/services/tasks.service';
 
+// Import validation utilities
+import { InputSanitizer, ErrorRecovery } from '@/utils/validation';
+
 // Get device dimensions for responsive layout
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -82,6 +85,9 @@ interface FormData {
   priority: 'high' | 'medium' | 'low';
   category: string;
   dueDate: string;
+  tags: string[];
+  estimatedHours: number;
+  assignedTo: string;
 }
 
 /**
@@ -413,10 +419,12 @@ export default function Tasks() {
         if (originalTask) {
           const updateData = {
             title: formData.title.trim(),
-            description: formData.description.trim(),
+            description: formData.description.trim() || undefined,
             priority: formData.priority,
-            category: formData.category.trim() || 'General',
-            dueDate: formData.dueDate || undefined
+            category: formData.category.trim() || undefined,
+            dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
+            tags: formData.tags.length > 0 ? formData.tags : undefined,
+            estimatedHours: formData.estimatedHours > 0 ? formData.estimatedHours : undefined
           };
           
           const response = await tasksService.updateTask(originalTask._id, updateData);
@@ -433,10 +441,12 @@ export default function Tasks() {
         // Create new task
         const createData = {
           title: formData.title.trim(),
-          description: formData.description.trim(),
+          description: formData.description.trim() || undefined,
           priority: formData.priority,
-          category: formData.category.trim() || 'General',
-          dueDate: formData.dueDate || undefined
+          category: formData.category.trim() || undefined,
+          dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
+          tags: formData.tags.length > 0 ? formData.tags : undefined,
+          estimatedHours: formData.estimatedHours > 0 ? formData.estimatedHours : undefined
         };
         
         const response = await tasksService.createTask(createData);
