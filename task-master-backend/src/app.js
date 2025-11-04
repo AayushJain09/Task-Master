@@ -25,6 +25,21 @@ const routes = require('./routes');
 // Import error handling middleware
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
+// Import additional security and sanitization middleware
+const { 
+  sanitizeXSS, 
+  sanitizeSQL, 
+  validateInputLength, 
+  trimWhitespace,
+  normalizeCase,
+  removeEmptyFields 
+} = require('./middleware/sanitization');
+
+const { 
+  preventParameterPollution, 
+  validateContentType 
+} = require('./middleware/security');
+
 /**
  * Initialize Express Application
  */
@@ -93,6 +108,52 @@ app.use(express.urlencoded({
 }));
 
 /**
+ * Content Type Validation
+ *
+ * Ensures requests with body have proper Content-Type header.
+ */
+app.use(validateContentType(['application/json']));
+
+/**
+ * Parameter Pollution Prevention
+ *
+ * Prevents HTTP parameter pollution attacks.
+ */
+app.use(preventParameterPollution);
+
+/**
+ * Input Length Validation
+ *
+ * Validates that input doesn't exceed reasonable length limits.
+ */
+app.use(validateInputLength({
+  title: 200,
+  description: 2000,
+  email: 254,
+  firstName: 50,
+  lastName: 50,
+  category: 50,
+  default: 1000,
+}));
+
+/**
+ * Trim Whitespace
+ *
+ * Trims leading and trailing whitespace from string inputs.
+ */
+app.use(trimWhitespace);
+
+/**
+ * Normalize Case
+ *
+ * Normalizes case for specific fields.
+ */
+app.use(normalizeCase({
+  lowercase: ['email', 'username'],
+  titlecase: ['firstName', 'lastName'],
+}));
+
+/**
  * Data Sanitization Middleware - MongoDB
  *
  * Sanitizes user input to prevent MongoDB operator injection attacks.
@@ -104,6 +165,27 @@ app.use(mongoSanitize({
     console.warn(`Sanitized potentially malicious input on key: ${key}`);
   },
 }));
+
+/**
+ * XSS Protection
+ *
+ * Sanitizes string inputs to prevent Cross-Site Scripting attacks.
+ */
+app.use(sanitizeXSS);
+
+/**
+ * SQL Injection Prevention
+ *
+ * Additional protection against SQL injection attempts.
+ */
+app.use(sanitizeSQL);
+
+/**
+ * Remove Empty Fields
+ *
+ * Removes empty string fields from request body.
+ */
+app.use(removeEmptyFields);
 
 /**
  * Rate Limiting Middleware

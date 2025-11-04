@@ -913,4 +913,647 @@
  *               message: Authentication required
  */
 
+/**
+ * @swagger
+ * /tasks:
+ *   get:
+ *     summary: Get all tasks for the authenticated user
+ *     description: Retrieves all tasks assigned to or created by the authenticated user with advanced filtering, pagination, and sorting capabilities.
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [todo, in_progress, done]
+ *         description: Filter tasks by status
+ *         example: todo
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *           enum: [low, medium, high]
+ *         description: Filter tasks by priority level
+ *         example: high
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *           enum: [assignee, assignor, both]
+ *           default: both
+ *         description: Filter by user role in task relationship
+ *         example: assignee
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *           maxLength: 50
+ *         description: Filter tasks by category
+ *         example: Development
+ *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *         description: Filter by tags (comma-separated list)
+ *         example: "bug,frontend,urgent"
+ *       - in: query
+ *         name: dueDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter tasks by specific due date
+ *         example: "2024-12-31"
+ *       - in: query
+ *         name: overdue
+ *         schema:
+ *           type: boolean
+ *         description: Filter to show only overdue tasks
+ *         example: true
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: Number of tasks per page
+ *         example: 20
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [createdAt, updatedAt, dueDate, priority, status, title]
+ *           default: createdAt
+ *         description: Field to sort by
+ *         example: dueDate
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *         description: Sort order (ascending or descending)
+ *         example: asc
+ *     responses:
+ *       200:
+ *         description: Tasks retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Tasks retrieved successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     tasks:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Task'
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         currentPage:
+ *                           type: integer
+ *                           example: 1
+ *                         totalPages:
+ *                           type: integer
+ *                           example: 5
+ *                         totalTasks:
+ *                           type: integer
+ *                           example: 87
+ *                         hasNextPage:
+ *                           type: boolean
+ *                           example: true
+ *                         hasPrevPage:
+ *                           type: boolean
+ *                           example: false
+ *                     filters:
+ *                       type: object
+ *                       description: Applied filters for reference
+ *                       properties:
+ *                         status:
+ *                           type: string
+ *                           example: todo
+ *                         priority:
+ *                           type: string
+ *                           example: high
+ *                         role:
+ *                           type: string
+ *                           example: assignee
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       429:
+ *         $ref: '#/components/responses/RateLimitError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *   post:
+ *     summary: Create a new task
+ *     description: Creates a new task with comprehensive validation and automatic assignment handling.
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - title
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 200
+ *                 description: Task title (required)
+ *                 example: "Design new landing page"
+ *               description:
+ *                 type: string
+ *                 maxLength: 2000
+ *                 description: Detailed task description
+ *                 example: "Create wireframes and mockups for the new landing page with modern design principles"
+ *               priority:
+ *                 type: string
+ *                 enum: [low, medium, high]
+ *                 default: medium
+ *                 description: Task priority level
+ *                 example: high
+ *               assignedTo:
+ *                 type: string
+ *                 description: User ID to assign task to (defaults to current user if not specified)
+ *                 example: "507f1f77bcf86cd799439013"
+ *               dueDate:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Task due date (must be in the future)
+ *                 example: "2024-12-31T23:59:59.000Z"
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   maxLength: 30
+ *                 maxItems: 10
+ *                 description: Tags for task categorization
+ *                 example: ["design", "ui", "landing", "urgent"]
+ *               category:
+ *                 type: string
+ *                 maxLength: 50
+ *                 default: "General"
+ *                 description: Task category
+ *                 example: "Design"
+ *               estimatedHours:
+ *                 type: number
+ *                 minimum: 0.1
+ *                 maximum: 1000
+ *                 description: Estimated hours to complete the task
+ *                 example: 8.5
+ *     responses:
+ *       201:
+ *         description: Task created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Task created successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     task:
+ *                       $ref: '#/components/schemas/Task'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       404:
+ *         description: Assigned user not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: "Assigned user not found"
+ *       429:
+ *         $ref: '#/components/responses/RateLimitError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /tasks/statistics:
+ *   get:
+ *     summary: Get task statistics for the authenticated user
+ *     description: Retrieves comprehensive task statistics including counts by status, completion rates, and productivity metrics.
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Task statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Task statistics retrieved successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     statistics:
+ *                       $ref: '#/components/schemas/TaskStatistics'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /tasks/overdue:
+ *   get:
+ *     summary: Get overdue tasks for the authenticated user
+ *     description: Retrieves all tasks that are past their due date and not yet completed.
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Overdue tasks retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Overdue tasks retrieved successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     tasks:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Task'
+ *                     count:
+ *                       type: integer
+ *                       description: Number of overdue tasks
+ *                       example: 3
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /tasks/{taskId}:
+ *   get:
+ *     summary: Get a specific task by ID
+ *     description: Retrieves detailed information about a specific task. User must have access to the task (either assigned to them or created by them).
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: taskId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Task ID (MongoDB ObjectId)
+ *         example: "507f1f77bcf86cd799439011"
+ *     responses:
+ *       200:
+ *         description: Task retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Task retrieved successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     task:
+ *                       $ref: '#/components/schemas/Task'
+ *       400:
+ *         description: Invalid task ID format
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: "Invalid task ID format"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       404:
+ *         description: Task not found or access denied
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: "Task not found or access denied"
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *   put:
+ *     summary: Update a task
+ *     description: Updates an existing task with comprehensive validation. Users can update tasks assigned to them or created by them.
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: taskId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Task ID (MongoDB ObjectId)
+ *         example: "507f1f77bcf86cd799439011"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 200
+ *                 description: Updated task title
+ *                 example: "Updated task title"
+ *               description:
+ *                 type: string
+ *                 maxLength: 2000
+ *                 description: Updated task description
+ *                 example: "Updated detailed description of the task"
+ *               status:
+ *                 type: string
+ *                 enum: [todo, in_progress, done]
+ *                 description: Task status
+ *                 example: in_progress
+ *               priority:
+ *                 type: string
+ *                 enum: [low, medium, high]
+ *                 description: Task priority level
+ *                 example: high
+ *               assignedTo:
+ *                 type: string
+ *                 description: User ID to reassign task to (only assignor can reassign)
+ *                 example: "507f1f77bcf86cd799439013"
+ *               dueDate:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Updated due date (can be null to remove due date)
+ *                 example: "2024-12-31T23:59:59.000Z"
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   maxLength: 30
+ *                 maxItems: 10
+ *                 description: Updated tags array
+ *                 example: ["design", "ui", "responsive"]
+ *               category:
+ *                 type: string
+ *                 maxLength: 50
+ *                 description: Updated category
+ *                 example: "Frontend"
+ *               estimatedHours:
+ *                 type: number
+ *                 minimum: 0.1
+ *                 maximum: 1000
+ *                 description: Updated estimated hours
+ *                 example: 12.5
+ *               actualHours:
+ *                 type: number
+ *                 minimum: 0
+ *                 maximum: 1000
+ *                 description: Actual hours spent on the task
+ *                 example: 8.25
+ *     responses:
+ *       200:
+ *         description: Task updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Task updated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     task:
+ *                       $ref: '#/components/schemas/Task'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       404:
+ *         description: Task not found, access denied, or assigned user not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               taskNotFound:
+ *                 value:
+ *                   success: false
+ *                   message: "Task not found or access denied"
+ *               userNotFound:
+ *                 value:
+ *                   success: false
+ *                   message: "Assigned user not found"
+ *       429:
+ *         $ref: '#/components/responses/RateLimitError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *   delete:
+ *     summary: Delete a task (soft delete)
+ *     description: Soft deletes a task by setting isActive to false. Only the task creator (assignor) can delete tasks.
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: taskId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Task ID (MongoDB ObjectId)
+ *         example: "507f1f77bcf86cd799439011"
+ *     responses:
+ *       200:
+ *         description: Task deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Task deleted successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     taskId:
+ *                       type: string
+ *                       description: ID of the deleted task
+ *                       example: "507f1f77bcf86cd799439011"
+ *       400:
+ *         description: Invalid task ID format
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: "Invalid task ID format"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       404:
+ *         description: Task not found or permission denied (only creator can delete)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: "Task not found or permission denied"
+ *       429:
+ *         $ref: '#/components/responses/RateLimitError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /tasks/{taskId}/status:
+ *   patch:
+ *     summary: Update task status only
+ *     description: Updates only the status of a task with automatic completion timestamp handling. More efficient than full task update.
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: taskId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Task ID (MongoDB ObjectId)
+ *         example: "507f1f77bcf86cd799439011"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [todo, in_progress, done]
+ *                 description: New task status
+ *                 example: done
+ *           examples:
+ *             markComplete:
+ *               summary: Mark task as completed
+ *               value:
+ *                 status: done
+ *             startWork:
+ *               summary: Start working on task
+ *               value:
+ *                 status: in_progress
+ *             moveToBacklog:
+ *               summary: Move back to todo
+ *               value:
+ *                 status: todo
+ *     responses:
+ *       200:
+ *         description: Task status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Task status updated successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     task:
+ *                       $ref: '#/components/schemas/Task'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       404:
+ *         description: Task not found or access denied
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: "Task not found or access denied"
+ *       429:
+ *         $ref: '#/components/responses/RateLimitError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
 module.exports = {};

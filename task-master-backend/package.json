@@ -24,7 +24,8 @@
     "mongoose": "^8.19.2",
     "morgan": "^1.10.1",
     "swagger-jsdoc": "^6.2.8",
-    "swagger-ui-express": "^5.0.1"
+    "swagger-ui-express": "^5.0.1",
+    "xss": "^1.0.15"
   },
   "devDependencies": {
     "eslint": "^9.38.0",

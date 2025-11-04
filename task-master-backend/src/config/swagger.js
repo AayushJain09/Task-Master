@@ -61,6 +61,10 @@ const swaggerDefinition = {
       name: 'Health',
       description: 'API health check endpoints',
     },
+    {
+      name: 'Tasks',
+      description: 'Task management endpoints including CRUD operations, assignment, filtering, and analytics',
+    },
   ],
   components: {
     securitySchemes: {
@@ -319,6 +323,182 @@ const swaggerDefinition = {
           },
         },
       },
+      Task: {
+        type: 'object',
+        required: ['title', 'assignedBy', 'assignedTo'],
+        properties: {
+          _id: {
+            type: 'string',
+            description: 'Task ID (MongoDB ObjectId)',
+            example: '507f1f77bcf86cd799439011',
+          },
+          title: {
+            type: 'string',
+            minLength: 3,
+            maxLength: 200,
+            description: 'Task title',
+            example: 'Design new landing page',
+          },
+          description: {
+            type: 'string',
+            maxLength: 2000,
+            description: 'Detailed task description',
+            example: 'Create wireframes and mockups for the new landing page with modern design principles and responsive layouts',
+          },
+          status: {
+            type: 'string',
+            enum: ['todo', 'in_progress', 'done'],
+            description: 'Current task status',
+            example: 'todo',
+          },
+          priority: {
+            type: 'string',
+            enum: ['low', 'medium', 'high'],
+            description: 'Task priority level',
+            example: 'high',
+          },
+          tags: {
+            type: 'array',
+            items: {
+              type: 'string',
+              maxLength: 30,
+            },
+            maxItems: 10,
+            description: 'Task tags for categorization',
+            example: ['design', 'ui', 'landing', 'urgent'],
+          },
+          assignedBy: {
+            oneOf: [
+              {
+                type: 'string',
+                description: 'User ID who assigned the task',
+                example: '507f1f77bcf86cd799439012',
+              },
+              {
+                $ref: '#/components/schemas/User',
+              },
+            ],
+            description: 'User who assigned the task (can be populated)',
+          },
+          assignedTo: {
+            oneOf: [
+              {
+                type: 'string',
+                description: 'User ID assigned to complete the task',
+                example: '507f1f77bcf86cd799439013',
+              },
+              {
+                $ref: '#/components/schemas/User',
+              },
+            ],
+            description: 'User assigned to complete the task (can be populated)',
+          },
+          dueDate: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Task due date (optional)',
+            example: '2024-12-31T23:59:59.000Z',
+          },
+          completedAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Task completion timestamp (automatically set when status becomes done)',
+            example: '2024-11-01T14:30:00.000Z',
+          },
+          estimatedHours: {
+            type: 'number',
+            minimum: 0.1,
+            maximum: 1000,
+            description: 'Estimated hours to complete the task',
+            example: 8.5,
+          },
+          actualHours: {
+            type: 'number',
+            minimum: 0,
+            maximum: 1000,
+            description: 'Actual hours spent on the task',
+            example: 6.25,
+          },
+          category: {
+            type: 'string',
+            maxLength: 50,
+            description: 'Task category for organization',
+            example: 'Design',
+          },
+          isActive: {
+            type: 'boolean',
+            description: 'Whether the task is active (not soft deleted)',
+            example: true,
+          },
+          createdAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Task creation timestamp',
+            example: '2024-01-15T10:30:00.000Z',
+          },
+          updatedAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Task last update timestamp',
+            example: '2024-01-16T14:45:00.000Z',
+          },
+          isOverdue: {
+            type: 'boolean',
+            description: 'Virtual field indicating if task is overdue',
+            example: false,
+          },
+          daysUntilDue: {
+            type: 'number',
+            description: 'Virtual field showing days until due (negative if overdue)',
+            example: 15,
+          },
+          timeVariance: {
+            type: 'number',
+            description: 'Virtual field showing difference between estimated and actual hours',
+            example: -2.25,
+          },
+        },
+      },
+      TaskStatistics: {
+        type: 'object',
+        properties: {
+          todo: {
+            type: 'integer',
+            description: 'Number of tasks with todo status',
+            example: 5,
+          },
+          in_progress: {
+            type: 'integer',
+            description: 'Number of tasks with in_progress status',
+            example: 3,
+          },
+          done: {
+            type: 'integer',
+            description: 'Number of tasks with done status',
+            example: 12,
+          },
+          total: {
+            type: 'integer',
+            description: 'Total number of active tasks',
+            example: 20,
+          },
+          overdue: {
+            type: 'integer',
+            description: 'Number of overdue tasks',
+            example: 2,
+          },
+          completionRate: {
+            type: 'integer',
+            description: 'Completion rate as percentage',
+            example: 60,
+          },
+          avgHours: {
+            type: 'number',
+            description: 'Average hours per task',
+            example: 6.5,
+          },
+        },
+      },
       SuccessResponse: {
         type: 'object',
         properties: {
@@ -460,6 +640,20 @@ const swaggerDefinition = {
             example: {
               success: false,
               message: 'Too many requests from this IP, please try again later.',
+            },
+          },
+        },
+      },
+      InternalServerError: {
+        description: 'Internal server error',
+        content: {
+          'application/json': {
+            schema: {
+              $ref: '#/components/schemas/ErrorResponse',
+            },
+            example: {
+              success: false,
+              message: 'Internal server error',
             },
           },
         },

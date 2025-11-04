@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View } from 'react-native';
 import { useFrameworkReady } from '../hooks/useFrameworkReady';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
@@ -13,7 +12,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 SplashScreen.preventAutoHideAsync();
 export const MainLayout = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isLoading } = useAuth();
   const { isDark } = useTheme();
 
   useEffect(() => {
@@ -22,23 +21,20 @@ export const MainLayout = () => {
         SplashScreen.hideAsync();
       }, 1000);
     }
-  });
+  }, [isLoading]);
 
   return (
-    <View className={`flex-1 ${isDark ? 'dark' : ''}`}>
+    <>
       <SafeAreaView className={`flex-1 border ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
         <Stack screenOptions={{headerShown: false }}>
-          <Stack.Protected guard={!isAuthenticated}>
-            <Stack.Screen name="(auth)" />
-          </Stack.Protected>
-          <Stack.Protected guard={isAuthenticated}>
-            <Stack.Screen name="(tabs)" />
-          </Stack.Protected>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(tabs)" />
           <Stack.Screen name="+not-found" />
         </Stack>
         <StatusBar style={isDark ? 'light' : 'dark'} />
       </SafeAreaView>
-    </View>
+    </>
   );
 };
 
@@ -49,7 +45,7 @@ export default function RootLayout() {
     <ErrorBoundary>
       <ThemeProvider>
         <AuthProvider>
-          <GestureHandlerRootView>
+          <GestureHandlerRootView style={{ flex: 1 }}>
           <MainLayout />
           </GestureHandlerRootView>
         </AuthProvider>

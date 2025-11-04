@@ -12,6 +12,10 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.taskmaster.app"
     },
+    "notification": {
+      "icon": "./assets/images/icon.png",
+      "color": "#ffffff"
+    },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -24,6 +28,7 @@
       "package": "com.taskmaster.app"
     },
     "web": {
+      "bundler": "metro",
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
@@ -41,6 +46,14 @@
           }
         }
       ],
+      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "Allow $(VGPL_STAFF) to access your Face ID biometric data."
+        }
+      ],
       [
         "expo-local-authentication",
         {
@@ -49,8 +62,7 @@
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "jsEngine": "hermes"
   }

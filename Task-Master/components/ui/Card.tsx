@@ -1,7 +1,6 @@
 import React, { ReactNode } from 'react';
 import { View, ViewProps } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
-import { router } from 'expo-router';
 
 interface CardProps extends ViewProps {
   children: ReactNode;

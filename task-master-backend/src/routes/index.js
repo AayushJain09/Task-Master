@@ -13,6 +13,7 @@ const router = express.Router();
 // Import route modules
 const authRoutes = require('./authRoutes');
 const userRoutes = require('./userRoutes');
+const taskRoutes = require('./taskRoutes');
 
 /**
  * Health Check Endpoint
@@ -71,6 +72,7 @@ router.get('/', (req, res) => {
         health: '/health',
         auth: '/auth',
         users: '/users',
+        tasks: '/tasks',
       },
       documentation: 'See README.md for detailed API documentation',
     },
@@ -85,15 +87,19 @@ router.get('/', (req, res) => {
  *
  * All user management routes are prefixed with /users
  * Example: GET /api/v1/users
+ *
+ * All task management routes are prefixed with /tasks
+ * Example: GET /api/v1/tasks
  */
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
+router.use('/tasks', taskRoutes);
 
 /**
  * Add more route modules here as your application grows
  * Examples:
- * router.use('/tasks', taskRoutes);
  * router.use('/projects', projectRoutes);
+ * router.use('/teams', teamRoutes);
  */
 
 module.exports = router;
