@@ -283,7 +283,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
           <View 
             className="absolute inset-0 opacity-60"
             style={{
-              background: `linear-gradient(135deg, ${theme.gradient[0]} 0%, ${theme.gradient[1]} 100%)`
+              backgroundColor: `linear-gradient(135deg, ${theme.gradient[0]} 0%, ${theme.gradient[1]} 100%)`
             }}
           />
         )}

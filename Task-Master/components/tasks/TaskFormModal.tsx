@@ -56,6 +56,7 @@ import {
   ActivityIndicator,
   StyleSheet
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/context/ThemeContext';
 import {
@@ -69,7 +70,7 @@ import {
   User,
   Hash
 } from 'lucide-react-native';
-import { Task } from './TaskCard';
+import { Task as TaskCardType } from './TaskCard';
 
 // Import API types and service
 import { 
@@ -118,6 +119,17 @@ interface FormData {
 }
 
 /**
+ * Extended Task Interface for Form Editing
+ * 
+ * Extends the basic TaskCard interface to include additional fields
+ * needed for comprehensive task editing in the form modal.
+ */
+interface EditableTask extends TaskCardType {
+  tags?: string[];
+  estimatedHours?: number;
+}
+
+/**
  * Enhanced TaskFormModal Component Props Interface
  * 
  * Defines all props required for the TaskFormModal component including
@@ -126,7 +138,7 @@ interface FormData {
  * @interface TaskFormModalProps
  * @property {boolean} visible - Controls modal visibility
  * @property {string} title - Modal title (Create vs Edit mode)
- * @property {Task | null} editingTask - Task being edited (null for create mode)
+ * @property {EditableTask | null} editingTask - Task being edited (null for create mode)
  * @property {Function} onClose - Callback when modal is closed
  * @property {Function} onSubmit - Callback when form is submitted
  * @property {boolean} isLoading - Loading state for form submission
@@ -135,7 +147,7 @@ interface FormData {
 interface TaskFormModalProps {
   visible: boolean;
   title: string;
-  editingTask: Task | null;
+  editingTask: EditableTask | null;
   onClose: () => void;
   onSubmit: (formData: FormData) => void;
   isLoading?: boolean;
@@ -154,7 +166,7 @@ interface TaskFormModalProps {
 const getPriorityConfig = (priority: 'high' | 'medium' | 'low') => {
   const configs = {
     high: {
-      label: 'High Priority',
+      label: 'High',
       description: 'Urgent tasks that need immediate attention',
       bgColor: '#FEF2F2',
       borderColor: '#FECACA',
@@ -164,7 +176,7 @@ const getPriorityConfig = (priority: 'high' | 'medium' | 'low') => {
       icon: '🔥'
     },
     medium: {
-      label: 'Medium Priority',
+      label: 'Medium',
       description: 'Important tasks with moderate urgency',
       bgColor: '#FFFBEB',
       borderColor: '#FED7AA',
@@ -174,7 +186,7 @@ const getPriorityConfig = (priority: 'high' | 'medium' | 'low') => {
       icon: '⚡'
     },
     low: {
-      label: 'Low Priority',
+      label: 'Low',
       description: 'Tasks that can be completed when time allows',
       bgColor: '#F0FDF4',
       borderColor: '#BBF7D0',
@@ -188,46 +200,6 @@ const getPriorityConfig = (priority: 'high' | 'medium' | 'low') => {
   return configs[priority];
 };
 
-/**
- * Due Date Options Configuration
- * 
- * Defines available due date options with proper ISO date calculations
- * for backend API compatibility.
- */
-const getDueDateOptions = () => {
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  
-  const endOfWeek = new Date(today);
-  endOfWeek.setDate(today.getDate() + (7 - today.getDay()));
-  
-  const nextWeek = new Date(endOfWeek);
-  nextWeek.setDate(endOfWeek.getDate() + 7);
-  
-  return [
-    { 
-      value: today.toISOString().split('T')[0], 
-      label: 'Today', 
-      description: 'Due by end of today' 
-    },
-    { 
-      value: tomorrow.toISOString().split('T')[0], 
-      label: 'Tomorrow', 
-      description: 'Due by end of tomorrow' 
-    },
-    { 
-      value: endOfWeek.toISOString().split('T')[0], 
-      label: 'This Week', 
-      description: 'Due by end of this week' 
-    },
-    { 
-      value: nextWeek.toISOString().split('T')[0], 
-      label: 'Next Week', 
-      description: 'Due by end of next week' 
-    }
-  ];
-};
 
 /**
  * Category Suggestions
@@ -310,6 +282,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   const [lastValidFormData, setLastValidFormData] = useState<FormData | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [securityWarning, setSecurityWarning] = useState<string | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   /**
    * Initialize Form Data
@@ -332,14 +305,32 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
         
         if (editingTask) {
           // Populate form with existing task data for editing
+          let formattedDueDate = '';
+          if (editingTask.dueDate) {
+            try {
+              // Handle different date formats
+              const date = new Date(editingTask.dueDate);
+              if (!isNaN(date.getTime())) {
+                formattedDueDate = date.toISOString().split('T')[0];
+              } else {
+                formattedDueDate = new Date().toISOString().split('T')[0];
+              }
+            } catch (error) {
+              console.warn('Error parsing due date:', error);
+              formattedDueDate = new Date().toISOString().split('T')[0];
+            }
+          } else {
+            formattedDueDate = new Date().toISOString().split('T')[0];
+          }
+          
           initialData = {
             title: editingTask.title || '',
             description: editingTask.description || '',
             priority: editingTask.priority || 'medium',
             category: editingTask.category || '',
-            dueDate: editingTask.dueDate ? editingTask.dueDate.split('T')[0] : new Date().toISOString().split('T')[0],
-            tags: [], // TaskCard doesn't have tags, will be empty for now
-            estimatedHours: 0, // TaskCard doesn't have this field
+            dueDate: formattedDueDate,
+            tags: editingTask.tags || [], // Use tags from editing task
+            estimatedHours: editingTask.estimatedHours || 0, // Use estimated hours from editing task
             assignedTo: '' // Will be set by backend to current user
           };
         } else {
@@ -795,17 +786,18 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     }
   }, []);
 
-  // Get due date options with error handling
-  const dueDateOptions = useMemo(() => {
-    try {
-      return getDueDateOptions();
-    } catch (error) {
-      console.error('Error generating due date options:', error);
-      return [
-        { value: new Date().toISOString().split('T')[0], label: 'Today', description: 'Due today' }
-      ];
+  /**
+   * Handle Date Picker Change
+   */
+  const handleDateChange = useCallback((event: any, selectedDate?: Date) => {
+    const currentDate = selectedDate || new Date(formData.dueDate);
+    setShowDatePicker(Platform.OS === 'ios');
+    
+    if (selectedDate) {
+      const dateString = currentDate.toISOString().split('T')[0];
+      updateFormField('dueDate', dateString);
     }
-  }, []);
+  }, [formData.dueDate]);
   
   /**
    * Enhanced Modal Close with Unsaved Changes Detection
@@ -853,7 +845,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             styles.modalContent,
             {
               backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
-              height: SCREEN_HEIGHT * 0.8,
+              height: SCREEN_HEIGHT * 0.7,
               width: SCREEN_WIDTH >= 768 ? Math.min(SCREEN_WIDTH * 0.8, 600) : SCREEN_WIDTH - 32,
             }
           ]}
@@ -909,7 +901,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               <Pressable
                 onPress={handleModalClose}
                 disabled={isLoading || isSubmitting}
-                className={`p-3 rounded-full ${
+                className={`p-1 rounded-full ${
                   isDark ? 'bg-gray-700' : 'bg-gray-100'
                 }`}
                 style={({ pressed }) => ({
@@ -1037,7 +1029,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 </Text>
               </View>
               
-              <View className="space-y-3">
+              <View className="gap-x-3 flex-row justify-center">
                 {(['high', 'medium', 'low'] as const).map((priority) => {
                   const config = getPriorityConfig(priority);
                   const isSelected = formData.priority === priority;
@@ -1046,7 +1038,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                     <Pressable
                       key={priority}
                       onPress={() => updateFormField('priority', priority)}
-                      className={`border-2 rounded-xl p-4 ${
+                      className={`border-2 rounded-xl p-1 min-w-28 ${
                         isSelected 
                           ? 'border-blue-400 bg-blue-50' 
                           : isDark 
@@ -1068,11 +1060,11 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                         elevation: isSelected ? 2 : 1
                       })}
                     >
-                      <View className="flex-row items-center">
-                        <Text className="text-xl mr-3">{config.icon}</Text>
+                      <View className="flex-row items-center justify-center">
                         <View className="flex-1">
+                          <Text className='text-sm text-center'>{config.icon}</Text>
                           <Text 
-                            className={`text-base font-semibold ${
+                            className={`text-base font-semibold text-center ${
                               isSelected 
                                 ? 'text-blue-800' 
                                 : isDark ? 'text-white' : 'text-gray-900'
@@ -1080,15 +1072,15 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                           >
                             {config.label}
                           </Text>
-                          <Text 
-                            className={`text-sm mt-1 ${
+                          {/* <Text 
+                            className={`text-sm mt-1 text-center ${
                               isSelected 
                                 ? 'text-blue-600' 
                                 : isDark ? 'text-gray-400' : 'text-gray-500'
                             }`}
                           >
                             {config.description}
-                          </Text>
+                          </Text> */}
                         </View>
                       </View>
                     </Pressable>
@@ -1142,7 +1134,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 className="mt-3"
                 contentContainerStyle={{ paddingHorizontal: 0 }}
               >
-                <View className="flex-row space-x-2">
+                <View className="flex-row gap-x-2">
                   {categorySuggestions.map((suggestion) => (
                     <Pressable
                       key={suggestion}
@@ -1195,7 +1187,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               </View>
               
               {/* Tag Input */}
-              <View className="flex-row items-center space-x-2 mb-3">
+              <View className="flex-row items-center gap-x-2 mb-3">
                 <TextInput
                   value={currentTag}
                   onChangeText={setCurrentTag}
@@ -1224,8 +1216,18 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                   className={`px-4 py-3 rounded-xl ${
                     !currentTag.trim() || formData.tags.length >= 10
                       ? isDark ? 'bg-gray-700' : 'bg-gray-200'
-                      : 'bg-blue-500'
+                      : isDark ? 'bg-blue-500' : 'bg-blue-500'
                   }`}
+                  style={({ pressed }) => ({
+                    shadowColor: !currentTag.trim() || formData.tags.length >= 10 
+                      ? 'transparent' 
+                      : '#3B82F6',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: pressed ? 0.1 : 0.2,
+                    shadowRadius: 4,
+                    elevation: pressed ? 1 : 3,
+                    transform: [{ scale: pressed ? 0.96 : 1 }],
+                  })}
                 >
                   <Text className={`font-medium ${
                     !currentTag.trim() || formData.tags.length >= 10
@@ -1318,7 +1320,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             </View>
 
             {/* Due Date Selection */}
-            <View className="mb-8">
+            <View className="">
               <View className="flex-row items-center mb-4">
                 <Calendar size={18} color={isDark ? '#9CA3AF' : '#6B7280'} />
                 <Text className={`text-base font-semibold ml-2 ${
@@ -1333,86 +1335,66 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 </Text>
               </View>
               
-              {/* Custom Date Input */}
-              <View className="mb-4">
-                <TextInput
-                  value={formData.dueDate}
-                  onChangeText={(text) => updateFormField('dueDate', text)}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
-                  className={`border-2 rounded-xl px-4 py-3 text-base ${
+              {/* Date Picker Button */}
+              <Pressable
+                onPress={() => setShowDatePicker(true)}
+                className={`border-2 rounded-xl p-3 flex-row items-center justify-between ${
+                  errors.dueDate 
+                    ? 'border-red-400 bg-red-50' 
+                    : isDark 
+                      ? 'border-gray-500 bg-gray-700' 
+                      : 'border-gray-300 bg-white'
+                }`}
+                style={({ pressed }) => ({
+                  shadowColor: isDark ? '#000000' : '#000000',
+                  shadowOffset: { width: 0, height: pressed ? 1 : 4 },
+                  shadowOpacity: isDark ? 0.4 : 0.15,
+                  shadowRadius: pressed ? 2 : 8,
+                  elevation: pressed ? 2 : 6,
+                  transform: [{ scale: pressed ? 0.98 : 1 }],
+                  opacity: pressed ? 0.9 : 1,
+                })}
+              >
+                <View className="flex-row items-center flex-1">
+                  <Calendar size={22} color={
                     errors.dueDate 
-                      ? 'border-red-300 bg-red-50' 
-                      : isDark 
-                        ? 'border-gray-600 bg-gray-800 text-white' 
-                        : 'border-gray-200 bg-white text-gray-900'
-                  }`}
-                  style={{
-                    shadowColor: '#000000',
-                    shadowOffset: { width: 0, height: 1 },
-                    shadowOpacity: 0.05,
-                    shadowRadius: 2,
-                    elevation: 1
-                  }}
-                />
-                
-                {errors.dueDate && (
-                  <View className="flex-row items-center mt-2">
-                    <AlertCircle size={14} color="#EF4444" />
-                    <Text className="text-red-500 text-sm ml-1">{errors.dueDate}</Text>
-                  </View>
-                )}
-              </View>
+                      ? '#EF4444' 
+                      : isDark ? '#60A5FA' : '#3B82F6'
+                  } />
+                  <Text className={`ml-3 text-base font-medium ${
+                    formData.dueDate 
+                      ? (isDark ? 'text-white' : 'text-gray-900')
+                      : (isDark ? 'text-gray-400' : 'text-gray-500')
+                  }`}>
+                    {formData.dueDate ? new Date(formData.dueDate).toLocaleDateString() : 'Select due date'}
+                  </Text>
+                </View>
+                <View className={`w-2 h-2 rounded-full ${
+                  formData.dueDate 
+                    ? (isDark ? 'bg-blue-400' : 'bg-blue-500')
+                    : (isDark ? 'bg-gray-600' : 'bg-gray-300')
+                }`} />
+              </Pressable>
               
-              {/* Quick Date Options */}
-              <View className="grid grid-cols-2 gap-3">
-                {dueDateOptions.map((option, index) => (
-                  <Pressable
-                    key={option.value}
-                    onPress={() => updateFormField('dueDate', option.value)}
-                    className={`border-2 rounded-xl p-4 ${
-                      formData.dueDate === option.value 
-                        ? 'border-blue-400 bg-blue-50' 
-                        : isDark 
-                          ? 'border-gray-600 bg-gray-800' 
-                          : 'border-gray-200 bg-white'
-                    }`}
-                    style={({ pressed }) => ({
-                      opacity: pressed ? 0.8 : 1,
-                      flex: 1,
-                      marginRight: index % 2 === 0 ? 6 : 0,
-                      marginLeft: index % 2 === 1 ? 6 : 0,
-                      shadowColor: '#000000',
-                      shadowOffset: { width: 0, height: 1 },
-                      shadowOpacity: 0.05,
-                      shadowRadius: 2,
-                      elevation: 1
-                    })}
-                  >
-                    <View className="items-center">
-                      <Calendar size={18} color={
-                        formData.dueDate === option.value 
-                          ? '#2563EB' 
-                          : isDark ? '#9CA3AF' : '#6B7280'
-                      } />
-                      <Text className={`text-sm font-semibold mt-2 text-center ${
-                        formData.dueDate === option.value 
-                          ? 'text-blue-700' 
-                          : isDark ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {option.label}
-                      </Text>
-                      <Text className={`text-xs mt-1 text-center ${
-                        formData.dueDate === option.value 
-                          ? 'text-blue-600' 
-                          : isDark ? 'text-gray-400' : 'text-gray-500'
-                      }`}>
-                        {option.description}
-                      </Text>
-                    </View>
-                  </Pressable>
-                ))}
-              </View>
+              {errors.dueDate && (
+                <View className="flex-row items-center mt-2">
+                  <AlertCircle size={14} color="#EF4444" />
+                  <Text className="text-red-500 text-sm ml-1">{errors.dueDate}</Text>
+                </View>
+              )}
+              
+              {/* Date Picker Modal */}
+              {showDatePicker && (
+                <DateTimePicker
+                  testID="dateTimePicker"
+                  value={formData.dueDate ? new Date(formData.dueDate) : new Date()}
+                  mode="date"
+                  is24Hour={true}
+                  display="default"
+                  onChange={handleDateChange}
+                  minimumDate={new Date()}
+                />
+              )}
             </View>
           </ScrollView>
 
@@ -1430,11 +1412,11 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               paddingBottom: Platform.OS === 'ios' ? 34 : 20 // Account for home indicator
             }}
           >
-            <View className="flex-row space-x-4">
+            <View className="flex-row gap-x-4">
               {/* Enhanced Cancel Button */}
               <Pressable
                 onPress={handleModalClose}
-                className={`flex-1 py-4 rounded-xl border-2 ${
+                className={`flex-1 py-2 rounded-xl border-2 ${
                   isDark 
                     ? 'border-gray-600 bg-gray-700' 
                     : 'border-gray-300 bg-gray-100'
@@ -1493,42 +1475,29 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   );
 };
 
-// Styles for the modal and overlay
+// Styles for the modal
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  overlay: {
+  backdrop: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: 1,
-  },
-  blurView: {
-    flex: 1,
-  },
-  overlayPressable: {
-    flex: 1,
-  },
-  overlayBackground: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
   },
   modalContent: {
-    borderRadius: 24,
+    borderRadius: 16,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
-    shadowRadius: 24,
-    elevation: 16,
-    zIndex: 2,
+    shadowRadius: 16,
+    elevation: 8,
     overflow: 'hidden',
-    marginHorizontal: 16,
-    maxWidth: 600,
   },
 });
 

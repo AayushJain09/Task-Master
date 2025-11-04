@@ -97,7 +97,7 @@ export default function Reminders() {
       </View>
 
       {/* Quick Stats */}
-      <View className="flex-row mb-6 space-x-3">
+      <View className="flex-row mb-6 gap-x-3">
         <Card variant="elevated" className="flex-1 p-3">
           <Text className={`text-lg font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
             {reminders.filter(r => r.status === 'active').length}
@@ -156,7 +156,7 @@ export default function Reminders() {
                       {reminder.title}
                     </Text>
                     
-                    <View className="flex-row items-center mt-2 space-x-3">
+                    <View className="flex-row items-center mt-2 gap-x-3">
                       {/* Time */}
                       <View className="flex-row items-center">
                         <Clock size={14} color={isDark ? '#9CA3AF' : '#6B7280'} />
@@ -238,7 +238,7 @@ export default function Reminders() {
           Quick Actions
         </Text>
         
-        <View className="space-y-3">
+        <View className="gap-y-3">
           <TouchableOpacity className={`flex-row items-center p-3 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-gray-50'}`}>
             <Plus size={20} color="#3B82F6" />
             <Text className={`ml-3 font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>

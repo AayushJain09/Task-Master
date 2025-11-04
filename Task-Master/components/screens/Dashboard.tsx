@@ -65,7 +65,7 @@ export default function Dashboard() {
           </Text>
         </View>
         
-        <View className="space-y-4">
+        <View className="gap-y-4">
           <View>
             <View className="flex-row justify-between mb-2">
               <Text className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
@@ -115,7 +115,7 @@ export default function Dashboard() {
         <Text className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
           Recent Activity
         </Text>
-        <View className="space-y-3">
+        <View className="gap-y-3">
           {[
             { title: 'Completed "Review project proposal"', time: '2 hours ago', type: 'task' },
             { title: 'Set reminder for team meeting', time: '4 hours ago', type: 'reminder' },

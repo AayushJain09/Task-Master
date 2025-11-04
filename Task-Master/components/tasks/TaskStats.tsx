@@ -439,7 +439,7 @@ export const TaskStats: React.FC<TaskStatsProps> = ({ tasks }) => {
               Quick Insights
             </Text>
             
-            <View className="space-y-1">
+            <View className="gap-y-1">
               <Text className={`text-xs ${
                 isDark ? 'text-gray-400' : 'text-gray-600'
               }`}>

@@ -341,7 +341,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         </View>
 
         {/* Task Metadata Section */}
-        <View className="mb-4 space-y-3">
+        <View className="mb-4 gap-y-3">
           {/* Priority Badge */}
           <View className="flex-row items-center">
             <View 
@@ -379,7 +379,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               <Text className={`text-sm font-medium ml-2 ${
                 isDark ? 'text-gray-400' : 'text-gray-500'
               }`}>
-                {task.dueDate}
+                Due Date - {task.dueDate}
               </Text>
             </View>
           </View>
@@ -405,7 +405,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           </View>
 
           {/* Edit and Delete Actions */}
-          <View className="flex-row items-center justify-end space-x-3">
+          <View className="flex-row items-center justify-end gap-x-3">
             {/* Edit Button */}
             <Pressable
               onPress={() => onEdit(task)}

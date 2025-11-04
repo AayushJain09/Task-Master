@@ -127,7 +127,7 @@ export const Analytics: React.FC<AnalyticsProps> = ({ tasks }) => {
               Productivity Insights
             </Text>
             
-            <View className="space-y-4">
+            <View className="gap-y-4">
               <View className={`p-4 rounded-xl ${
                 isDark ? 'bg-gray-700' : 'bg-blue-50'
               }`}>

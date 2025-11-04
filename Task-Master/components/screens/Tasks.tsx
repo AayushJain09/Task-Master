@@ -91,6 +91,16 @@ interface FormData {
 }
 
 /**
+ * Extended Task Interface for Editing
+ * 
+ * Includes all fields needed for task editing in the modal
+ */
+interface EditableTaskData extends TaskCardType {
+  tags?: string[];
+  estimatedHours?: number;
+}
+
+/**
  * Loading State Interface
  * 
  * Tracks different loading states for various operations
@@ -201,7 +211,7 @@ export default function Tasks() {
    * for both creation and editing workflows.
    */
   const [showTaskModal, setShowTaskModal] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editingTask, setEditingTask] = useState<EditableTaskData | null>(null);
   const [modalTitle, setModalTitle] = useState('Create New Task');
 
   /**
@@ -332,14 +342,39 @@ export default function Tasks() {
   }, []);
 
   const handleEditTask = useCallback((task: TaskCardType) => {
-    // Find the original Task from API data
-    const originalTask = tasks.find(t => t._id === task.id.toString());
+    // Find the original Task from API data using flexible ID matching
+    const originalTask = tasks.find(t => {
+      const taskId = t._id;
+      const cardId = task.id;
+      return taskId === cardId.toString() || parseInt(taskId) === cardId || taskId === cardId;
+    });
+    
     if (originalTask) {
-      setEditingTask(transformTaskForCard(originalTask));
+      console.log('Found original task for editing:', originalTask);
+      
+      // Transform API Task to the format expected by TaskFormModal
+      const editingTaskData: EditableTaskData = {
+        id: parseInt(originalTask._id) || Date.now(), // Convert to number for TaskCard compatibility
+        title: originalTask.title,
+        description: originalTask.description || '',
+        priority: originalTask.priority,
+        status: originalTask.status,
+        dueDate: originalTask.dueDate || '',
+        category: originalTask.category || '',
+        tags: originalTask.tags || [], // Include tags from API
+        estimatedHours: originalTask.estimatedHours || 0, // Include estimated hours from API
+        createdAt: new Date(originalTask.createdAt).toLocaleDateString()
+      };
+      
+      console.log('Setting editing task data:', editingTaskData);
+      setEditingTask(editingTaskData);
       setModalTitle('Edit Task');
       setShowTaskModal(true);
+    } else {
+      console.error('Could not find original task for editing. Task ID:', task.id, 'Available tasks:', tasks.map(t => ({ id: t._id, title: t.title })));
+      Alert.alert('Error', 'Could not find the task to edit. Please try refreshing the page.');
     }
-  }, [tasks, transformTaskForCard]);
+  }, [tasks]);
 
   const handleDeleteTask = useCallback(async (taskId: number) => {
     Alert.alert(
@@ -414,9 +449,11 @@ export default function Tasks() {
         setLoading(prev => ({ ...prev, updating: true }));
         setErrors(prev => ({ ...prev, update: null }));
         
-        // Find the original task
-        const originalTask = tasks.find(t => parseInt(t._id) === editingTask.id || t._id === editingTask.id.toString());
+        // Find the original task using the editing task's ID (convert number back to string)
+        const originalTask = tasks.find(t => t._id === editingTask.id.toString());
         if (originalTask) {
+          console.log('Updating task:', originalTask._id, 'with data:', formData);
+          
           const updateData = {
             title: formData.title.trim(),
             description: formData.description.trim() || undefined,
@@ -428,11 +465,17 @@ export default function Tasks() {
           };
           
           const response = await tasksService.updateTask(originalTask._id, updateData);
+          console.log('Update response:', response);
           
           // Update local state
           setTasks(prev => prev.map(task => 
             task._id === originalTask._id ? response.task : task
           ));
+          
+          Alert.alert('Success', 'Task updated successfully!');
+        } else {
+          console.error('Original task not found for update. Editing task ID:', editingTask.id);
+          throw new Error('Could not find the task to update');
         }
       } else {
         setLoading(prev => ({ ...prev, creating: true }));
@@ -450,9 +493,12 @@ export default function Tasks() {
         };
         
         const response = await tasksService.createTask(createData);
+        console.log('Create response:', response);
         
         // Add to local state
         setTasks(prev => [...prev, response.task]);
+        
+        Alert.alert('Success', 'Task created successfully!');
       }
       
       setShowTaskModal(false);
@@ -560,7 +606,7 @@ export default function Tasks() {
           </Text>
           
           {/* Task Statistics */}
-          <View className="flex-row items-center space-x-4">
+          <View className="flex-row items-center gap-x-4">
             {loading.fetching && tasks.length > 0 && (
               <ActivityIndicator 
                 size="small" 
@@ -589,7 +635,7 @@ export default function Tasks() {
 
       {/* Error Display */}
       {(errors.fetch || errors.create || errors.update || errors.delete) && (
-        <View className={`mx-4 mb-4 space-y-2`}>
+        <View className={`mx-4 mb-4 gap-y-2`}>
           {/* Fetch Error */}
           {errors.fetch && (
             <View className={`p-4 rounded-lg border ${
@@ -751,16 +797,16 @@ export default function Tasks() {
         disabled={loading.creating}
         className={`absolute ${
           SCREEN_WIDTH >= 768 ? 'bottom-8 right-8 w-16 h-16' : 'bottom-6 right-6 w-14 h-14'
-        } rounded-full items-center justify-center`}
+        } rounded-full items-center justify-center bg-green-500 border-[0.3px] elevation-xl ${
+          isDark ? 'border-white' : 'border-gray-300'
+        }`}
         style={({ pressed }) => ({
-          opacity: (pressed || loading.creating) ? 0.8 : 1,
+          opacity: pressed ? 0.8 : 1,
           transform: [{ scale: pressed ? 0.95 : 1 }],
-          shadowColor: '#3B82F6',
-          shadowOffset: { width: 0, height: 6 },
-          shadowOpacity: 0.35,
-          shadowRadius: 12,
-          elevation: 12,
-          backgroundColor: loading.creating ? '#9CA3AF' : '#3B82F6'
+          shadowColor: '#000000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
         })}
         accessibilityLabel="Create New Task"
         accessibilityHint="Opens form to create a new task"
@@ -769,18 +815,7 @@ export default function Tasks() {
         {loading.creating ? (
           <ActivityIndicator size={SCREEN_WIDTH >= 768 ? 28 : 24} color="#FFFFFF" />
         ) : (
-          <Plus size={SCREEN_WIDTH >= 768 ? 32 : 28} color="#FFFFFF" strokeWidth={2.5} />
-        )}
-        
-        {/* Subtle Pulse Animation Effect */}
-        {!loading.creating && (
-          <View 
-            className="absolute inset-0 rounded-full border-2 border-blue-400"
-            style={{
-              opacity: 0.3,
-              transform: [{ scale: 1.1 }]
-            }}
-          />
+          <Plus size={SCREEN_WIDTH >= 768 ? 32 : 28} color="#FFFFFF" strokeWidth={3} />
         )}
       </Pressable>
 
