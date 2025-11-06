@@ -1,8 +1,7 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode, useMemo, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Appearance, ColorSchemeName } from 'react-native';
 
-export type ThemeMode = 'light' | 'dark' | 'system';
+export type ThemeMode = 'light' | 'dark';
 
 interface ThemeContextType {
   theme: ThemeMode;
@@ -20,30 +19,21 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [theme, setThemeState] = useState<ThemeMode>('system');
-  const [systemTheme, setSystemTheme] = useState<ColorSchemeName>(
-    Appearance.getColorScheme()
-  );
+  const [theme, setThemeState] = useState<ThemeMode>('dark');
+  const [isChangingTheme, setIsChangingTheme] = useState(false);
 
   // Calculate if dark mode should be active
-  const isDark = theme === 'dark' || (theme === 'system' && systemTheme === 'dark');
+  const isDark = theme === 'dark';
 
   useEffect(() => {
     // Load saved theme preference
     loadThemePreference();
-
-    // Listen for system theme changes
-    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
-      setSystemTheme(colorScheme);
-    });
-
-    return () => subscription?.remove();
   }, []);
 
   const loadThemePreference = async () => {
     try {
       const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
+      if (savedTheme && ['light', 'dark'].includes(savedTheme)) {
         setThemeState(savedTheme as ThemeMode);
       }
     } catch (error) {
@@ -51,34 +41,44 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   };
 
-  const setTheme = async (newTheme: ThemeMode) => {
+  const setTheme = useCallback(async (newTheme: ThemeMode) => {
+    // Prevent rapid consecutive theme changes
+    if (isChangingTheme) return;
+    
     try {
+      setIsChangingTheme(true);
       setThemeState(newTheme);
       await AsyncStorage.setItem(THEME_STORAGE_KEY, newTheme);
+      
+      // Add a small delay to prevent rapid changes
+      setTimeout(() => {
+        setIsChangingTheme(false);
+      }, 150);
     } catch (error) {
       console.error('Error saving theme preference:', error);
+      setIsChangingTheme(false);
     }
-  };
+  }, [isChangingTheme]);
 
-  const toggleTheme = () => {
+  const toggleTheme = useCallback(() => {
     if (theme === 'light') {
       setTheme('dark');
-    } else if (theme === 'dark') {
-      setTheme('system');
     } else {
       setTheme('light');
     }
-  };
+  }, [theme, setTheme]);
 
-  const value: ThemeContextType = {
+  const value: ThemeContextType = useMemo(() => ({
     theme,
     isDark,
     setTheme,
     toggleTheme,
-  };
+  }), [theme, isDark, setTheme, toggleTheme]);
 
   return (
-    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+    <ThemeContext.Provider value={value}>
+      {children}
+    </ThemeContext.Provider>
   );
 }
 

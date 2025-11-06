@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, memo } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '../hooks/useFrameworkReady';
@@ -11,10 +11,30 @@ import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 SplashScreen.preventAutoHideAsync();
-export const MainLayout = () => {
-  const { isLoading } = useAuth();
+// Theme-aware wrapper component
+const ThemedSafeAreaView = memo(({ children }: { children: React.ReactNode }) => {
   const { isDark } = useTheme();
+  return (
+    <SafeAreaView className={`flex-1 border ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
+      {children}
+    </SafeAreaView>
+  );
+});
 
+ThemedSafeAreaView.displayName = 'ThemedSafeAreaView';
+
+// Theme-aware status bar component
+const ThemedStatusBar = memo(() => {
+  const { isDark } = useTheme();
+  return <StatusBar style={isDark ? 'light' : 'dark'} />;
+});
+
+ThemedStatusBar.displayName = 'ThemedStatusBar';
+
+// Splash screen handler
+const SplashScreenHandler = memo(() => {
+  const { isLoading } = useAuth();
+  
   useEffect(() => {
     if (!isLoading) {
       setTimeout(() => {
@@ -22,34 +42,33 @@ export const MainLayout = () => {
       }, 1000);
     }
   }, [isLoading]);
+  
+  return null;
+});
 
-  return (
-    <>
-      <SafeAreaView className={`flex-1 border ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
-        <Stack screenOptions={{headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="+not-found" />
-        </Stack>
-        <StatusBar style={isDark ? 'light' : 'dark'} />
-      </SafeAreaView>
-    </>
-  );
-};
+SplashScreenHandler.displayName = 'SplashScreenHandler';
 
 export default function RootLayout() {
   useFrameworkReady();
 
   return (
-    <ErrorBoundary>
-      <ThemeProvider>
-        <AuthProvider>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-          <MainLayout />
-          </GestureHandlerRootView>
-        </AuthProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <AuthProvider>
+            <ThemedSafeAreaView>
+              <SplashScreenHandler />
+              <Stack screenOptions={{headerShown: false }}>
+                <Stack.Screen name="index" />
+                <Stack.Screen name="(auth)" />
+                <Stack.Screen name="(tabs)" />
+                <Stack.Screen name="+not-found" />
+              </Stack>
+              <ThemedStatusBar />
+            </ThemedSafeAreaView>
+          </AuthProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
+    </GestureHandlerRootView>
   );
 }

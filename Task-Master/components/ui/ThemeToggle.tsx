@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
-import { Sun, Moon, Monitor } from 'lucide-react-native';
+import React, { useCallback, useRef } from 'react';
+import { View, Text, Pressable } from 'react-native';
+import { Sun, Moon } from 'lucide-react-native';
 import { useTheme, ThemeMode } from '@/context/ThemeContext';
 
 interface ThemeToggleProps {
@@ -25,11 +25,6 @@ export default function ThemeToggle({ showLabel = false, size = 'md' }: ThemeTog
       icon: <Moon size={iconSize} color={isDark ? '#3B82F6' : '#3B82F6'} />,
       label: 'Dark',
     },
-    {
-      mode: 'system',
-      icon: <Monitor size={iconSize} color={isDark ? '#6B7280' : '#6B7280'} />,
-      label: 'System',
-    },
   ];
 
   const currentThemeIndex = themeOptions.findIndex(option => option.mode === theme);
@@ -42,7 +37,7 @@ export default function ThemeToggle({ showLabel = false, size = 'md' }: ThemeTog
   const currentOption = themeOptions[currentThemeIndex];
 
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={handleThemeChange}
       className={`
         ${containerSize}
@@ -52,7 +47,6 @@ export default function ThemeToggle({ showLabel = false, size = 'md' }: ThemeTog
         border
         ${showLabel ? 'flex-row items-center gap-x-3' : 'items-center justify-center'}
       `}
-      activeOpacity={0.7}
     >
       <View className="items-center justify-center">
         {currentOption.icon}
@@ -68,7 +62,7 @@ export default function ThemeToggle({ showLabel = false, size = 'md' }: ThemeTog
           </Text>
         </View>
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
@@ -79,6 +73,25 @@ interface ThemeSegmentedControlProps {
 
 export function ThemeSegmentedControl({ className = '' }: ThemeSegmentedControlProps) {
   const { theme, isDark, setTheme } = useTheme();
+  const lastChangeTime = useRef<number>(0);
+  
+  // Debounced theme setter to prevent rapid consecutive changes
+  const handleThemeChange = useCallback((newTheme: ThemeMode) => {
+    const now = Date.now();
+    
+    // Prevent rapid changes (minimum 200ms between changes)
+    if (now - lastChangeTime.current < 200) {
+      return;
+    }
+    
+    lastChangeTime.current = now;
+    
+    try {
+      setTheme(newTheme);
+    } catch (error) {
+      console.error('Error changing theme:', error);
+    }
+  }, [setTheme]);
 
   const themeOptions: { mode: ThemeMode; icon: React.ReactNode; label: string }[] = [
     {
@@ -90,11 +103,6 @@ export function ThemeSegmentedControl({ className = '' }: ThemeSegmentedControlP
       mode: 'dark',
       icon: <Moon size={16} />,
       label: 'Dark',
-    },
-    {
-      mode: 'system',
-      icon: <Monitor size={16} />,
-      label: 'Auto',
     },
   ];
 
@@ -109,9 +117,9 @@ export function ThemeSegmentedControl({ className = '' }: ThemeSegmentedControlP
       {themeOptions.map((option) => {
         const isSelected = theme === option.mode;
         return (
-          <TouchableOpacity
+          <Pressable
             key={option.mode}
-            onPress={() => setTheme(option.mode)}
+            onPress={() => handleThemeChange(option.mode)}
             className={`
               flex-1
               flex-row
@@ -128,7 +136,6 @@ export function ThemeSegmentedControl({ className = '' }: ThemeSegmentedControlP
                 : ''
               }
             `}
-            activeOpacity={0.7}
           >
             <View className={isSelected 
               ? isDark 
@@ -154,7 +161,7 @@ export function ThemeSegmentedControl({ className = '' }: ThemeSegmentedControlP
             `}>
               {option.label}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         );
       })}
     </View>
