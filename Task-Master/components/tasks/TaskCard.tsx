@@ -44,7 +44,7 @@
  * @requires lucide-react-native - Icon library for consistent UI elements
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -258,33 +258,33 @@ const getStatusTransitions = (currentStatus: ColumnStatus) => {
       canSwipeLeft: false,
       rightAction: 'in_progress' as ColumnStatus,
       leftAction: null,
-      rightLabel: 'Start Working',
+      rightLabel: 'Move to IN PROGRESS',
       rightIcon: 'ArrowRight',
       rightColor: '#F59E0B', // Amber for in-progress
-      description: 'Swipe right to start working on this task'
+      description: 'Swipe right to move to in progress'
     },
     in_progress: {
       canSwipeRight: true,
       canSwipeLeft: true,
       rightAction: 'done' as ColumnStatus,
       leftAction: 'todo' as ColumnStatus,
-      rightLabel: 'Mark Complete',
-      leftLabel: 'Move to Todo',
+      rightLabel: 'Move to DONE',
+      leftLabel: 'Move to TO-DO',
       rightIcon: 'ArrowRight',
       leftIcon: 'ArrowLeft',
       rightColor: '#10B981', // Green for done
       leftColor: '#EF4444',  // Red for todo
-      description: 'Swipe right to complete or left to move back to todo'
+      description: 'Swipe right to move to done or left to move to todo'
     },
     done: {
       canSwipeRight: false,
       canSwipeLeft: true,
       rightAction: null,
       leftAction: 'in_progress' as ColumnStatus,
-      leftLabel: 'Reopen Task',
+      leftLabel: 'Move to IN PROGRESS',
       leftIcon: 'ArrowLeft',
       leftColor: '#F59E0B', // Amber for in-progress
-      description: 'Swipe left to reopen this task'
+      description: 'Swipe left to move to in progress'
     }
   };
 
@@ -404,15 +404,52 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   // Get available transitions for current task status
   const transitions = getStatusTransitions(task.status);
   
+  // Debug logging without returning void in JSX
+  useEffect(() => {
+    if (isSwipping) {
+      console.log(
+        'Indicator rendering - Label:',
+        swipeLabel,
+        'Direction:',
+        swipeDirection,
+        'Color:',
+        swipeColor
+      );
+    }
+  }, [isSwipping, swipeLabel, swipeDirection, swipeColor]);
+  
   /**
    * Simplified Gesture Handlers using react-native-gesture-handler
    * 
    * Much more reliable than PanResponder for swipe gestures
    */
-  const onGestureEvent = Animated.event(
-    [{ nativeEvent: { translationX: translateX } }],
-    { useNativeDriver: true }
-  );
+  const onGestureEvent = (event) => {
+    const { translationX } = event.nativeEvent;
+    
+    // Update animation value
+    translateX.setValue(translationX);
+    
+    // Update swipe state in real-time during active gesture
+    if (isSwipping) {
+      const swipeAnalysis = analyzeSwipe(translationX, task.status);
+      
+      if (swipeAnalysis.isValid) {
+        setSwipeDirection(
+          swipeAnalysis.direction === 'left' || swipeAnalysis.direction === 'right'
+            ? swipeAnalysis.direction
+            : null
+        );
+        setSwipeProgress(swipeAnalysis.progress);
+        setSwipeLabel(swipeAnalysis.label);
+        setSwipeColor(swipeAnalysis.color);
+      } else {
+        setSwipeDirection(null);
+        setSwipeProgress(0);
+        setSwipeLabel(null);
+        setSwipeColor(null);
+      }
+    }
+  };
 
   const onHandlerStateChange = (event) => {
     const { state, translationX, velocityX } = event.nativeEvent;
@@ -430,21 +467,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         
       case State.ACTIVE:
         console.log('Gesture active, translation:', translationX);
-        
-        // Analyze current swipe state
-        const swipeAnalysis = analyzeSwipe(translationX, task.status);
-        
-        if (swipeAnalysis.isValid) {
-          setSwipeDirection(swipeAnalysis.direction);
-          setSwipeProgress(swipeAnalysis.progress);
-          setSwipeLabel(swipeAnalysis.label);
-          setSwipeColor(swipeAnalysis.color);
-        } else {
-          setSwipeDirection(null);
-          setSwipeProgress(0);
-          setSwipeLabel(null);
-          setSwipeColor(null);
-        }
+        // Swipe state is now handled in onGestureEvent for real-time updates
         break;
         
       case State.END:
@@ -522,12 +545,8 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
   return (
     <View className="mb-4">
-      {/* Debug Indicator */}
-      {isSwipping && (
-        <View className="absolute top-2 left-2 z-20 bg-red-500 px-2 py-1 rounded">
-          <Text className="text-white text-xs font-bold">SWIPING</Text>
-        </View>
-      )}
+     
+     {/* Debug info */}
       
       {/* Swipe Direction Indicators */}
       {isSwipping && (
