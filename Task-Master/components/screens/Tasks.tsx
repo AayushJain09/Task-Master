@@ -61,6 +61,7 @@ import { Plus, AlertCircle } from 'lucide-react-native';
 // Import focused task management components
 import KanbanColumn from '../tasks/KanbanColumn';
 import TaskFormModal from '../tasks/TaskFormModal';
+import TaskDetailsModal from '../tasks/TaskDetailsModal';
 import { Task as TaskCardType, ColumnStatus } from '../tasks/TaskCard';
 
 // Import API types and service
@@ -213,6 +214,10 @@ export default function Tasks() {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState<EditableTaskData | null>(null);
   const [modalTitle, setModalTitle] = useState('Create New Task');
+  
+  // Details modal state
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<TaskCardType | null>(null);
 
   /**
    * API Integration Functions
@@ -442,6 +447,16 @@ export default function Tasks() {
       setLoading(prev => ({ ...prev, updating: false }));
     }
   }, [tasks]);
+
+  const handleTaskPress = useCallback((task: TaskCardType) => {
+    setSelectedTask(task);
+    setShowDetailsModal(true);
+  }, []);
+
+  const handleCloseDetailsModal = useCallback(() => {
+    setShowDetailsModal(false);
+    setSelectedTask(null);
+  }, []);
 
   const handleFormSubmit = useCallback(async (formData: FormData) => {
     try {
@@ -758,6 +773,7 @@ export default function Tasks() {
                   onEditTask={handleEditTask}
                   onDeleteTask={handleDeleteTask}
                   onMoveTask={handleMoveTask}
+                  onPressTask={handleTaskPress}
                 />
               </View>
               
@@ -771,6 +787,7 @@ export default function Tasks() {
                   onEditTask={handleEditTask}
                   onDeleteTask={handleDeleteTask}
                   onMoveTask={handleMoveTask}
+                  onPressTask={handleTaskPress}
                 />
               </View>
               
@@ -784,6 +801,7 @@ export default function Tasks() {
                   onEditTask={handleEditTask}
                   onDeleteTask={handleDeleteTask}
                   onMoveTask={handleMoveTask}
+                  onPressTask={handleTaskPress}
                 />
               </View>
             </View>
@@ -828,6 +846,12 @@ export default function Tasks() {
         onSubmit={handleFormSubmit}
         isLoading={loading.creating || loading.updating}
         error={errors.create || errors.update}
+      />
+
+      <TaskDetailsModal
+        visible={showDetailsModal}
+        task={selectedTask}
+        onClose={handleCloseDetailsModal}
       />
     </View>
   );

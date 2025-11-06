@@ -121,6 +121,7 @@ interface TaskCardProps {
   onEdit: (task: Task) => void;
   onDelete: (taskId: number) => void;
   onMove: (taskId: number, newStatus: ColumnStatus) => void;
+  onPress?: (task: Task) => void;
 }
 
 /**
@@ -228,15 +229,15 @@ const SWIPE_CONFIG = {
   MINIMUM_SWIPE_DISTANCE: 50,        // Minimum pixels to register as intentional swipe
   ACTIVATION_THRESHOLD: 100,         // Distance required to trigger status change
   MAXIMUM_SWIPE_DISTANCE: 200,       // Maximum useful swipe distance
-  
+
   // Visual feedback parameters
   OPACITY_THRESHOLD: 0.3,            // Minimum opacity during swipe
   SCALE_FACTOR: 0.98,                // Card scaling during active swipe
   FEEDBACK_ANIMATION_DURATION: 200,  // Duration of visual feedback animations
-  
+
   // Haptic feedback intensity
   HAPTIC_INTENSITY: Haptics.ImpactFeedbackStyle.Medium,
-  
+
   // Swipe velocity requirements
   MINIMUM_VELOCITY: 0.5,             // Minimum swipe velocity to trigger
   VELOCITY_THRESHOLD: 1.5,           // Velocity threshold for instant trigger
@@ -303,7 +304,7 @@ const getStatusTransitions = (currentStatus: ColumnStatus) => {
 const analyzeSwipe = (deltaX: number, currentStatus: ColumnStatus) => {
   const transitions = getStatusTransitions(currentStatus);
   const absDistance = Math.abs(deltaX);
-  
+
   // Determine swipe direction and validate constraints
   if (deltaX > SWIPE_CONFIG.MINIMUM_SWIPE_DISTANCE && transitions.canSwipeRight) {
     return {
@@ -312,8 +313,8 @@ const analyzeSwipe = (deltaX: number, currentStatus: ColumnStatus) => {
       targetStatus: transitions.rightAction,
       distance: deltaX,
       progress: Math.min(deltaX / SWIPE_CONFIG.ACTIVATION_THRESHOLD, 1),
-      label: transitions.rightLabel,
-      color: transitions.rightColor
+      label: (transitions as any).rightLabel,
+      color: (transitions as any).rightColor
     };
   } else if (deltaX < -SWIPE_CONFIG.MINIMUM_SWIPE_DISTANCE && transitions.canSwipeLeft) {
     return {
@@ -322,11 +323,11 @@ const analyzeSwipe = (deltaX: number, currentStatus: ColumnStatus) => {
       targetStatus: transitions.leftAction,
       distance: absDistance,
       progress: Math.min(absDistance / SWIPE_CONFIG.ACTIVATION_THRESHOLD, 1),
-      label: transitions.leftLabel,
-      color: transitions.leftColor
+      label: (transitions as any).leftLabel,
+      color: (transitions as any).leftColor
     };
   }
-  
+
   return {
     isValid: false,
     direction: null,
@@ -377,33 +378,34 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   task,
   onEdit,
   onDelete,
-  onMove
+  onMove,
+  onPress
 }) => {
   const { isDark } = useTheme();
   const priorityColors = getPriorityColors(task.priority);
-  
+
   /**
    * Swipe Gesture State Management
    * 
    * Manages all state related to swipe gestures including animation values,
    * gesture tracking, and visual feedback states.
    */
-  
+
   // Animation values for smooth visual feedback
   const translateX = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(1)).current;
   const opacity = useRef(new Animated.Value(1)).current;
-  
+
   // Gesture tracking state
   const [isSwipping, setIsSwipping] = useState(false);
   const [swipeProgress, setSwipeProgress] = useState(0);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
   const [swipeLabel, setSwipeLabel] = useState<string | null>(null);
   const [swipeColor, setSwipeColor] = useState<string | null>(null);
-  
+
   // Get available transitions for current task status
   const transitions = getStatusTransitions(task.status);
-  
+
   // Debug logging without returning void in JSX
   useEffect(() => {
     if (isSwipping) {
@@ -417,22 +419,22 @@ export const TaskCard: React.FC<TaskCardProps> = ({
       );
     }
   }, [isSwipping, swipeLabel, swipeDirection, swipeColor]);
-  
+
   /**
    * Simplified Gesture Handlers using react-native-gesture-handler
    * 
    * Much more reliable than PanResponder for swipe gestures
    */
-  const onGestureEvent = (event) => {
+  const onGestureEvent = (event: any) => {
     const { translationX } = event.nativeEvent;
-    
+
     // Update animation value
     translateX.setValue(translationX);
-    
+
     // Update swipe state in real-time during active gesture
     if (isSwipping) {
       const swipeAnalysis = analyzeSwipe(translationX, task.status);
-      
+
       if (swipeAnalysis.isValid) {
         setSwipeDirection(
           swipeAnalysis.direction === 'left' || swipeAnalysis.direction === 'right'
@@ -451,9 +453,9 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     }
   };
 
-  const onHandlerStateChange = (event) => {
+  const onHandlerStateChange = (event: any) => {
     const { state, translationX, velocityX } = event.nativeEvent;
-    
+
     switch (state) {
       case State.BEGAN:
         console.log('Gesture began');
@@ -464,37 +466,37 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           console.log('Haptics not available');
         }
         break;
-        
+
       case State.ACTIVE:
         console.log('Gesture active, translation:', translationX);
         // Swipe state is now handled in onGestureEvent for real-time updates
         break;
-        
+
       case State.END:
         console.log('Gesture ended, translation:', translationX, 'velocity:', velocityX);
-        
+
         // Analyze final swipe state
         const finalAnalysis = analyzeSwipe(translationX, task.status);
-        const shouldTrigger = finalAnalysis.isValid && 
+        const shouldTrigger = finalAnalysis.isValid &&
           (Math.abs(translationX) > 80 || (Math.abs(velocityX) > 500 && Math.abs(translationX) > 40));
-        
+
         console.log('Should trigger:', shouldTrigger, 'Analysis:', finalAnalysis);
-        
+
         if (shouldTrigger && finalAnalysis.targetStatus) {
           console.log('Triggering status change to:', finalAnalysis.targetStatus);
-          
+
           try {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
           } catch (error) {
             console.log('Haptics not available');
           }
-          
+
           onMove(task.id, finalAnalysis.targetStatus);
         }
-        
+
         resetSwipeState();
         break;
-        
+
       case State.CANCELLED:
       case State.FAILED:
         console.log('Gesture cancelled/failed');
@@ -502,7 +504,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         break;
     }
   };
-  
+
   /**
    * Reset Swipe State Helper
    * 
@@ -516,10 +518,10 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     setSwipeProgress(0);
     setSwipeLabel(null);
     setSwipeColor(null);
-    
+
     // Reset animation values with smooth transition
     translateX.flattenOffset();
-    
+
     Animated.parallel([
       Animated.spring(translateX, {
         toValue: 0,
@@ -545,67 +547,67 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
   return (
     <View className="mb-4">
-     
-     {/* Debug info */}
-      
+
+      {/* Debug info */}
+
       {/* Swipe Direction Indicators */}
       {isSwipping && (
         <View className="absolute inset-0 z-10 pointer-events-none">
           {/* Left Swipe Indicator */}
           {swipeDirection === 'left' && transitions.canSwipeLeft && (
             <View className="absolute left-4 top-1/2 transform -translate-y-1/2 flex-row items-center">
-              <View 
+              <View
                 className="flex-row items-center px-3 py-2 rounded-full"
-                style={{ 
+                style={{
                   backgroundColor: swipeColor + '20',
                   borderColor: swipeColor as string,
                   borderWidth: 2,
-                  opacity: swipeProgress 
+                  opacity: swipeProgress
                 }}
               >
-                <ArrowLeft size={16} color={swipeColor} />
-                <Text 
+                <ArrowLeft size={16} color={swipeColor as string} />
+                <Text
                   className="text-sm font-bold ml-2"
-                  style={{ color: swipeColor }}
+                  style={{ color: swipeColor as string }}
                 >
                   {swipeLabel}
                 </Text>
               </View>
             </View>
           )}
-          
+
           {/* Right Swipe Indicator */}
           {swipeDirection === 'right' && transitions.canSwipeRight && (
             <View className="absolute right-4 top-1/2 transform -translate-y-1/2 flex-row items-center">
-              <View 
+              <View
                 className="flex-row items-center px-3 py-2 rounded-full"
-                style={{ 
+                style={{
                   backgroundColor: swipeColor + '20',
-                  borderColor: swipeColor,
+                  borderColor: swipeColor as string,
                   borderWidth: 2,
-                  opacity: swipeProgress 
+                  opacity: swipeProgress
                 }}
               >
-                <Text 
+                <Text
                   className="text-sm font-bold mr-2"
-                  style={{ color: swipeColor }}
+                  style={{ color: swipeColor as string }}
                 >
                   {swipeLabel}
                 </Text>
-                <ArrowRight size={16} color={swipeColor} />
+                <ArrowRight size={16} color={swipeColor as string} />
               </View>
             </View>
           )}
-          
+
           {/* Progress Bar */}
           <View className="absolute bottom-2 left-4 right-4">
-            <View 
+            <View
               className="h-1 rounded-full bg-gray-300"
               style={{ opacity: 0.6 }}
             >
-              <View 
+              <View
                 className="h-full rounded-full"
-                style={{ 
+                style={{
                   backgroundColor: swipeColor || '#6B7280',
                   width: `${Math.min(swipeProgress * 100, 100)}%`
                 }}
@@ -614,7 +616,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
           </View>
         </View>
       )}
-      
+
       <PanGestureHandler
         onGestureEvent={onGestureEvent}
         onHandlerStateChange={onHandlerStateChange}
@@ -629,17 +631,16 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             ],
             opacity
           }}
-          className={`rounded-2xl border-2 overflow-hidden ${
-            isDark 
-              ? 'bg-gray-800 border-gray-700 shadow-lg shadow-gray-900/20' 
+          className={`rounded-2xl border-2 overflow-hidden ${isDark
+              ? 'bg-gray-800 border-gray-700 shadow-lg shadow-gray-900/20'
               : 'bg-white border-gray-100 shadow-lg shadow-gray-900/10'
-          }`}
+            }`}
           accessible={true}
           accessibilityLabel={`Task: ${task.title}. ${transitions.description}`}
           accessibilityHint="Swipe left or right to change status, or double tap for details"
           accessibilityActions={[
-            ...(transitions.canSwipeLeft ? [{ name: 'swipeLeft', label: transitions.leftLabel }] : []),
-            ...(transitions.canSwipeRight ? [{ name: 'swipeRight', label: transitions.rightLabel }] : []),
+            ...(transitions.canSwipeLeft ? [{ name: 'swipeLeft', label: (transitions as any).leftLabel }] : []),
+            ...(transitions.canSwipeRight ? [{ name: 'swipeRight', label: (transitions as any).rightLabel }] : []),
           ]}
           onAccessibilityAction={(event) => {
             switch (event.nativeEvent.actionName) {
@@ -656,164 +657,161 @@ export const TaskCard: React.FC<TaskCardProps> = ({
             }
           }}
         >
-      {/* Priority Accent Bar */}
-      <View 
-        className="h-1.5 w-full"
-        style={{ backgroundColor: priorityColors.accent }}
-      />
-      
-      {/* Main Card Content */}
-      <View className="p-5">
-        {/* Task Header Section */}
-        <View className="mb-4">
-          {/* Task Title */}
-          <Text 
-            className={`text-lg font-bold leading-6 mb-2 ${
-              isDark ? 'text-white' : 'text-gray-900'
-            }`}
-            numberOfLines={2}
-            ellipsizeMode="tail"
+          {/* Priority Accent Bar */}
+          <View
+            className="h-1.5 w-full"
+            style={{ backgroundColor: priorityColors.accent }}
+          />
+
+          {/* Main Card Content */}
+          <Pressable
+            className="p-5"
+            onPress={() => onPress?.(task)}
+            accessibilityLabel={`View details for ${task.title}`}
+            accessibilityHint="Tap to view full task details"
           >
-            {task.title}
-          </Text>
-          
-          {/* Task Description */}
-          {task.description && (
-            <Text 
-              className={`text-sm leading-5 ${
-                isDark ? 'text-gray-300' : 'text-gray-600'
-              }`}
-              numberOfLines={3}
-              ellipsizeMode="tail"
-            >
-              {task.description}
-            </Text>
-          )}
-        </View>
-
-        {/* Task Metadata Section */}
-        <View className="mb-4 gap-y-3">
-          {/* Priority Badge */}
-          <View className="flex-row items-center">
-            <View 
-              className="px-3 py-1.5 rounded-full mr-3"
-              style={{ 
-                backgroundColor: priorityColors.bg,
-                borderWidth: 1,
-                borderColor: priorityColors.border
-              }}
-            >
-              <Text 
-                className="text-xs font-bold uppercase tracking-wide"
-                style={{ color: priorityColors.text }}
+            {/* Task Header Section */}
+            <View className="mb-4">
+              {/* Task Title */}
+              <Text
+                className={`text-lg font-bold leading-6 mb-2 ${isDark ? 'text-white' : 'text-gray-900'
+                  }`}
+                numberOfLines={2}
+                ellipsizeMode="tail"
               >
-                {task.priority} Priority
+                {task.title}
               </Text>
+
+              {/* Task Description */}
+              {task.description && (
+                <Text
+                  className={`text-sm leading-5 ${isDark ? 'text-gray-300' : 'text-gray-600'
+                    }`}
+                  numberOfLines={3}
+                  ellipsizeMode="tail"
+                >
+                  {task.description}
+                </Text>
+              )}
             </View>
-          </View>
 
-          {/* Metadata Row */}
-          <View className="flex-row items-center justify-between">
-            {/* Category */}
-            <View className="flex-row items-center flex-1">
-              <Tag size={14} color={isDark ? '#9CA3AF' : '#6B7280'} />
-              <Text className={`text-sm font-medium ml-2 ${
-                isDark ? 'text-gray-400' : 'text-gray-500'
-              }`}>
-                {task.category}
-              </Text>
-            </View>
-
-            {/* Due Date */}
-            <View className="flex-row items-center">
-              <Calendar size={14} color={isDark ? '#9CA3AF' : '#6B7280'} />
-              <Text className={`text-sm font-medium ml-2 ${
-                isDark ? 'text-gray-400' : 'text-gray-500'
-              }`}>
-                Due Date - {task.dueDate}
-              </Text>
-            </View>
-          </View>
-
-          {/* Created Date */}
-          <View className="flex-row items-center">
-            <Clock size={14} color={isDark ? '#9CA3AF' : '#6B7280'} />
-            <Text className={`text-xs ml-2 ${
-              isDark ? 'text-gray-500' : 'text-gray-400'
-            }`}>
-              Created {task.createdAt}
-            </Text>
-          </View>
-        </View>
-
-        {/* Action Buttons Section */}
-        <View className={`pt-4 border-t ${
-          isDark ? 'border-gray-700' : 'border-gray-100'
-        }`}>
-          {/* Edit and Delete Actions */}
-          <View className="flex-row items-center justify-end gap-x-3">
-            {/* Edit Button */}
-            <TouchableOpacity
-              onPress={() => onEdit(task)}
-              className={`flex-row items-center px-4 py-2.5 rounded-xl ${
-                isDark ? 'bg-gray-700' : 'bg-gray-100'
-              }`}
-              accessibilityLabel="Edit Task"
-              accessibilityHint="Opens edit form for this task"
-              activeOpacity={0.8}
-            >
-              <Edit3 size={16} color={isDark ? '#D1D5DB' : '#4B5563'} />
-              <Text className={`text-sm font-semibold ml-2 ${
-                isDark ? 'text-gray-300' : 'text-gray-600'
-              }`}>
-                Edit
-              </Text>
-            </TouchableOpacity>
-
-            {/* Delete Button */}
-            <TouchableOpacity
-              onPress={() => onDelete(task.id)}
-              className="flex-row items-center px-4 py-2.5 rounded-xl bg-red-50 border border-red-200"
-              accessibilityLabel="Delete Task"
-              accessibilityHint="Deletes this task permanently"
-              activeOpacity={0.8}
-            >
-              <Trash2 size={16} color="#EF4444" />
-              <Text className="text-sm font-semibold ml-2 text-red-600">
-                Delete
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-        
-        {/* Swipe Hint Indicators - Subtle visual cues for available swipe actions */}
-        {!isSwipping && (
-          <View className="absolute inset-0 pointer-events-none">
-            {/* Left Swipe Hint */}
-            {transitions.canSwipeLeft && (
-              <View className="absolute left-2 top-1/2 transform -translate-y-1/2">
-                <View 
-                  className="w-1 h-8 rounded-full opacity-20"
-                  style={{ backgroundColor: transitions.leftColor }}
-                />
+            {/* Task Metadata Section */}
+            <View className="mb-4 gap-y-3">
+              {/* Priority Badge */}
+              <View className="flex-row items-center">
+                <View
+                  className="px-3 py-1.5 rounded-full mr-3"
+                  style={{
+                    backgroundColor: priorityColors.bg,
+                    borderWidth: 1,
+                    borderColor: priorityColors.border
+                  }}
+                >
+                  <Text
+                    className="text-xs font-bold uppercase tracking-wide"
+                    style={{ color: priorityColors.text }}
+                  >
+                    {task.priority} Priority
+                  </Text>
+                </View>
               </View>
-            )}
-            
-            {/* Right Swipe Hint */}
-            {transitions.canSwipeRight && (
-              <View className="absolute right-2 top-1/2 transform -translate-y-1/2">
-                <View 
-                  className="w-1 h-8 rounded-full opacity-20"
-                  style={{ backgroundColor: transitions.rightColor }}
-                />
+
+              {/* Metadata Row */}
+              <View className="flex-row items-center justify-between">
+                {/* Category */}
+                <View className="flex-row items-center flex-1">
+                  <Tag size={14} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                  <Text className={`text-sm font-medium ml-2 ${isDark ? 'text-gray-400' : 'text-gray-500'
+                    }`}>
+                    {task.category}
+                  </Text>
+                </View>
+
+                {/* Due Date */}
+                <View className="flex-row items-center">
+                  <Calendar size={14} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                  <Text className={`text-sm font-medium ml-2 ${isDark ? 'text-gray-400' : 'text-gray-500'
+                    }`}>
+                    Due Date - {task.dueDate}
+                  </Text>
+                </View>
               </View>
-            )}
-          </View>
-        )}
-      </View>
+
+              {/* Created Date */}
+              <View className="flex-row items-center">
+                <Clock size={14} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                <Text className={`text-xs ml-2 ${isDark ? 'text-gray-500' : 'text-gray-400'
+                  }`}>
+                  Created {task.createdAt}
+                </Text>
+              </View>
+            </View>
+
+            {/* Action Buttons Section */}
+            <View className={`pt-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-100'
+              }`}>
+              {/* Edit and Delete Actions */}
+              <View className="flex-row items-center justify-end gap-x-3">
+                {/* Edit Button */}
+                <TouchableOpacity
+                  onPress={() => onEdit(task)}
+                  className={`flex-row items-center px-4 py-2.5 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'
+                    }`}
+                  accessibilityLabel="Edit Task"
+                  accessibilityHint="Opens edit form for this task"
+                  activeOpacity={0.8}
+                >
+                  <Edit3 size={16} color={isDark ? '#D1D5DB' : '#4B5563'} />
+                  <Text className={`text-sm font-semibold ml-2 ${isDark ? 'text-gray-300' : 'text-gray-600'
+                    }`}>
+                    Edit
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Delete Button */}
+                <TouchableOpacity
+                  onPress={() => onDelete(task.id)}
+                  className="flex-row items-center px-4 py-2.5 rounded-xl bg-red-50 border border-red-200"
+                  accessibilityLabel="Delete Task"
+                  accessibilityHint="Deletes this task permanently"
+                  activeOpacity={0.8}
+                >
+                  <Trash2 size={16} color="#EF4444" />
+                  <Text className="text-sm font-semibold ml-2 text-red-600">
+                    Delete
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Pressable>
+
+          {/* Swipe Hint Indicators - Subtle visual cues for available swipe actions */}
+          {!isSwipping && (
+            <View className="absolute inset-0 pointer-events-none">
+              {/* Left Swipe Hint */}
+              {transitions.canSwipeLeft && (
+                <View className="absolute left-2 top-1/2 transform -translate-y-1/2">
+                  <View
+                    className="w-1 h-8 rounded-full opacity-20"
+                    style={{ backgroundColor: (transitions as any).leftColor }}
+                  />
+                </View>
+              )}
+
+              {/* Right Swipe Hint */}
+              {transitions.canSwipeRight && (
+                <View className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                  <View
+                    className="w-1 h-8 rounded-full opacity-20"
+                    style={{ backgroundColor: (transitions as any).rightColor }}
+                  />
+                </View>
+              )}
+            </View>
+          )}      
         </Animated.View>
-      </PanGestureHandler>
-    </View>
+    </PanGestureHandler>
+    </View >
   );
 };
 
