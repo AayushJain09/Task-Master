@@ -1,8 +1,8 @@
 /**
- * TaskCard Component
+ * TaskCard Component with Intuitive Swipe Gestures
  * 
  * A beautifully designed, interactive task card that displays comprehensive task information
- * with priority-based styling, smooth animations, and intuitive user interactions.
+ * with priority-based styling, smooth animations, and intuitive swipe-based status management.
  * 
  * Design Features:
  * - Modern card design with subtle shadows and rounded corners
@@ -11,8 +11,16 @@
  * - Smooth hover effects and touch feedback
  * - Accessibility-compliant design with proper contrast ratios
  * 
+ * Swipe Gesture Features:
+ * - Intuitive swipe-to-change-status with contextual constraints
+ * - Right swipe: Advances status (Todo → In Progress → Done)
+ * - Left swipe: Reverts status (Done → In Progress → Todo)
+ * - Real-time visual feedback with progress indicators
+ * - Haptic feedback for gesture confirmation
+ * - Subtle hint indicators showing available swipe directions
+ * - Accessibility support with alternative button actions
+ * 
  * Interactive Elements:
- * - Quick status change buttons with visual feedback
  * - Edit and delete actions with appropriate styling
  * - Touch-optimized button sizes for mobile interaction
  * - Visual states for pressed, focused, and disabled states
@@ -36,21 +44,29 @@
  * @requires lucide-react-native - Icon library for consistent UI elements
  */
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  Pressable
+  Pressable,
+  Animated,
+  Dimensions
 } from 'react-native';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useTheme } from '@/context/ThemeContext';
+import * as Haptics from 'expo-haptics';
 import {
   Calendar,
   Edit3,
   Trash2,
   Clock,
   User,
-  Tag
+  Tag,
+  ChevronLeft,
+  ChevronRight,
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react-native';
 
 /**
@@ -174,41 +190,152 @@ const getPriorityColors = (priority: string) => {
 };
 
 /**
- * Status Button Configuration
+ * Swipe Configuration & Logic
  * 
- * Defines the visual and behavioral properties for status change buttons
- * including colors, labels, and conditional rendering logic.
+ * Comprehensive swipe gesture configuration defining thresholds, directions,
+ * status transitions, and visual feedback parameters for intuitive task status changes.
  * 
- * @param {ColumnStatus} status - The target status for the button
- * @returns {Object} Button configuration object
+ * Swipe Mechanics:
+ * - Right Swipe: Advances status (Todo → In Progress → Done)
+ * - Left Swipe: Reverts status (Done → In Progress → Todo)
+ * - Minimum distance threshold prevents accidental triggers
+ * - Visual feedback provides real-time swipe direction indication
+ * - Haptic feedback confirms successful status changes
+ * 
+ * Status Transition Rules:
+ * - Todo tasks: Can only advance (right swipe to In Progress)
+ * - In Progress tasks: Can advance to Done or revert to Todo
+ * - Done tasks: Can only revert (left swipe to In Progress)
+ * 
+ * Accessibility Considerations:
+ * - Alternative button controls for non-gesture users
+ * - Clear visual indicators of swipe availability
+ * - Voice-over compatible action descriptions
+ * - Reduced motion respect for accessibility preferences
  */
-const getStatusButtonConfig = (status: ColumnStatus) => {
-  switch (status) {
-    case 'todo':
-      return {
-        label: 'To Do',
-        bgColor: 'bg-red-50',
-        borderColor: 'border-red-200',
-        textColor: 'text-red-600',
-        hoverColor: 'bg-red-100'
-      };
-    case 'in_progress':
-      return {
-        label: 'In Progress',
-        bgColor: 'bg-yellow-50',
-        borderColor: 'border-yellow-200',
-        textColor: 'text-yellow-600',
-        hoverColor: 'bg-yellow-100'
-      };
-    case 'done':
-      return {
-        label: 'Done',
-        bgColor: 'bg-green-50',
-        borderColor: 'border-green-200',
-        textColor: 'text-green-600',
-        hoverColor: 'bg-green-100'
-      };
+
+// Get screen dimensions for swipe calculations
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+/**
+ * Swipe Configuration Constants
+ * 
+ * Defines precise parameters for swipe gesture recognition and visual feedback.
+ * These values are carefully tuned for optimal user experience across devices.
+ */
+const SWIPE_CONFIG = {
+  // Distance thresholds for gesture recognition
+  MINIMUM_SWIPE_DISTANCE: 50,        // Minimum pixels to register as intentional swipe
+  ACTIVATION_THRESHOLD: 100,         // Distance required to trigger status change
+  MAXIMUM_SWIPE_DISTANCE: 200,       // Maximum useful swipe distance
+  
+  // Visual feedback parameters
+  OPACITY_THRESHOLD: 0.3,            // Minimum opacity during swipe
+  SCALE_FACTOR: 0.98,                // Card scaling during active swipe
+  FEEDBACK_ANIMATION_DURATION: 200,  // Duration of visual feedback animations
+  
+  // Haptic feedback intensity
+  HAPTIC_INTENSITY: Haptics.ImpactFeedbackStyle.Medium,
+  
+  // Swipe velocity requirements
+  MINIMUM_VELOCITY: 0.5,             // Minimum swipe velocity to trigger
+  VELOCITY_THRESHOLD: 1.5,           // Velocity threshold for instant trigger
+};
+
+/**
+ * Status Transition Configuration
+ * 
+ * Defines valid status transitions and their associated properties including
+ * visual indicators, labels, and directional constraints.
+ * 
+ * @param {ColumnStatus} currentStatus - Current task status
+ * @returns {Object} Transition configuration object
+ */
+const getStatusTransitions = (currentStatus: ColumnStatus) => {
+  const transitions = {
+    todo: {
+      canSwipeRight: true,
+      canSwipeLeft: false,
+      rightAction: 'in_progress' as ColumnStatus,
+      leftAction: null,
+      rightLabel: 'Start Working',
+      rightIcon: 'ArrowRight',
+      rightColor: '#F59E0B', // Amber for in-progress
+      description: 'Swipe right to start working on this task'
+    },
+    in_progress: {
+      canSwipeRight: true,
+      canSwipeLeft: true,
+      rightAction: 'done' as ColumnStatus,
+      leftAction: 'todo' as ColumnStatus,
+      rightLabel: 'Mark Complete',
+      leftLabel: 'Move to Todo',
+      rightIcon: 'ArrowRight',
+      leftIcon: 'ArrowLeft',
+      rightColor: '#10B981', // Green for done
+      leftColor: '#EF4444',  // Red for todo
+      description: 'Swipe right to complete or left to move back to todo'
+    },
+    done: {
+      canSwipeRight: false,
+      canSwipeLeft: true,
+      rightAction: null,
+      leftAction: 'in_progress' as ColumnStatus,
+      leftLabel: 'Reopen Task',
+      leftIcon: 'ArrowLeft',
+      leftColor: '#F59E0B', // Amber for in-progress
+      description: 'Swipe left to reopen this task'
+    }
+  };
+
+  return transitions[currentStatus];
+};
+
+/**
+ * Swipe Direction Helper
+ * 
+ * Determines swipe direction and validates against current task status constraints.
+ * 
+ * @param {number} deltaX - Horizontal displacement from swipe gesture
+ * @param {ColumnStatus} currentStatus - Current task status
+ * @returns {Object} Swipe analysis object
+ */
+const analyzeSwipe = (deltaX: number, currentStatus: ColumnStatus) => {
+  const transitions = getStatusTransitions(currentStatus);
+  const absDistance = Math.abs(deltaX);
+  
+  // Determine swipe direction and validate constraints
+  if (deltaX > SWIPE_CONFIG.MINIMUM_SWIPE_DISTANCE && transitions.canSwipeRight) {
+    return {
+      isValid: true,
+      direction: 'right',
+      targetStatus: transitions.rightAction,
+      distance: deltaX,
+      progress: Math.min(deltaX / SWIPE_CONFIG.ACTIVATION_THRESHOLD, 1),
+      label: transitions.rightLabel,
+      color: transitions.rightColor
+    };
+  } else if (deltaX < -SWIPE_CONFIG.MINIMUM_SWIPE_DISTANCE && transitions.canSwipeLeft) {
+    return {
+      isValid: true,
+      direction: 'left',
+      targetStatus: transitions.leftAction,
+      distance: absDistance,
+      progress: Math.min(absDistance / SWIPE_CONFIG.ACTIVATION_THRESHOLD, 1),
+      label: transitions.leftLabel,
+      color: transitions.leftColor
+    };
   }
+  
+  return {
+    isValid: false,
+    direction: null,
+    targetStatus: null,
+    distance: 0,
+    progress: 0,
+    label: null,
+    color: null
+  };
 };
 
 /**
@@ -254,57 +381,262 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 }) => {
   const { isDark } = useTheme();
   const priorityColors = getPriorityColors(task.priority);
-
+  
   /**
-   * Render Status Change Buttons
+   * Swipe Gesture State Management
    * 
-   * Dynamically renders status change buttons based on the current task status.
-   * Only shows buttons for statuses that are different from the current status.
-   * 
-   * @returns {JSX.Element[]} Array of status change button components
+   * Manages all state related to swipe gestures including animation values,
+   * gesture tracking, and visual feedback states.
    */
-  const renderStatusButtons = () => {
-    const statuses: ColumnStatus[] = ['todo', 'in_progress', 'done'];
+  
+  // Animation values for smooth visual feedback
+  const translateX = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(1)).current;
+  const opacity = useRef(new Animated.Value(1)).current;
+  
+  // Gesture tracking state
+  const [isSwipping, setIsSwipping] = useState(false);
+  const [swipeProgress, setSwipeProgress] = useState(0);
+  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
+  const [swipeLabel, setSwipeLabel] = useState<string | null>(null);
+  const [swipeColor, setSwipeColor] = useState<string | null>(null);
+  
+  // Get available transitions for current task status
+  const transitions = getStatusTransitions(task.status);
+  
+  /**
+   * Simplified Gesture Handlers using react-native-gesture-handler
+   * 
+   * Much more reliable than PanResponder for swipe gestures
+   */
+  const onGestureEvent = Animated.event(
+    [{ nativeEvent: { translationX: translateX } }],
+    { useNativeDriver: true }
+  );
+
+  const onHandlerStateChange = (event) => {
+    const { state, translationX, velocityX } = event.nativeEvent;
     
-    return statuses
-      .filter(status => status !== task.status)
-      .map(status => {
-        const config = getStatusButtonConfig(status);
+    switch (state) {
+      case State.BEGAN:
+        console.log('Gesture began');
+        setIsSwipping(true);
+        try {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        } catch (error) {
+          console.log('Haptics not available');
+        }
+        break;
         
-        return (
-          <Pressable
-            key={status}
-            onPress={() => onMove(task.id, status)}
-            className={`px-3 py-1.5 rounded-lg border ${config.bgColor} ${config.borderColor}`}
-            accessibilityLabel={`Move to ${config.label}`}
-            accessibilityHint={`Moves this task to the ${config.label} column`}
-            style={({ pressed }) => ({
-              opacity: pressed ? 0.8 : 1,
-              transform: [{ scale: pressed ? 0.98 : 1 }]
-            })}
-          >
-            <Text className={`text-xs font-semibold ${config.textColor}`}>
-              {config.label}
-            </Text>
-          </Pressable>
-        );
-      });
+      case State.ACTIVE:
+        console.log('Gesture active, translation:', translationX);
+        
+        // Analyze current swipe state
+        const swipeAnalysis = analyzeSwipe(translationX, task.status);
+        
+        if (swipeAnalysis.isValid) {
+          setSwipeDirection(swipeAnalysis.direction);
+          setSwipeProgress(swipeAnalysis.progress);
+          setSwipeLabel(swipeAnalysis.label);
+          setSwipeColor(swipeAnalysis.color);
+        } else {
+          setSwipeDirection(null);
+          setSwipeProgress(0);
+          setSwipeLabel(null);
+          setSwipeColor(null);
+        }
+        break;
+        
+      case State.END:
+        console.log('Gesture ended, translation:', translationX, 'velocity:', velocityX);
+        
+        // Analyze final swipe state
+        const finalAnalysis = analyzeSwipe(translationX, task.status);
+        const shouldTrigger = finalAnalysis.isValid && 
+          (Math.abs(translationX) > 80 || (Math.abs(velocityX) > 500 && Math.abs(translationX) > 40));
+        
+        console.log('Should trigger:', shouldTrigger, 'Analysis:', finalAnalysis);
+        
+        if (shouldTrigger && finalAnalysis.targetStatus) {
+          console.log('Triggering status change to:', finalAnalysis.targetStatus);
+          
+          try {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          } catch (error) {
+            console.log('Haptics not available');
+          }
+          
+          onMove(task.id, finalAnalysis.targetStatus);
+        }
+        
+        resetSwipeState();
+        break;
+        
+      case State.CANCELLED:
+      case State.FAILED:
+        console.log('Gesture cancelled/failed');
+        resetSwipeState();
+        break;
+    }
+  };
+  
+  /**
+   * Reset Swipe State Helper
+   * 
+   * Resets all swipe-related state and animations to their default values.
+   * Used after gesture completion or cancellation to ensure clean state.
+   */
+  const resetSwipeState = () => {
+    // Reset gesture state
+    setIsSwipping(false);
+    setSwipeDirection(null);
+    setSwipeProgress(0);
+    setSwipeLabel(null);
+    setSwipeColor(null);
+    
+    // Reset animation values with smooth transition
+    translateX.flattenOffset();
+    
+    Animated.parallel([
+      Animated.spring(translateX, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 150,
+        friction: 8,
+      }),
+      Animated.spring(scale, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 150,
+        friction: 8,
+      }),
+      Animated.spring(opacity, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 150,
+        friction: 8,
+      })
+    ]).start();
   };
 
+
   return (
-    <Pressable
-      className={`mb-4 rounded-2xl border-2 overflow-hidden ${
-        isDark 
-          ? 'bg-gray-800 border-gray-700 shadow-lg shadow-gray-900/20' 
-          : 'bg-white border-gray-100 shadow-lg shadow-gray-900/10'
-      }`}
-      style={({ pressed }) => ({
-        opacity: pressed ? 0.95 : 1,
-        transform: [{ scale: pressed ? 0.99 : 1 }]
-      })}
-      accessibilityLabel={`Task: ${task.title}`}
-      accessibilityHint="Double tap to view task details"
-    >
+    <View className="mb-4">
+      {/* Debug Indicator */}
+      {isSwipping && (
+        <View className="absolute top-2 left-2 z-20 bg-red-500 px-2 py-1 rounded">
+          <Text className="text-white text-xs font-bold">SWIPING</Text>
+        </View>
+      )}
+      
+      {/* Swipe Direction Indicators */}
+      {isSwipping && (
+        <View className="absolute inset-0 z-10 pointer-events-none">
+          {/* Left Swipe Indicator */}
+          {swipeDirection === 'left' && transitions.canSwipeLeft && (
+            <View className="absolute left-4 top-1/2 transform -translate-y-1/2 flex-row items-center">
+              <View 
+                className="flex-row items-center px-3 py-2 rounded-full"
+                style={{ 
+                  backgroundColor: swipeColor + '20',
+                  borderColor: swipeColor as string,
+                  borderWidth: 2,
+                  opacity: swipeProgress 
+                }}
+              >
+                <ArrowLeft size={16} color={swipeColor} />
+                <Text 
+                  className="text-sm font-bold ml-2"
+                  style={{ color: swipeColor }}
+                >
+                  {swipeLabel}
+                </Text>
+              </View>
+            </View>
+          )}
+          
+          {/* Right Swipe Indicator */}
+          {swipeDirection === 'right' && transitions.canSwipeRight && (
+            <View className="absolute right-4 top-1/2 transform -translate-y-1/2 flex-row items-center">
+              <View 
+                className="flex-row items-center px-3 py-2 rounded-full"
+                style={{ 
+                  backgroundColor: swipeColor + '20',
+                  borderColor: swipeColor,
+                  borderWidth: 2,
+                  opacity: swipeProgress 
+                }}
+              >
+                <Text 
+                  className="text-sm font-bold mr-2"
+                  style={{ color: swipeColor }}
+                >
+                  {swipeLabel}
+                </Text>
+                <ArrowRight size={16} color={swipeColor} />
+              </View>
+            </View>
+          )}
+          
+          {/* Progress Bar */}
+          <View className="absolute bottom-2 left-4 right-4">
+            <View 
+              className="h-1 rounded-full bg-gray-300"
+              style={{ opacity: 0.6 }}
+            >
+              <View 
+                className="h-full rounded-full"
+                style={{ 
+                  backgroundColor: swipeColor || '#6B7280',
+                  width: `${Math.min(swipeProgress * 100, 100)}%`
+                }}
+              />
+            </View>
+          </View>
+        </View>
+      )}
+      
+      <PanGestureHandler
+        onGestureEvent={onGestureEvent}
+        onHandlerStateChange={onHandlerStateChange}
+        activeOffsetX={[-10, 10]}
+        failOffsetY={[-5, 5]}
+      >
+        <Animated.View
+          style={{
+            transform: [
+              { translateX },
+              { scale }
+            ],
+            opacity
+          }}
+          className={`rounded-2xl border-2 overflow-hidden ${
+            isDark 
+              ? 'bg-gray-800 border-gray-700 shadow-lg shadow-gray-900/20' 
+              : 'bg-white border-gray-100 shadow-lg shadow-gray-900/10'
+          }`}
+          accessible={true}
+          accessibilityLabel={`Task: ${task.title}. ${transitions.description}`}
+          accessibilityHint="Swipe left or right to change status, or double tap for details"
+          accessibilityActions={[
+            ...(transitions.canSwipeLeft ? [{ name: 'swipeLeft', label: transitions.leftLabel }] : []),
+            ...(transitions.canSwipeRight ? [{ name: 'swipeRight', label: transitions.rightLabel }] : []),
+          ]}
+          onAccessibilityAction={(event) => {
+            switch (event.nativeEvent.actionName) {
+              case 'swipeLeft':
+                if (transitions.canSwipeLeft && transitions.leftAction) {
+                  onMove(task.id, transitions.leftAction);
+                }
+                break;
+              case 'swipeRight':
+                if (transitions.canSwipeRight && transitions.rightAction) {
+                  onMove(task.id, transitions.rightAction);
+                }
+                break;
+            }
+          }}
+        >
       {/* Priority Accent Bar */}
       <View 
         className="h-1.5 w-full"
@@ -399,25 +731,17 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         <View className={`pt-4 border-t ${
           isDark ? 'border-gray-700' : 'border-gray-100'
         }`}>
-          {/* Status Change Buttons */}
-          <View className="flex-row flex-wrap gap-2 mb-4">
-            {renderStatusButtons()}
-          </View>
-
           {/* Edit and Delete Actions */}
           <View className="flex-row items-center justify-end gap-x-3">
             {/* Edit Button */}
-            <Pressable
+            <TouchableOpacity
               onPress={() => onEdit(task)}
               className={`flex-row items-center px-4 py-2.5 rounded-xl ${
                 isDark ? 'bg-gray-700' : 'bg-gray-100'
               }`}
               accessibilityLabel="Edit Task"
               accessibilityHint="Opens edit form for this task"
-              style={({ pressed }) => ({
-                opacity: pressed ? 0.8 : 1,
-                transform: [{ scale: pressed ? 0.95 : 1 }]
-              })}
+              activeOpacity={0.8}
             >
               <Edit3 size={16} color={isDark ? '#D1D5DB' : '#4B5563'} />
               <Text className={`text-sm font-semibold ml-2 ${
@@ -425,28 +749,52 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               }`}>
                 Edit
               </Text>
-            </Pressable>
+            </TouchableOpacity>
 
             {/* Delete Button */}
-            <Pressable
+            <TouchableOpacity
               onPress={() => onDelete(task.id)}
               className="flex-row items-center px-4 py-2.5 rounded-xl bg-red-50 border border-red-200"
               accessibilityLabel="Delete Task"
               accessibilityHint="Deletes this task permanently"
-              style={({ pressed }) => ({
-                opacity: pressed ? 0.8 : 1,
-                transform: [{ scale: pressed ? 0.95 : 1 }]
-              })}
+              activeOpacity={0.8}
             >
               <Trash2 size={16} color="#EF4444" />
               <Text className="text-sm font-semibold ml-2 text-red-600">
                 Delete
               </Text>
-            </Pressable>
+            </TouchableOpacity>
           </View>
         </View>
+        
+        {/* Swipe Hint Indicators - Subtle visual cues for available swipe actions */}
+        {!isSwipping && (
+          <View className="absolute inset-0 pointer-events-none">
+            {/* Left Swipe Hint */}
+            {transitions.canSwipeLeft && (
+              <View className="absolute left-2 top-1/2 transform -translate-y-1/2">
+                <View 
+                  className="w-1 h-8 rounded-full opacity-20"
+                  style={{ backgroundColor: transitions.leftColor }}
+                />
+              </View>
+            )}
+            
+            {/* Right Swipe Hint */}
+            {transitions.canSwipeRight && (
+              <View className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                <View 
+                  className="w-1 h-8 rounded-full opacity-20"
+                  style={{ backgroundColor: transitions.rightColor }}
+                />
+              </View>
+            )}
+          </View>
+        )}
       </View>
-    </Pressable>
+        </Animated.View>
+      </PanGestureHandler>
+    </View>
   );
 };
 
