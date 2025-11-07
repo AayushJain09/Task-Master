@@ -44,7 +44,8 @@ import {
   Text,
   FlatList,
   Dimensions,
-  ListRenderItem
+  ListRenderItem,
+  RefreshControl
 } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { TaskCard, Task, ColumnStatus } from './TaskCard';
@@ -81,6 +82,8 @@ interface KanbanColumnProps {
   onDeleteTask: (taskId: string) => void;
   onMoveTask: (taskId: string, newStatus: ColumnStatus) => void;
   onPressTask?: (task: Task) => void;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
 /**
@@ -210,7 +213,9 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   onEditTask,
   onDeleteTask,
   onMoveTask,
-  onPressTask
+  onPressTask,
+  onRefresh,
+  refreshing = false
 }) => {
   const { isDark } = useTheme();
   const theme = getColumnTheme(status, color);
@@ -384,6 +389,19 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
             initialNumToRender={8}
             getItemLayout={getItemLayout}
             ItemSeparatorComponent={ItemSeparator}
+            nestedScrollEnabled={true}
+            refreshControl={
+              onRefresh ? (
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor={isDark ? '#60A5FA' : '#3B82F6'}
+                  colors={['#3B82F6']}
+                  title="Pull to refresh"
+                  titleColor={isDark ? '#9CA3AF' : '#6B7280'}
+                />
+              ) : undefined
+            }
           />
         ) : (
           /* Empty State */

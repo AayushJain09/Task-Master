@@ -727,25 +727,6 @@ export default function Tasks() {
             pagingEnabled={SCREEN_WIDTH < 768} // Enable paging on mobile for better UX
             snapToInterval={SCREEN_WIDTH < 768 ? getColumnWidth() + 16 : undefined}
             snapToAlignment="start"
-            refreshControl={
-              <RefreshControl
-                refreshing={loading.refreshing}
-                onRefresh={handleRefresh}
-                tintColor={isDark ? '#60A5FA' : '#3B82F6'}
-                colors={['#3B82F6']}
-                title="Pull to refresh tasks"
-                titleColor={isDark ? '#9CA3AF' : '#6B7280'}
-              />
-            }
-            onScrollEndDrag={(event) => {
-              const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-              const paddingToBottom = 20;
-              
-              // Check if user scrolled to bottom
-              if (contentOffset.y >= contentSize.height - layoutMeasurement.height - paddingToBottom) {
-                loadMoreTasks();
-              }
-            }}
           >
             <View 
               className="flex-row h-full"
@@ -766,6 +747,8 @@ export default function Tasks() {
                   onDeleteTask={handleDeleteTask}
                   onMoveTask={handleMoveTask}
                   onPressTask={handleTaskPress}
+                  onRefresh={handleRefresh}
+                  refreshing={loading.refreshing}
                 />
               </View>
               
@@ -780,6 +763,8 @@ export default function Tasks() {
                   onDeleteTask={handleDeleteTask}
                   onMoveTask={handleMoveTask}
                   onPressTask={handleTaskPress}
+                  onRefresh={handleRefresh}
+                  refreshing={loading.refreshing}
                 />
               </View>
               
@@ -794,6 +779,8 @@ export default function Tasks() {
                   onDeleteTask={handleDeleteTask}
                   onMoveTask={handleMoveTask}
                   onPressTask={handleTaskPress}
+                  onRefresh={handleRefresh}
+                  refreshing={loading.refreshing}
                 />
               </View>
             </View>
