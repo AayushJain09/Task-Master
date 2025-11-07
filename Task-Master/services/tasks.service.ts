@@ -575,22 +575,123 @@ class TasksService {
   }
 
   /**
-   * Get Tasks by Status
+   * Get Tasks by Status (Legacy)
    * 
-   * Convenience method to get tasks filtered by status.
+   * Legacy convenience method to get tasks filtered by status using getAllTasks.
+   * For new applications, use getTasksByStatusOptimized for better performance.
    * 
+   * @deprecated Use getTasksByStatusOptimized for better Kanban board performance
    * @param status - Task status to filter by
    * @returns Promise resolving to filtered tasks
    * 
    * @example
    * ```typescript
    * const todoTasks = await tasksService.getTasksByStatus('todo');
-   * const inProgressTasks = await tasksService.getTasksByStatus('in_progress');
-   * const completedTasks = await tasksService.getTasksByStatus('done');
    * ```
    */
   async getTasksByStatus(status: Task['status']): Promise<TasksListResponse> {
     return this.getAllTasks({ status });
+  }
+
+  /**
+   * Get Tasks by Status with Enhanced Filtering and Pagination
+   * 
+   * Retrieves tasks for a specific status with comprehensive filtering, sorting,
+   * and pagination support. Optimized for Kanban board columns where each status
+   * requires independent pagination and filtering capabilities.
+   * 
+   * This endpoint provides:
+   * - Status-specific task retrieval (required parameter)
+   * - Independent pagination per status column
+   * - Enhanced filtering by priority, category, tags, due date
+   * - Role-based filtering (assignee, assignor, both)
+   * - Overdue task detection (for non-done status)
+   * - Full-text search across title, description, tags, and category
+   * - Flexible sorting with multiple field options
+   * - Status-specific metadata including overdue detection
+   * - Smaller default page sizes for mobile optimization
+   * 
+   * @param status - Task status to filter by (required)
+   * @param params - Additional query parameters for filtering and pagination
+   * @returns Promise resolving to status-specific tasks with enhanced metadata
+   * @throws TaskError on failure
+   * 
+   * @example
+   * ```typescript
+   * // Get todo tasks with pagination
+   * const todoTasks = await tasksService.getTasksByStatusOptimized('todo', {
+   *   page: 1,
+   *   limit: 10,
+   *   sortBy: 'updatedAt',
+   *   sortOrder: 'desc'
+   * });
+   * 
+   * console.log(`${todoTasks.pagination.totalTasks} todo tasks found`);
+   * console.log(`Page ${todoTasks.pagination.currentPage} of ${todoTasks.pagination.totalPages}`);
+   * 
+   * // Get high priority in-progress tasks
+   * const urgentTasks = await tasksService.getTasksByStatusOptimized('in_progress', {
+   *   priority: 'high',
+   *   sortBy: 'dueDate',
+   *   sortOrder: 'asc'
+   * });
+   * 
+   * // Search within completed tasks
+   * const searchResults = await tasksService.getTasksByStatusOptimized('done', {
+   *   search: 'project',
+   *   sortBy: 'completedAt',
+   *   sortOrder: 'desc'
+   * });
+   * 
+   * // Get overdue todo tasks
+   * const overdueTasks = await tasksService.getTasksByStatusOptimized('todo', {
+   *   overdue: true,
+   *   sortBy: 'dueDate',
+   *   sortOrder: 'asc'
+   * });
+   * 
+   * // Check status-specific metadata
+   * if (todoTasks.data.statusMetadata.hasOverdue) {
+   *   console.log('This page contains overdue tasks');
+   * }
+   * ```
+   */
+  async getTasksByStatusOptimized(
+    status: Task['status'], 
+    params: Omit<TaskQueryParams, 'status'> = {}
+  ): Promise<TasksListResponse> {
+    try {
+      // Validate required status parameter
+      const validStatuses: Task['status'][] = ['todo', 'in_progress', 'done'];
+      if (!validStatuses.includes(status)) {
+        throw {
+          message: 'Invalid task status. Status must be todo, in_progress, or done.',
+          code: 'INVALID_TASK_STATUS' as TaskErrorCode,
+          field: 'status',
+        } as TaskError;
+      }
+
+      // Build query parameters with required status
+      const queryParams: TaskQueryParams = {
+        ...params,
+        status, // Always include the required status parameter
+      };
+
+      // Build query string
+      const queryString = this.buildQueryString(queryParams);
+      const url = `${this.baseEndpoint}/status?${queryString}`;
+      
+      const response = await apiService.get<TasksListResponse>(url);
+      
+      // The response includes enhanced metadata for status-specific queries:
+      // - pagination: Enhanced pagination with start/end indices
+      // - statusMetadata: Status-specific information including overdue detection
+      // - filters: Applied filter summary for debugging
+      
+      return response;
+    } catch (error) {
+      throw this.transformError(error as ApiError);
+    }
   }
 
   /**

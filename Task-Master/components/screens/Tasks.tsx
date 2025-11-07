@@ -102,25 +102,54 @@ interface EditableTaskData extends TaskCardType {
 }
 
 /**
- * Loading State Interface
- * 
- * Tracks different loading states for various operations
+ * Column Status Type for enhanced type safety
  */
-interface LoadingState {
-  fetching: boolean;
-  creating: boolean;
-  updating: boolean;
-  deleting: boolean;
+type KanbanColumnStatus = 'todo' | 'in_progress' | 'done';
+
+/**
+ * Column-Specific State Interface
+ * 
+ * Manages state for individual Kanban columns with independent
+ * pagination, loading, and error handling capabilities.
+ */
+interface ColumnState {
+  tasks: Task[];
+  loading: boolean;
   refreshing: boolean;
+  error: string | null;
+  pagination: {
+    currentPage: number;
+    totalPages: number;
+    totalTasks: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+    limit: number;
+  };
+  statusMetadata: {
+    status: string;
+    totalInStatus: number;
+    currentPageCount: number;
+    hasOverdue: boolean;
+  } | null;
 }
 
 /**
- * Error State Interface
+ * Global Loading State Interface
  * 
- * Manages error states and messages for user feedback
+ * Tracks global operations that affect multiple columns
  */
-interface ErrorState {
-  fetch: string | null;
+interface GlobalLoadingState {
+  creating: boolean;
+  updating: boolean;
+  deleting: boolean;
+}
+
+/**
+ * Global Error State Interface
+ * 
+ * Manages global error states for operations affecting multiple columns
+ */
+interface GlobalErrorState {
   create: string | null;
   update: string | null;
   delete: string | null;
@@ -166,43 +195,48 @@ export default function Tasks() {
   const { isDark } = useTheme();
   
   /**
-   * API-Integrated Task Data State
+   * Column-Specific State Management
    * 
-   * Task data fetched from backend API with proper TypeScript support
-   * and comprehensive state management for loading, error handling.
+   * Each Kanban column has independent state for tasks, pagination,
+   * loading, and error handling to provide optimal user experience.
    */
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [pagination, setPagination] = useState({
-    currentPage: 1,
-    totalPages: 1,
-    totalTasks: 0,
-    hasNextPage: false,
-    hasPrevPage: false
+  const createInitialColumnState = (): ColumnState => ({
+    tasks: [],
+    loading: true,
+    refreshing: false,
+    error: null,
+    pagination: {
+      currentPage: 1,
+      totalPages: 1,
+      totalTasks: 0,
+      hasNextPage: false,
+      hasPrevPage: false,
+      limit: 10, // Smaller page size for mobile optimization
+    },
+    statusMetadata: null,
+  });
+
+  const [columnStates, setColumnStates] = useState<Record<KanbanColumnStatus, ColumnState>>({
+    todo: createInitialColumnState(),
+    in_progress: createInitialColumnState(),
+    done: createInitialColumnState(),
   });
   
   /**
-   * Loading State Management
+   * Global Operation State Management
    * 
-   * Tracks different loading states for comprehensive user feedback
+   * Tracks operations that affect multiple columns (create, update, delete)
    */
-  const [loading, setLoading] = useState<LoadingState>({
-    fetching: true,
+  const [globalLoading, setGlobalLoading] = useState<GlobalLoadingState>({
     creating: false,
     updating: false,
     deleting: false,
-    refreshing: false
   });
   
-  /**
-   * Error State Management
-   * 
-   * Manages error states with user-friendly messages
-   */
-  const [errors, setErrors] = useState<ErrorState>({
-    fetch: null,
+  const [globalErrors, setGlobalErrors] = useState<GlobalErrorState>({
     create: null,
     update: null,
-    delete: null
+    delete: null,
   });
 
   /**
@@ -220,92 +254,153 @@ export default function Tasks() {
   const [selectedTask, setSelectedTask] = useState<TaskCardType | null>(null);
 
   /**
-   * API Integration Functions
+   * Column-Specific API Integration Functions
    * 
    * Functions for fetching and managing tasks from the backend API
-   * with proper error handling and loading states.
+   * with column-specific state management and error handling.
    */
   
   /**
-   * Fetch Tasks from API
+   * Fetch Tasks for Specific Column
    * 
-   * Retrieves tasks from backend with optional filtering and pagination
+   * Retrieves tasks for a specific status column with enhanced filtering and pagination
+   * 
+   * @param status - Column status to fetch tasks for
+   * @param params - Additional query parameters
+   * @param isRefresh - Whether this is a refresh operation
+   * @param loadMore - Whether this is loading more pages (pagination)
    */
-  const fetchTasks = useCallback(async (params: TaskQueryParams = {}, isRefresh = false) => {
+  const fetchColumnTasks = useCallback(async (
+    status: KanbanColumnStatus, 
+    params: Omit<TaskQueryParams, 'status'> = {}, 
+    isRefresh = false, 
+    loadMore = false
+  ) => {
     try {
-      if (isRefresh) {
-        setLoading(prev => ({ ...prev, refreshing: true }));
-      } else {
-        setLoading(prev => ({ ...prev, fetching: true }));
-      }
-      
-      setErrors(prev => ({ ...prev, fetch: null }));
-      
-      const response: TasksListResponse = await tasksService.getAllTasks({
+      // Update loading state for the specific column
+      setColumnStates(prev => ({
+        ...prev,
+        [status]: {
+          ...prev[status],
+          loading: !isRefresh && !loadMore,
+          refreshing: isRefresh,
+          error: null,
+        }
+      }));
+
+      // Use the optimized status-specific API
+      const response = await tasksService.getTasksByStatusOptimized(status, {
         sortBy: 'updatedAt',
         sortOrder: 'desc',
-        ...params
+        limit: 10, // Smaller page size for mobile optimization
+        ...params,
       });
-      
-      if (isRefresh || params.page === 1) {
-        // Replace tasks for refresh or first page
-        setTasks(response.tasks);
-      } else {
-        // Append tasks for pagination
-        setTasks(prev => [...prev, ...response.tasks]);
-      }
-      
-      setPagination(response.pagination);
-      
+
+      setColumnStates(prev => ({
+        ...prev,
+        [status]: {
+          ...prev[status],
+          tasks: isRefresh || !loadMore 
+            ? response.tasks 
+            : [...prev[status].tasks, ...response.tasks],
+          pagination: response.pagination,
+          statusMetadata: response.data?.statusMetadata || null,
+          loading: false,
+          refreshing: false,
+          error: null,
+        }
+      }));
+
     } catch (error) {
       const taskError = error as TaskError;
-      setErrors(prev => ({ 
-        ...prev, 
-        fetch: taskError.message || 'Failed to load tasks. Please try again.' 
-      }));
-      console.error('Error fetching tasks:', taskError);
-    } finally {
-      setLoading(prev => ({ 
-        ...prev, 
-        fetching: false, 
-        refreshing: false 
+      console.error(`Error fetching ${status} tasks:`, taskError);
+      
+      setColumnStates(prev => ({
+        ...prev,
+        [status]: {
+          ...prev[status],
+          loading: false,
+          refreshing: false,
+          error: taskError.message || `Failed to load ${status.replace('_', ' ')} tasks. Please try again.`,
+        }
       }));
     }
   }, []);
+
+  /**
+   * Fetch All Columns
+   * 
+   * Fetches tasks for all columns simultaneously for initial load
+   */
+  const fetchAllColumns = useCallback(async (isRefresh = false) => {
+    const statuses: KanbanColumnStatus[] = ['todo', 'in_progress', 'done'];
+    
+    // Fetch all columns in parallel for better performance
+    await Promise.allSettled(
+      statuses.map(status => fetchColumnTasks(status, {}, isRefresh))
+    );
+  }, [fetchColumnTasks]);
+
+  /**
+   * Refresh Specific Column
+   * 
+   * Refreshes tasks for a specific column
+   */
+  const refreshColumn = useCallback(async (status: KanbanColumnStatus) => {
+    await fetchColumnTasks(status, {}, true);
+  }, [fetchColumnTasks]);
+
+  /**
+   * Load More Tasks for Column
+   * 
+   * Loads the next page of tasks for a specific column
+   */
+  const loadMoreColumnTasks = useCallback(async (status: KanbanColumnStatus) => {
+    const currentState = columnStates[status];
+    if (currentState.loading || !currentState.pagination.hasNextPage) {
+      return;
+    }
+
+    await fetchColumnTasks(status, {
+      page: currentState.pagination.currentPage + 1,
+    }, false, true);
+  }, [columnStates, fetchColumnTasks]);
   
   /**
    * Initial Data Load
    * 
-   * Load tasks when component mounts with pagination
+   * Load tasks for all columns when component mounts
    */
   useEffect(() => {
-    fetchTasks({ page: 1, limit: 20 });
-  }, [fetchTasks]);
+    fetchAllColumns();
+  }, [fetchAllColumns]);
   
   /**
    * Auto-refresh tasks periodically
    * 
-   * Refresh tasks every 5 minutes to keep data current
+   * Refresh all columns every 5 minutes to keep data current
+   * Only refresh if no columns are currently loading
    */
   useEffect(() => {
     const interval = setInterval(() => {
-      if (!loading.fetching && !loading.refreshing) {
-        fetchTasks({ page: 1, limit: tasks.length || 20 }, true);
+      const anyColumnLoading = Object.values(columnStates).some(
+        column => column.loading || column.refreshing
+      );
+      
+      if (!anyColumnLoading && !globalLoading.creating && !globalLoading.updating && !globalLoading.deleting) {
+        fetchAllColumns(true);
       }
     }, 5 * 60 * 1000); // 5 minutes
     
     return () => clearInterval(interval);
-  }, [fetchTasks, loading.fetching, loading.refreshing, tasks.length]);
+  }, [fetchAllColumns, columnStates, globalLoading]);
   
   /**
-   * Utility Functions for Task Management
+   * Utility Functions for Column-Specific Task Management
    * 
-   * Efficient helper functions for task filtering and data processing
-   * used by modular components throughout the interface.
+   * Efficient helper functions for working with column-specific state
+   * and transforming data for TaskCard components.
    */
-  const getTasksByStatus = useCallback((status: ColumnStatus) => {
-    return tasks.filter(task => task.status === status);
-  }, [tasks]);
   
   /**
    * Transform backend Task to TaskCard format
@@ -326,11 +421,86 @@ export default function Tasks() {
   }, []);
   
   /**
-   * Get transformed tasks by status for TaskCard components
+   * Get transformed tasks for a specific column
+   * 
+   * Gets tasks from column state and transforms them for TaskCard components
    */
-  const getTransformedTasksByStatus = useCallback((status: ColumnStatus) => {
-    return getTasksByStatus(status).map(transformTaskForCard);
-  }, [getTasksByStatus, transformTaskForCard]);
+  const getColumnTasks = useCallback((status: KanbanColumnStatus): TaskCardType[] => {
+    return columnStates[status].tasks.map(transformTaskForCard);
+  }, [columnStates, transformTaskForCard]);
+
+  /**
+   * Update Task in Column State
+   * 
+   * Updates a specific task in the appropriate column state after operations
+   */
+  const updateTaskInColumnState = useCallback((updatedTask: Task) => {
+    const status = updatedTask.status as KanbanColumnStatus;
+    
+    setColumnStates(prev => {
+      const newStates = { ...prev };
+      
+      // Find and update the task in its current status column
+      Object.keys(newStates).forEach(columnStatus => {
+        const column = newStates[columnStatus as KanbanColumnStatus];
+        const taskIndex = column.tasks.findIndex(task => task._id === updatedTask._id);
+        
+        if (taskIndex !== -1) {
+          if (columnStatus === status) {
+            // Update task in same column
+            column.tasks[taskIndex] = updatedTask;
+          } else {
+            // Remove task from old column
+            column.tasks = column.tasks.filter(task => task._id !== updatedTask._id);
+          }
+        }
+      });
+      
+      // Add task to new column if it moved
+      const targetColumn = newStates[status];
+      const existsInTargetColumn = targetColumn.tasks.some(task => task._id === updatedTask._id);
+      if (!existsInTargetColumn) {
+        targetColumn.tasks = [updatedTask, ...targetColumn.tasks];
+      }
+      
+      return newStates;
+    });
+  }, []);
+
+  /**
+   * Remove Task from Column State
+   * 
+   * Removes a task from all column states after deletion
+   */
+  const removeTaskFromColumnState = useCallback((taskId: string) => {
+    setColumnStates(prev => {
+      const newStates = { ...prev };
+      
+      Object.keys(newStates).forEach(status => {
+        newStates[status as KanbanColumnStatus].tasks = 
+          newStates[status as KanbanColumnStatus].tasks.filter(task => task._id !== taskId);
+      });
+      
+      return newStates;
+    });
+  }, []);
+
+  /**
+   * Add Task to Column State
+   * 
+   * Adds a new task to the appropriate column state after creation
+   */
+  const addTaskToColumnState = useCallback((newTask: Task) => {
+    const status = newTask.status as KanbanColumnStatus;
+    
+    setColumnStates(prev => ({
+      ...prev,
+      [status]: {
+        ...prev[status],
+        tasks: [newTask, ...prev[status].tasks], // Add to beginning for recency
+      }
+    }));
+  }, []);
 
   /**
    * Enhanced Task Management Functions
@@ -347,12 +517,18 @@ export default function Tasks() {
   }, []);
 
   const handleEditTask = useCallback((task: TaskCardType) => {
-    // Find the original Task from API data - now task.id is the ObjectId string
-    const originalTask = tasks.find(t => t._id === task.id);
+    // Find the original Task from column state data - task.id is the ObjectId string
+    let originalTask: Task | undefined;
+    
+    // Search through all column states to find the task
+    Object.values(columnStates).forEach(column => {
+      const found = column.tasks.find(t => t._id === task.id);
+      if (found) {
+        originalTask = found;
+      }
+    });
     
     if (originalTask) {
-      // console.log('Found original task for editing:', originalTask);
-      
       // Transform API Task to the format expected by TaskFormModal
       const editingTaskData: EditableTaskData = {
         id: originalTask._id, // Keep as string ObjectId
@@ -367,15 +543,14 @@ export default function Tasks() {
         createdAt: new Date(originalTask.createdAt).toLocaleDateString()
       };
       
-      // console.log('Setting editing task data:', editingTaskData);
       setEditingTask(editingTaskData);
       setModalTitle('Edit Task');
       setShowTaskModal(true);
     } else {
-      console.error('Could not find original task for editing. Task ID:', task.id, 'Available tasks:', tasks.map(t => ({ id: t._id, title: t.title })));
-      Alert.alert('Error', 'Could not find the task to edit. Please try refreshing the page.');
+      console.error('Could not find original task for editing. Task ID:', task.id);
+      Alert.alert('Error', 'Could not find the task to edit. Please try refreshing.');
     }
-  }, [tasks]);
+  }, [columnStates]);
 
   const handleDeleteTask = useCallback(async (taskId: string) => {
     Alert.alert(
@@ -388,55 +563,55 @@ export default function Tasks() {
           style: 'destructive',
           onPress: async () => {
             try {
-              setLoading(prev => ({ ...prev, deleting: true }));
-              setErrors(prev => ({ ...prev, delete: null }));
+              setGlobalLoading(prev => ({ ...prev, deleting: true }));
+              setGlobalErrors(prev => ({ ...prev, delete: null }));
               
-              // Now taskId is the actual ObjectId string
+              // Delete task via API
               await tasksService.deleteTask(taskId);
               
-              // Remove from local state
-              setTasks(prev => prev.filter(task => task._id !== taskId));
+              // Remove from column states
+              removeTaskFromColumnState(taskId);
+              
+              // Optional: Show success message
+              // Alert.alert('Success', 'Task deleted successfully');
             } catch (error) {
               const taskError = error as TaskError;
-              setErrors(prev => ({ 
+              setGlobalErrors(prev => ({ 
                 ...prev, 
                 delete: taskError.message || 'Failed to delete task. Please try again.' 
               }));
               console.error('Error deleting task:', taskError);
             } finally {
-              setLoading(prev => ({ ...prev, deleting: false }));
+              setGlobalLoading(prev => ({ ...prev, deleting: false }));
             }
           }
         }
       ]
     );
-  }, []);
+  }, [removeTaskFromColumnState]);
 
   const handleMoveTask = useCallback(async (taskId: string, newStatus: ColumnStatus) => {
     try {
-      setLoading(prev => ({ ...prev, updating: true }));
-      setErrors(prev => ({ ...prev, update: null }));
+      setGlobalLoading(prev => ({ ...prev, updating: true }));
+      setGlobalErrors(prev => ({ ...prev, update: null }));
       
-      // Now taskId is the actual ObjectId string
-      await tasksService.updateTaskStatus(taskId, newStatus);
+      // Update task status via API
+      const response = await tasksService.updateTaskStatus(taskId, newStatus);
       
-      // Update local state
-      setTasks(prev => prev.map(task => 
-        task._id === taskId 
-          ? { ...task, status: newStatus }
-          : task
-      ));
+      // Update column states with the updated task
+      updateTaskInColumnState(response.task);
+      
     } catch (error) {
       const taskError = error as TaskError;
-      setErrors(prev => ({ 
+      setGlobalErrors(prev => ({ 
         ...prev, 
         update: taskError.message || 'Failed to update task status. Please try again.' 
       }));
       console.error('Error updating task:', taskError);
     } finally {
-      setLoading(prev => ({ ...prev, updating: false }));
+      setGlobalLoading(prev => ({ ...prev, updating: false }));
     }
-  }, []);
+  }, [updateTaskInColumnState]);
 
   const handleTaskPress = useCallback((task: TaskCardType) => {
     setSelectedTask(task);
@@ -451,41 +626,32 @@ export default function Tasks() {
   const handleFormSubmit = useCallback(async (formData: FormData) => {
     try {
       if (editingTask) {
-        setLoading(prev => ({ ...prev, updating: true }));
-        setErrors(prev => ({ ...prev, update: null }));
+        setGlobalLoading(prev => ({ ...prev, updating: true }));
+        setGlobalErrors(prev => ({ ...prev, update: null }));
         
-        // Find the original task using the editing task's ID (now already a string)
-        const originalTask = tasks.find(t => t._id === editingTask.id);
-        if (originalTask) {
-          console.log('Updating task:', originalTask._id, 'with data:', formData);
-          
-          const updateData = {
-            title: formData.title.trim(),
-            description: formData.description.trim() || undefined,
-            priority: formData.priority,
-            category: formData.category.trim() || undefined,
-            dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
-            tags: formData.tags.length > 0 ? formData.tags : undefined,
-            estimatedHours: formData.estimatedHours > 0 ? formData.estimatedHours : undefined,
-            assignedTo: formData.assignedTo || undefined
-          };
-          
-          const response = await tasksService.updateTask(originalTask._id, updateData);
-          console.log('Update response:', response);
-          
-          // Update local state
-          setTasks(prev => prev.map(task => 
-            task._id === originalTask._id ? response.task : task
-          ));
-          
-          Alert.alert('Success', 'Task updated successfully!');
-        } else {
-          console.error('Original task not found for update. Editing task ID:', editingTask.id);
-          throw new Error('Could not find the task to update');
-        }
+        console.log('Updating task:', editingTask.id, 'with data:', formData);
+        
+        const updateData = {
+          title: formData.title.trim(),
+          description: formData.description.trim() || undefined,
+          priority: formData.priority,
+          category: formData.category.trim() || undefined,
+          dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
+          tags: formData.tags.length > 0 ? formData.tags : undefined,
+          estimatedHours: formData.estimatedHours > 0 ? formData.estimatedHours : undefined,
+          assignedTo: formData.assignedTo || undefined
+        };
+        
+        const response = await tasksService.updateTask(editingTask.id, updateData);
+        console.log('Update response:', response);
+        
+        // Update column states with the updated task
+        updateTaskInColumnState(response.task);
+        
+        Alert.alert('Success', 'Task updated successfully!');
       } else {
-        setLoading(prev => ({ ...prev, creating: true }));
-        setErrors(prev => ({ ...prev, create: null }));
+        setGlobalLoading(prev => ({ ...prev, creating: true }));
+        setGlobalErrors(prev => ({ ...prev, create: null }));
         
         // Create new task
         const createData = {
@@ -502,8 +668,8 @@ export default function Tasks() {
         const response = await tasksService.createTask(createData);
         console.log('Create response:', response);
         
-        // Add to local state
-        setTasks(prev => [...prev, response.task]);
+        // Add to column states
+        addTaskToColumnState(response.task);
         
         Alert.alert('Success', 'Task created successfully!');
       }
@@ -513,75 +679,68 @@ export default function Tasks() {
     } catch (error) {
       const taskError = error as TaskError;
       const errorKey = editingTask ? 'update' : 'create';
-      setErrors(prev => ({ 
+      setGlobalErrors(prev => ({ 
         ...prev, 
         [errorKey]: taskError.message || `Failed to ${editingTask ? 'update' : 'create'} task. Please try again.` 
       }));
       console.error(`Error ${editingTask ? 'updating' : 'creating'} task:`, taskError);
     } finally {
       const loadingKey = editingTask ? 'updating' : 'creating';
-      setLoading(prev => ({ ...prev, [loadingKey]: false }));
+      setGlobalLoading(prev => ({ ...prev, [loadingKey]: false }));
     }
-  }, [editingTask, tasks]);
+  }, [editingTask, updateTaskInColumnState, addTaskToColumnState]);
 
   const handleCloseModal = useCallback(() => {
     setShowTaskModal(false);
     setEditingTask(null);
     // Clear any create/update errors when closing modal
-    setErrors(prev => ({ ...prev, create: null, update: null }));
+    setGlobalErrors(prev => ({ ...prev, create: null, update: null }));
   }, []);
   
   /**
-   * Pull to Refresh Handler
+   * Column-Specific Refresh Handler
    * 
-   * Refreshes task data when user pulls down
+   * Refreshes tasks for a specific column when user pulls down
    */
-  const handleRefresh = useCallback(() => {
-    fetchTasks({ page: 1, limit: 50 }, true);
-  }, [fetchTasks]);
+  const handleColumnRefresh = useCallback((status: KanbanColumnStatus) => {
+    return () => refreshColumn(status);
+  }, [refreshColumn]);
   
   /**
-   * Load More Tasks (Pagination)
+   * Global Refresh Handler
    * 
-   * Loads additional tasks when user scrolls to bottom
+   * Refreshes all columns simultaneously
    */
-  const loadMoreTasks = useCallback(async () => {
-    if (loading.fetching || loading.refreshing || !pagination.hasNextPage) {
-      return;
-    }
-    
-    try {
-      setLoading(prev => ({ ...prev, fetching: true }));
-      
-      const nextPage = pagination.currentPage + 1;
-      const response: TasksListResponse = await tasksService.getAllTasks({
-        page: nextPage,
-        limit: 20
-      });
-      
-      // Append new tasks to existing ones
-      setTasks(prev => [...prev, ...response.tasks]);
-      setPagination(response.pagination);
-      
-    } catch (error) {
-      const taskError = error as TaskError;
-      setErrors(prev => ({ 
-        ...prev, 
-        fetch: taskError.message || 'Failed to load more tasks.' 
-      }));
-      console.error('Error loading more tasks:', taskError);
-    } finally {
-      setLoading(prev => ({ ...prev, fetching: false }));
-    }
-  }, [loading.fetching, loading.refreshing, pagination.hasNextPage, pagination.currentPage]);
+  const handleGlobalRefresh = useCallback(() => {
+    fetchAllColumns(true);
+  }, [fetchAllColumns]);
   
   /**
-   * Error Dismissal Handler
+   * Column Load More Handler
    * 
-   * Allows users to dismiss error messages
+   * Creates a load more handler for a specific column
    */
-  const dismissError = useCallback((errorType: keyof ErrorState) => {
-    setErrors(prev => ({ ...prev, [errorType]: null }));
+  const handleColumnLoadMore = useCallback((status: KanbanColumnStatus) => {
+    return () => loadMoreColumnTasks(status);
+  }, [loadMoreColumnTasks]);
+  
+  /**
+   * Error Dismissal Handlers
+   * 
+   * Allows users to dismiss error messages for both global and column-specific errors
+   */
+  const dismissGlobalError = useCallback((errorType: keyof GlobalErrorState) => {
+    setGlobalErrors(prev => ({ ...prev, [errorType]: null }));
+  }, []);
+
+  const dismissColumnError = useCallback((status: KanbanColumnStatus) => {
+    setColumnStates(prev => ({
+      ...prev,
+      [status]: {
+        ...prev[status],
+        error: null,
+      }
+    }));
   }, []);
 
   // Calculate responsive column width with enhanced breakpoints
@@ -614,7 +773,8 @@ export default function Tasks() {
           
           {/* Task Statistics */}
           <View className="flex-row items-center gap-x-4">
-            {loading.fetching && tasks.length > 0 && (
+            {(Object.values(columnStates).some(col => col.loading || col.refreshing) || 
+              globalLoading.creating || globalLoading.updating || globalLoading.deleting) && (
               <ActivityIndicator 
                 size="small" 
                 color={isDark ? '#60A5FA' : '#3B82F6'} 
@@ -623,17 +783,20 @@ export default function Tasks() {
             <Text className={`text-sm ${
               isDark ? 'text-gray-400' : 'text-gray-500'
             }`}>
-              {pagination.totalTasks > 0 ? (
-                `${tasks.length} of ${pagination.totalTasks}`
-              ) : (
-                `${tasks.length} total`
-              )}
+              {(() => {
+                const totalTasks = Object.values(columnStates).reduce((sum, col) => sum + col.tasks.length, 0);
+                const totalFromAPI = Object.values(columnStates).reduce((sum, col) => sum + col.pagination.totalTasks, 0);
+                
+                return totalFromAPI > totalTasks 
+                  ? `${totalTasks} of ${totalFromAPI}` 
+                  : `${totalTasks} total`;
+              })()}
             </Text>
-            {pagination.hasNextPage && (
+            {Object.values(columnStates).some(col => col.pagination.hasNextPage) && (
               <Text className={`text-xs ${
                 isDark ? 'text-blue-400' : 'text-blue-600'
               }`}>
-                Scroll for more
+                More available
               </Text>
             )}
           </View>
@@ -641,66 +804,83 @@ export default function Tasks() {
       </View>
 
       {/* Error Display */}
-      {(errors.fetch || errors.create || errors.update || errors.delete) && (
-        <View className={`mx-4 mb-4 gap-y-2`}>
-          {/* Fetch Error */}
-          {errors.fetch && (
-            <View className={`p-4 rounded-lg border ${
-              isDark ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'
-            }`}>
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center flex-1">
-                  <AlertCircle size={20} color={isDark ? '#F87171' : '#EF4444'} />
-                  <Text className={`ml-2 flex-1 ${
-                    isDark ? 'text-red-300' : 'text-red-700'
-                  }`}>
-                    {errors.fetch}
-                  </Text>
+      {(() => {
+        const hasGlobalErrors = globalErrors.create || globalErrors.update || globalErrors.delete;
+        const columnErrors = Object.entries(columnStates)
+          .filter(([_, col]) => col.error)
+          .map(([status, col]) => ({ status, error: col.error }));
+        
+        return (hasGlobalErrors || columnErrors.length > 0) && (
+          <View className={`mx-4 mb-4 gap-y-2`}>
+            {/* Column-Specific Errors */}
+            {columnErrors.map(({ status, error }) => (
+              <View 
+                key={status}
+                className={`p-4 rounded-lg border ${
+                  isDark ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'
+                }`}
+              >
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center flex-1">
+                    <AlertCircle size={20} color={isDark ? '#F87171' : '#EF4444'} />
+                    <View className="ml-2 flex-1">
+                      <Text className={`text-xs font-medium ${
+                        isDark ? 'text-red-400' : 'text-red-600'
+                      }`}>
+                        {status.replace('_', ' ').toUpperCase()} COLUMN
+                      </Text>
+                      <Text className={`${
+                        isDark ? 'text-red-300' : 'text-red-700'
+                      }`}>
+                        {error}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={() => dismissColumnError(status as KanbanColumnStatus)}
+                    className="ml-2 p-1"
+                  >
+                    <Text className={isDark ? 'text-red-400' : 'text-red-600'}>✕</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity 
-                  onPress={() => dismissError('fetch')}
-                  className="ml-2 p-1"
-                >
-                  <Text className={isDark ? 'text-red-400' : 'text-red-600'}>✕</Text>
-                </TouchableOpacity>
               </View>
-            </View>
-          )}
-          
-          {/* Create/Update/Delete Errors */}
-          {(errors.create || errors.update || errors.delete) && (
-            <View className={`p-3 rounded-lg border ${
-              isDark ? 'bg-orange-900/20 border-orange-800' : 'bg-orange-50 border-orange-200'
-            }`}>
-              <View className="flex-row items-center justify-between">
-                <View className="flex-row items-center flex-1">
-                  <AlertCircle size={18} color={isDark ? '#FB923C' : '#EA580C'} />
-                  <Text className={`ml-2 flex-1 text-sm ${
-                    isDark ? 'text-orange-300' : 'text-orange-700'
-                  }`}>
-                    {errors.create || errors.update || errors.delete}
-                  </Text>
+            ))}
+            
+            {/* Global Operation Errors */}
+            {hasGlobalErrors && (
+              <View className={`p-3 rounded-lg border ${
+                isDark ? 'bg-orange-900/20 border-orange-800' : 'bg-orange-50 border-orange-200'
+              }`}>
+                <View className="flex-row items-center justify-between">
+                  <View className="flex-row items-center flex-1">
+                    <AlertCircle size={18} color={isDark ? '#FB923C' : '#EA580C'} />
+                    <Text className={`ml-2 flex-1 text-sm ${
+                      isDark ? 'text-orange-300' : 'text-orange-700'
+                    }`}>
+                      {globalErrors.create || globalErrors.update || globalErrors.delete}
+                    </Text>
+                  </View>
+                  <TouchableOpacity 
+                    onPress={() => {
+                      if (globalErrors.create) dismissGlobalError('create');
+                      if (globalErrors.update) dismissGlobalError('update');
+                      if (globalErrors.delete) dismissGlobalError('delete');
+                    }}
+                    className="ml-2 p-1"
+                  >
+                    <Text className={isDark ? 'text-orange-400' : 'text-orange-600'}>✕</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity 
-                  onPress={() => {
-                    if (errors.create) dismissError('create');
-                    if (errors.update) dismissError('update');
-                    if (errors.delete) dismissError('delete');
-                  }}
-                  className="ml-2 p-1"
-                >
-                  <Text className={isDark ? 'text-orange-400' : 'text-orange-600'}>✕</Text>
-                </TouchableOpacity>
               </View>
-            </View>
-          )}
-        </View>
-      )}
+            )}
+          </View>
+        );
+      })()}
 
       {/* Full-Screen Kanban Board */}
       <View className="flex-1">
-        {loading.fetching ? (
-          // Loading State
+        {Object.values(columnStates).every(col => col.loading) ? (
+          // Initial Loading State - All columns loading
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator 
               size="large" 
@@ -742,13 +922,13 @@ export default function Tasks() {
                   status="todo" 
                   title="To Do" 
                   color="#EF4444"
-                  tasks={getTransformedTasksByStatus('todo')}
+                  tasks={getColumnTasks('todo')}
                   onEditTask={handleEditTask}
                   onDeleteTask={handleDeleteTask}
                   onMoveTask={handleMoveTask}
                   onPressTask={handleTaskPress}
-                  onRefresh={handleRefresh}
-                  refreshing={loading.refreshing}
+                  onRefresh={handleColumnRefresh('todo')}
+                  refreshing={columnStates.todo.refreshing}
                 />
               </View>
               
@@ -758,13 +938,13 @@ export default function Tasks() {
                   status="in_progress" 
                   title="In Progress" 
                   color="#F59E0B"
-                  tasks={getTransformedTasksByStatus('in_progress')}
+                  tasks={getColumnTasks('in_progress')}
                   onEditTask={handleEditTask}
                   onDeleteTask={handleDeleteTask}
                   onMoveTask={handleMoveTask}
                   onPressTask={handleTaskPress}
-                  onRefresh={handleRefresh}
-                  refreshing={loading.refreshing}
+                  onRefresh={handleColumnRefresh('in_progress')}
+                  refreshing={columnStates.in_progress.refreshing}
                 />
               </View>
               
@@ -774,13 +954,13 @@ export default function Tasks() {
                   status="done" 
                   title="Done" 
                   color="#10B981"
-                  tasks={getTransformedTasksByStatus('done')}
+                  tasks={getColumnTasks('done')}
                   onEditTask={handleEditTask}
                   onDeleteTask={handleDeleteTask}
                   onMoveTask={handleMoveTask}
                   onPressTask={handleTaskPress}
-                  onRefresh={handleRefresh}
-                  refreshing={loading.refreshing}
+                  onRefresh={handleColumnRefresh('done')}
+                  refreshing={columnStates.done.refreshing}
                 />
               </View>
             </View>
@@ -791,7 +971,7 @@ export default function Tasks() {
       {/* Enhanced Floating Action Button for Task Creation */}
       <Pressable
         onPress={handleCreateTask}
-        disabled={loading.creating}
+        disabled={globalLoading.creating}
         className={`absolute ${
           SCREEN_WIDTH >= 768 ? 'bottom-8 right-8 w-16 h-16' : 'bottom-6 right-6 w-14 h-14'
         } rounded-full items-center justify-center bg-green-500 border-[0.3px] elevation-xl ${
@@ -809,22 +989,22 @@ export default function Tasks() {
         accessibilityHint="Opens form to create a new task"
         accessibilityRole="button"
       >
-        {loading.creating ? (
+        {globalLoading.creating ? (
           <ActivityIndicator size={SCREEN_WIDTH >= 768 ? 28 : 24} color="#FFFFFF" />
         ) : (
           <Plus size={SCREEN_WIDTH >= 768 ? 32 : 28} color="#FFFFFF" strokeWidth={3} />
         )}
       </Pressable>
 
-      {/* Task Form Modal with Loading State */}
+      {/* Task Form Modal with Column-Aware Loading State */}
       <TaskFormModal
         visible={showTaskModal}
         title={modalTitle}
         editingTask={editingTask}
         onClose={handleCloseModal}
         onSubmit={handleFormSubmit}
-        isLoading={loading.creating || loading.updating}
-        error={errors.create || errors.update}
+        isLoading={globalLoading.creating || globalLoading.updating}
+        error={globalErrors.create || globalErrors.update}
       />
 
       <TaskDetailsModal
