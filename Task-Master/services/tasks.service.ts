@@ -57,6 +57,12 @@ class TasksService {
     // Check for specific backend error codes
     if (error.code) {
       switch (error.code) {
+        case 'EDIT_PERMISSION_DENIED':
+          return {
+            message: 'You can only edit tasks you created.',
+            code: 'TASK_PERMISSION_DENIED',
+            details: error.details,
+          };
         case 'ASSIGNED_USER_NOT_FOUND':
           return {
             message: 'The user you\'re trying to assign this task to doesn\'t exist.',
@@ -77,8 +83,14 @@ class TasksService {
           };
         case 'DUE_DATE_IN_PAST':
           return {
-            message: 'Due date cannot be in the past.',
+            message: 'Due date cannot be in the past. You can set due dates for today or future dates.',
             code: 'DUE_DATE_IN_PAST',
+            details: error.details,
+          };
+        case 'INVALID_DUE_DATE_FORMAT':
+          return {
+            message: 'Invalid date format. Please select a valid date.',
+            code: 'TASK_VALIDATION_ERROR',
             details: error.details,
           };
       }
@@ -140,9 +152,12 @@ class TasksService {
         } as TaskError;
       }
       
-      if (dueDate <= now) {
+      // Allow dates from today onwards (be permissive with timezone differences)
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      if (dueDate < todayStart) {
         throw {
-          message: 'Due date must be in the future.',
+          message: 'Due date cannot be in the past.',
           code: 'DUE_DATE_IN_PAST' as TaskErrorCode,
           field: 'dueDate',
         } as TaskError;
@@ -802,8 +817,13 @@ class TasksService {
       const dueDate = new Date(formData.dueDate);
       if (isNaN(dueDate.getTime())) {
         errors.dueDate = 'Invalid due date format';
-      } else if (dueDate <= new Date()) {
-        errors.dueDate = 'Due date must be in the future';
+      } else {
+        // Allow dates from today onwards
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        if (dueDate < todayStart) {
+          errors.dueDate = 'Due date cannot be in the past';
+        }
       }
     }
 

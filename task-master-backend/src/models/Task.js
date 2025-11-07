@@ -104,13 +104,21 @@ const taskSchema = new mongoose.Schema(
       default: null,
       validate: {
         validator: function(dueDate) {
-          // Due date should be in the future (only for new tasks)
+          // Check if date is valid
+          if (dueDate && isNaN(dueDate.getTime())) {
+            return false;
+          }
+          
+          // Due date should not be in the past (be very permissive with timezone differences)
           if (this.isNew && dueDate) {
-            return dueDate > new Date();
+            const now = new Date();
+            // Allow dates from 48 hours ago to account for timezone differences
+            const twoDaysAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+            return dueDate >= twoDaysAgo;
           }
           return true;
         },
-        message: 'Due date must be in the future',
+        message: 'Due date cannot be in the past',
       },
     },
 

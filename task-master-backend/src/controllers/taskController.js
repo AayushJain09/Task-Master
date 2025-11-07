@@ -67,10 +67,12 @@ const getAllTasks = async (req, res) => {
 
     if (dueDate) {
       const date = new Date(dueDate);
-      additionalFilters.dueDate = {
-        $gte: date,
-        $lt: new Date(date.getTime() + 24 * 60 * 60 * 1000),
-      };
+      if (!isNaN(date.getTime())) {
+        additionalFilters.dueDate = {
+          $gte: date,
+          $lt: new Date(date.getTime() + 24 * 60 * 60 * 1000),
+        };
+      }
     }
 
     if (overdue === 'true') {
@@ -554,7 +556,15 @@ const createTask = async (req, res) => {
 
     // Add optional fields
     if (dueDate) {
-      taskData.dueDate = new Date(dueDate);
+      const parsedDate = new Date(dueDate);
+      if (isNaN(parsedDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid due date format',
+          code: 'INVALID_DUE_DATE_FORMAT'
+        });
+      }
+      taskData.dueDate = parsedDate;
     }
 
     if (estimatedHours) {
@@ -636,14 +646,22 @@ const updateTask = async (req, res) => {
     // Find the task and ensure user has access
     const task = await Task.findOne({
       _id: taskId,
-      $or: [{ assignedTo: userId }, { assignedBy: userId }],
       isActive: true,
     });
 
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Task not found or access denied',
+        message: 'Task not found',
+      });
+    }
+
+    // Check if user has edit permission (only task creator can edit)
+    if (task.assignedBy.toString() !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Only the task creator can edit this task.',
+        code: 'EDIT_PERMISSION_DENIED'
       });
     }
 
@@ -685,7 +703,19 @@ const updateTask = async (req, res) => {
 
     // Handle date fields
     if (dueDate !== undefined) {
-      updateData.dueDate = dueDate ? new Date(dueDate) : null;
+      if (dueDate) {
+        const parsedDate = new Date(dueDate);
+        if (isNaN(parsedDate.getTime())) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid due date format',
+            code: 'INVALID_DUE_DATE_FORMAT'
+          });
+        }
+        updateData.dueDate = parsedDate;
+      } else {
+        updateData.dueDate = null;
+      }
     }
 
     // Handle numeric fields

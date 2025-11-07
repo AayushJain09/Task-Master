@@ -6,6 +6,7 @@ export type ThemeMode = 'light' | 'dark';
 interface ThemeContextType {
   theme: ThemeMode;
   isDark: boolean;
+  isLoading: boolean;
   setTheme: (theme: ThemeMode) => void;
   toggleTheme: () => void;
 }
@@ -21,6 +22,7 @@ interface ThemeProviderProps {
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const [theme, setThemeState] = useState<ThemeMode>('dark');
   const [isChangingTheme, setIsChangingTheme] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Calculate if dark mode should be active
   const isDark = theme === 'dark';
@@ -32,48 +34,66 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   const loadThemePreference = async () => {
     try {
+      setIsLoading(true);
       const savedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
       if (savedTheme && ['light', 'dark'].includes(savedTheme)) {
         setThemeState(savedTheme as ThemeMode);
       }
     } catch (error) {
       console.error('Error loading theme preference:', error);
+      // Fallback to default theme on error
+      setThemeState('dark');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const setTheme = useCallback(async (newTheme: ThemeMode) => {
-    // Prevent rapid consecutive theme changes
-    if (isChangingTheme) return;
+    // Prevent theme changes while loading or changing
+    if (isChangingTheme || isLoading) return;
+    
+    // Validate theme value
+    if (!['light', 'dark'].includes(newTheme)) {
+      console.error('Invalid theme value:', newTheme);
+      return;
+    }
     
     try {
       setIsChangingTheme(true);
+      
+      // Set theme state immediately for UI responsiveness
       setThemeState(newTheme);
+      
+      // Save to storage asynchronously
       await AsyncStorage.setItem(THEME_STORAGE_KEY, newTheme);
       
+    } catch (error) {
+      console.error('Error saving theme preference:', error);
+      // Revert theme state on save error
+      setThemeState(theme);
+    } finally {
       // Add a small delay to prevent rapid changes
       setTimeout(() => {
         setIsChangingTheme(false);
       }, 150);
-    } catch (error) {
-      console.error('Error saving theme preference:', error);
-      setIsChangingTheme(false);
     }
-  }, [isChangingTheme]);
+  }, [isChangingTheme, isLoading, theme]);
 
   const toggleTheme = useCallback(() => {
-    if (theme === 'light') {
-      setTheme('dark');
-    } else {
-      setTheme('light');
-    }
-  }, [theme, setTheme]);
+    // Don't toggle if still loading or changing
+    if (isLoading || isChangingTheme) return;
+    
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+  }, [theme, setTheme, isLoading, isChangingTheme]);
 
   const value: ThemeContextType = useMemo(() => ({
     theme,
     isDark,
+    isLoading,
     setTheme,
     toggleTheme,
-  }), [theme, isDark, setTheme, toggleTheme]);
+  }), [theme, isDark, isLoading, setTheme, toggleTheme]);
 
   return (
     <ThemeContext.Provider value={value}>
@@ -85,7 +105,19 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 export function useTheme(): ThemeContextType {
   const context = useContext(ThemeContext);
   if (context === undefined) {
-    throw new Error('useTheme must be used within a ThemeProvider');
+    // Provide a fallback instead of throwing to prevent app crashes
+    console.error('useTheme must be used within a ThemeProvider. Using fallback values.');
+    return {
+      theme: 'dark',
+      isDark: true,
+      isLoading: false,
+      setTheme: () => {
+        console.warn('setTheme called outside of ThemeProvider context');
+      },
+      toggleTheme: () => {
+        console.warn('toggleTheme called outside of ThemeProvider context');
+      },
+    };
   }
   return context;
 }

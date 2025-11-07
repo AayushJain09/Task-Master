@@ -13,7 +13,17 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 SplashScreen.preventAutoHideAsync();
 // Theme-aware wrapper component
 const ThemedSafeAreaView = memo(({ children }: { children: React.ReactNode }) => {
-  const { isDark } = useTheme();
+  const { isDark, isLoading: themeLoading } = useTheme();
+  
+  // Show loading state while theme is initializing
+  if (themeLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-900 justify-center items-center">
+        {children}
+      </SafeAreaView>
+    );
+  }
+  
   return (
     <SafeAreaView className={`flex-1 border ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
       {children}
@@ -33,15 +43,17 @@ ThemedStatusBar.displayName = 'ThemedStatusBar';
 
 // Splash screen handler
 const SplashScreenHandler = memo(() => {
-  const { isLoading } = useAuth();
+  const { isLoading: authLoading } = useAuth();
+  const { isLoading: themeLoading } = useTheme();
   
   useEffect(() => {
-    if (!isLoading) {
+    // Wait for both auth and theme to finish loading
+    if (!authLoading && !themeLoading) {
       setTimeout(() => {
         SplashScreen.hideAsync();
       }, 1000);
     }
-  }, [isLoading]);
+  }, [authLoading, themeLoading]);
   
   return null;
 });

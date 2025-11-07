@@ -164,6 +164,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const translateYAnim = useRef(new Animated.Value(50)).current;
+  const hasOpenedRef = useRef(false);
 
   useEffect(() => {
     if (visible) {
@@ -174,6 +175,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
 
       // Opening animation with slight delay for better visual effect
       setTimeout(() => {
+        hasOpenedRef.current = true;
         Animated.parallel([
           Animated.timing(backdropOpacity, {
             toValue: 1,
@@ -194,7 +196,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
           })
         ]).start();
       }, 50);
-    } else if (!visible && (backdropOpacity._value > 0 || scaleAnim._value > 0.8)) {
+    } else if (!visible && hasOpenedRef.current) {
       // Only animate close if modal was actually open
       Animated.parallel([
         Animated.timing(backdropOpacity, {
@@ -212,7 +214,9 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
           duration: 200,
           useNativeDriver: true,
         })
-      ]).start();
+      ]).start(() => {
+        hasOpenedRef.current = false;
+      });
     }
   }, [visible, backdropOpacity, scaleAnim, translateYAnim]);
 

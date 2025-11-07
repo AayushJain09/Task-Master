@@ -9,7 +9,7 @@ interface ThemeToggleProps {
 }
 
 export default function ThemeToggle({ showLabel = false, size = 'md' }: ThemeToggleProps) {
-  const { theme, isDark, setTheme } = useTheme();
+  const { theme, isDark, isLoading, setTheme } = useTheme();
 
   const iconSize = size === 'sm' ? 16 : size === 'md' ? 20 : 24;
   const containerSize = size === 'sm' ? 'p-2' : size === 'md' ? 'p-3' : 'p-4';
@@ -29,16 +29,23 @@ export default function ThemeToggle({ showLabel = false, size = 'md' }: ThemeTog
 
   const currentThemeIndex = themeOptions.findIndex(option => option.mode === theme);
 
-  const handleThemeChange = () => {
-    const nextIndex = (currentThemeIndex + 1) % themeOptions.length;
-    setTheme(themeOptions[nextIndex].mode);
-  };
+  const handleThemeChange = useCallback(() => {
+    if (isLoading) return;
+    
+    try {
+      const nextIndex = (currentThemeIndex + 1) % themeOptions.length;
+      setTheme(themeOptions[nextIndex].mode);
+    } catch (error) {
+      console.error('Error changing theme:', error);
+    }
+  }, [isLoading, currentThemeIndex, themeOptions, setTheme]);
 
   const currentOption = themeOptions[currentThemeIndex];
 
   return (
     <Pressable
       onPress={handleThemeChange}
+      disabled={isLoading}
       className={`
         ${containerSize}
         rounded-lg
@@ -46,6 +53,7 @@ export default function ThemeToggle({ showLabel = false, size = 'md' }: ThemeTog
         ${isDark ? 'border-gray-600' : 'border-gray-200'}
         border
         ${showLabel ? 'flex-row items-center gap-x-3' : 'items-center justify-center'}
+        ${isLoading ? 'opacity-50' : ''}
       `}
     >
       <View className="items-center justify-center">
@@ -72,11 +80,13 @@ interface ThemeSegmentedControlProps {
 }
 
 export function ThemeSegmentedControl({ className = '' }: ThemeSegmentedControlProps) {
-  const { theme, isDark, setTheme } = useTheme();
+  const { theme, isDark, isLoading, setTheme } = useTheme();
   const lastChangeTime = useRef<number>(0);
   
   // Debounced theme setter to prevent rapid consecutive changes
   const handleThemeChange = useCallback((newTheme: ThemeMode) => {
+    if (isLoading) return;
+    
     const now = Date.now();
     
     // Prevent rapid changes (minimum 200ms between changes)
@@ -91,7 +101,7 @@ export function ThemeSegmentedControl({ className = '' }: ThemeSegmentedControlP
     } catch (error) {
       console.error('Error changing theme:', error);
     }
-  }, [setTheme]);
+  }, [setTheme, isLoading]);
 
   const themeOptions: { mode: ThemeMode; icon: React.ReactNode; label: string }[] = [
     {
@@ -113,6 +123,7 @@ export function ThemeSegmentedControl({ className = '' }: ThemeSegmentedControlP
       rounded-lg
       p-1
       ${className}
+      ${isLoading ? 'opacity-60' : ''}
     `}>
       {themeOptions.map((option) => {
         const isSelected = theme === option.mode;
@@ -120,6 +131,7 @@ export function ThemeSegmentedControl({ className = '' }: ThemeSegmentedControlP
           <Pressable
             key={option.mode}
             onPress={() => handleThemeChange(option.mode)}
+            disabled={isLoading}
             className={`
               flex-1
               flex-row

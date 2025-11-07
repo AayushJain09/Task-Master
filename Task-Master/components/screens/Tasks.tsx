@@ -67,6 +67,7 @@ import { Task as TaskCardType, ColumnStatus } from '../tasks/TaskCard';
 // Import API types and service
 import { Task, TasksListResponse, TaskError, TaskQueryParams } from '@/types/task.types';
 import { tasksService } from '@/services/tasks.service';
+import { formatDateForAPI } from '@/utils/dateUtils';
 
 // Import validation utilities
 import { InputSanitizer, ErrorRecovery } from '@/utils/validation';
@@ -649,14 +650,14 @@ export default function Tasks() {
         console.log('Updating task:', editingTask.id, 'with data:', formData);
         
         const updateData = {
-          title: formData.title.trim(),
-          description: formData.description.trim() || undefined,
+          title: formData.title?.trim() || '',
+          description: formData.description?.trim() || undefined,
           priority: formData.priority,
-          category: formData.category.trim() || undefined,
-          dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
-          tags: formData.tags.length > 0 ? formData.tags : undefined,
-          estimatedHours: formData.estimatedHours > 0 ? formData.estimatedHours : undefined,
-          assignedTo: formData.assignedTo || undefined
+          category: formData.category?.trim() || undefined,
+          dueDate: formData.dueDate ? formatDateForAPI(formData.dueDate) : undefined,
+          tags: formData.tags && formData.tags.length > 0 ? formData.tags : undefined,
+          estimatedHours: formData.estimatedHours && formData.estimatedHours > 0 ? formData.estimatedHours : undefined,
+          assignedTo: formData.assignedTo?.trim() || undefined
         };
         
         const response = await tasksService.updateTask(editingTask.id, updateData);
@@ -672,14 +673,14 @@ export default function Tasks() {
         
         // Create new task
         const createData = {
-          title: formData.title.trim(),
-          description: formData.description.trim() || undefined,
+          title: formData.title?.trim() || '',
+          description: formData.description?.trim() || undefined,
           priority: formData.priority,
-          category: formData.category.trim() || undefined,
-          dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
-          tags: formData.tags.length > 0 ? formData.tags : undefined,
-          estimatedHours: formData.estimatedHours > 0 ? formData.estimatedHours : undefined,
-          assignedTo: formData.assignedTo || undefined
+          category: formData.category?.trim() || undefined,
+          dueDate: formData.dueDate ? formatDateForAPI(formData.dueDate) : undefined,
+          tags: formData.tags && formData.tags.length > 0 ? formData.tags : undefined,
+          estimatedHours: formData.estimatedHours && formData.estimatedHours > 0 ? formData.estimatedHours : undefined,
+          assignedTo: formData.assignedTo?.trim() || undefined
         };
         
         const response = await tasksService.createTask(createData);

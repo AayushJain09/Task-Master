@@ -55,10 +55,21 @@ const validateTaskCreation = [
     .isISO8601()
     .withMessage('Due date must be a valid ISO 8601 date')
     .custom((value) => {
-      const date = new Date(value);
+      const dueDate = new Date(value);
+      
+      // Check if the date is valid
+      if (isNaN(dueDate.getTime())) {
+        throw new Error('Invalid due date format');
+      }
+      
+      // Use a more lenient date comparison - allow dates from 24 hours ago
+      // This accounts for timezone differences between client and server
       const now = new Date();
-      if (date <= now) {
-        throw new Error('Due date must be in the future');
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      
+      // Allow dates from yesterday onwards (very permissive)
+      if (dueDate < yesterday) {
+        throw new Error('Due date cannot be in the past');
       }
       return true;
     }),

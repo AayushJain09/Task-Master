@@ -55,6 +55,8 @@ import {
 } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
+import { canEditTask, canDeleteTask } from '@/utils/taskPermissions';
 import * as Haptics from 'expo-haptics';
 import {
   Calendar,
@@ -397,7 +399,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onPress
 }) => {
   const { isDark } = useTheme();
+  const { user } = useAuth();
   const priorityColors = getPriorityColors(task.priority);
+  
+  // Check user permissions for this task
+  const canEdit = canEditTask(task, user);
+  const canDelete = canDeleteTask(task, user);
 
   /**
    * Swipe Gesture State Management
@@ -789,35 +796,48 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               }`}>
               {/* Edit and Delete Actions */}
               <View className="flex-row items-center justify-end gap-x-3">
-                {/* Edit Button */}
-                <TouchableOpacity
-                  onPress={() => onEdit(task)}
-                  className={`flex-row items-center px-4 py-2.5 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'
-                    }`}
-                  accessibilityLabel="Edit Task"
-                  accessibilityHint="Opens edit form for this task"
-                  activeOpacity={0.8}
-                >
-                  <Edit3 size={16} color={isDark ? '#D1D5DB' : '#4B5563'} />
-                  <Text className={`text-sm font-semibold ml-2 ${isDark ? 'text-gray-300' : 'text-gray-600'
-                    }`}>
-                    Edit
-                  </Text>
-                </TouchableOpacity>
+                {/* Edit Button - Only shown if user can edit */}
+                {canEdit && (
+                  <TouchableOpacity
+                    onPress={() => onEdit(task)}
+                    className={`flex-row items-center px-4 py-2.5 rounded-xl ${isDark ? 'bg-gray-700' : 'bg-gray-100'
+                      }`}
+                    accessibilityLabel="Edit Task"
+                    accessibilityHint="Opens edit form for this task"
+                    activeOpacity={0.8}
+                  >
+                    <Edit3 size={16} color={isDark ? '#D1D5DB' : '#4B5563'} />
+                    <Text className={`text-sm font-semibold ml-2 ${isDark ? 'text-gray-300' : 'text-gray-600'
+                      }`}>
+                      Edit
+                    </Text>
+                  </TouchableOpacity>
+                )}
 
-                {/* Delete Button */}
-                <TouchableOpacity
-                  onPress={() => onDelete(task.id)}
-                  className="flex-row items-center px-4 py-2.5 rounded-xl bg-red-50 border border-red-200"
-                  accessibilityLabel="Delete Task"
-                  accessibilityHint="Deletes this task permanently"
-                  activeOpacity={0.8}
-                >
-                  <Trash2 size={16} color="#EF4444" />
-                  <Text className="text-sm font-semibold ml-2 text-red-600">
-                    Delete
-                  </Text>
-                </TouchableOpacity>
+                {/* Delete Button - Only shown if user can delete */}
+                {canDelete && (
+                  <TouchableOpacity
+                    onPress={() => onDelete(task.id)}
+                    className="flex-row items-center px-4 py-2.5 rounded-xl bg-red-50 border border-red-200"
+                    accessibilityLabel="Delete Task"
+                    accessibilityHint="Deletes this task permanently"
+                    activeOpacity={0.8}
+                  >
+                    <Trash2 size={16} color="#EF4444" />
+                    <Text className="text-sm font-semibold ml-2 text-red-600">
+                      Delete
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Show message if no actions available */}
+                {!canEdit && !canDelete && (
+                  <View className={`px-4 py-2.5 rounded-xl ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                    <Text className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                      View Only
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           </Pressable>
