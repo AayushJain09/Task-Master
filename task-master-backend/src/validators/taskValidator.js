@@ -325,6 +325,117 @@ const validateTaskSearch = [
 ];
 
 /**
+ * Task Status Query Validation Rules
+ *
+ * Validates query parameters specifically for the getTasksByStatus endpoint
+ * where status is a required parameter, with comprehensive filtering options.
+ * 
+ * This validator is optimized for Kanban board column-specific queries
+ * where each column represents a specific status and requires independent
+ * pagination and filtering capabilities.
+ *
+ * Required Parameters:
+ * @param {string} status - Task status (todo, in_progress, done) - REQUIRED
+ *
+ * Optional Parameters:
+ * @param {string} [priority] - Filter by priority (low, medium, high)
+ * @param {string} [role] - User role filter ('assignee', 'assignor', 'both')
+ * @param {string} [category] - Category filter (case-insensitive partial match)
+ * @param {string} [tags] - Comma-separated tags for filtering
+ * @param {string} [dueDate] - Specific due date filter (ISO 8601 format)
+ * @param {boolean} [overdue] - Filter overdue tasks
+ * @param {string} [search] - Search term for multiple fields
+ * @param {number} [page] - Page number for pagination (min: 1)
+ * @param {number} [limit] - Items per page (min: 1, max: 100)
+ * @param {string} [sortBy] - Sort field
+ * @param {string} [sortOrder] - Sort direction (asc, desc)
+ *
+ * Use Cases:
+ * - Kanban board column data loading
+ * - Status-specific task filtering
+ * - Column-independent pagination
+ * - Real-time status-based updates
+ */
+const validateTaskStatusQuery = [
+  // Status validation - REQUIRED for this endpoint
+  query('status')
+    .notEmpty()
+    .withMessage('Status parameter is required')
+    .isIn(['todo', 'in_progress', 'done'])
+    .withMessage('Status must be one of: todo, in_progress, done'),
+
+  // Priority filter validation
+  query('priority')
+    .optional()
+    .isIn(['low', 'medium', 'high'])
+    .withMessage('Priority must be one of: low, medium, high'),
+
+  // Role filter validation
+  query('role')
+    .optional()
+    .isIn(['assignee', 'assignor', 'both'])
+    .withMessage('Role must be one of: assignee, assignor, both'),
+
+  // Category filter validation
+  query('category')
+    .optional()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Category must be between 1 and 50 characters')
+    .trim()
+    .escape(),
+
+  // Tags filter validation (comma-separated string)
+  query('tags')
+    .optional()
+    .isString()
+    .withMessage('Tags must be a comma-separated string')
+    .isLength({ max: 200 })
+    .withMessage('Tags string cannot exceed 200 characters'),
+
+  // Due date filter validation
+  query('dueDate')
+    .optional()
+    .isISO8601()
+    .withMessage('Due date must be a valid ISO 8601 date'),
+
+  // Overdue filter validation
+  query('overdue')
+    .optional()
+    .isBoolean()
+    .withMessage('Overdue must be a boolean value (true/false)'),
+
+  // Search functionality validation
+  query('search')
+    .optional()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Search query must be between 1 and 100 characters')
+    .trim()
+    .escape(),
+
+  // Pagination validation - optimized for column-specific pagination
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Page must be a positive integer'),
+
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Limit must be an integer between 1 and 100'),
+
+  // Enhanced sorting validation for status-specific queries
+  query('sortBy')
+    .optional()
+    .isIn(['createdAt', 'updatedAt', 'dueDate', 'priority', 'title', 'completedAt'])
+    .withMessage('Sort by must be one of: createdAt, updatedAt, dueDate, priority, title, completedAt'),
+
+  query('sortOrder')
+    .optional()
+    .isIn(['asc', 'desc'])
+    .withMessage('Sort order must be either asc or desc'),
+];
+
+/**
  * Bulk Task Operation Validation
  *
  * Validates bulk operations on multiple tasks
@@ -403,6 +514,7 @@ module.exports = {
   validateTaskStatusUpdate,
   validateTaskId,
   validateTaskQuery,
+  validateTaskStatusQuery,
   validateTaskSearch,
   validateBulkTaskOperation,
   validateTaskAssignment,

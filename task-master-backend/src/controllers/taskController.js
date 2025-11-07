@@ -159,6 +159,291 @@ const getAllTasks = async (req, res) => {
 };
 
 /**
+ * Get Tasks by Status with Enhanced Filtering and Pagination
+ *
+ * Retrieves tasks for a specific status with comprehensive filtering, sorting,
+ * and pagination support. This endpoint is optimized for Kanban board columns
+ * where each status can have independent pagination and filtering.
+ *
+ * Features:
+ * - Status-specific task retrieval (todo, in_progress, done)
+ * - Independent pagination per status column
+ * - Comprehensive filtering by priority, category, tags, due date
+ * - Role-based filtering (assignee, assignor, both)
+ * - Overdue task detection
+ * - Flexible sorting options
+ * - Search functionality across title, description, and tags
+ * - Optimized for Kanban board user experience
+ *
+ * Query Parameters:
+ * @param {string} status - Task status (todo, in_progress, done) - REQUIRED
+ * @param {string} [priority] - Filter by priority (low, medium, high)
+ * @param {string} [role=both] - User role filter ('assignee', 'assignor', 'both')
+ * @param {string} [category] - Filter by category (case-insensitive partial match)
+ * @param {string} [tags] - Comma-separated list of tags to filter by
+ * @param {string} [dueDate] - Filter by specific due date (ISO format)
+ * @param {boolean} [overdue] - Filter overdue tasks (true/false)
+ * @param {string} [search] - Search term for title, description, and tags
+ * @param {number} [page=1] - Page number for pagination
+ * @param {number} [limit=10] - Number of tasks per page (max 100)
+ * @param {string} [sortBy=updatedAt] - Sort field (createdAt, updatedAt, dueDate, priority, title)
+ * @param {string} [sortOrder=desc] - Sort order (asc, desc)
+ *
+ * Response Format:
+ * - tasks: Array of task objects with populated user data
+ * - pagination: Complete pagination metadata
+ * - filters: Applied filter summary
+ * - statusMetadata: Status-specific information
+ *
+ * Use Cases:
+ * - Kanban board column data loading
+ * - Status-specific task management
+ * - Independent column pagination
+ * - Column-specific filtering and search
+ * - Real-time status updates
+ *
+ * @async
+ * @function getTasksByStatus
+ * @param {Object} req - Express request object
+ * @param {Object} req.query - Query parameters for filtering and pagination
+ * @param {Object} req.user - Authenticated user object
+ * @param {string} req.user.userId - User ID from JWT token
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON response with tasks, pagination, and metadata
+ *
+ * @example
+ * // Get todo tasks for current user with pagination
+ * GET /api/tasks/status?status=todo&page=1&limit=10
+ *
+ * @example
+ * // Get in-progress high priority tasks
+ * GET /api/tasks/status?status=in_progress&priority=high
+ *
+ * @example
+ * // Search within done tasks
+ * GET /api/tasks/status?status=done&search=project&sortBy=completedAt
+ */
+const getTasksByStatus = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const {
+      status, // Required parameter
+      priority,
+      role = 'both', // 'assignee', 'assignor', or 'both'
+      category,
+      tags,
+      dueDate,
+      overdue,
+      search,
+      page = 1,
+      limit = 10, // Smaller default for column-specific pagination
+      sortBy = 'updatedAt', // Default to most recently updated
+      sortOrder = 'desc',
+    } = req.query;
+
+    // Validate required status parameter
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        message: 'Status parameter is required',
+        error: 'Please specify one of: todo, in_progress, done',
+      });
+    }
+
+    // Validate status value
+    const validStatuses = ['todo', 'in_progress', 'done'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid status parameter',
+        error: `Status must be one of: ${validStatuses.join(', ')}`,
+      });
+    }
+
+    // Validate pagination parameters
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 10)); // Max 100 items per page
+
+    // Build base query options for the specific status
+    const options = {
+      role,
+      activeOnly: true,
+      status, // Always filter by the specified status
+    };
+
+    // Build additional filters for enhanced querying
+    let additionalFilters = {};
+
+    // Priority filter
+    if (priority) {
+      const validPriorities = ['low', 'medium', 'high'];
+      if (validPriorities.includes(priority)) {
+        additionalFilters.priority = priority;
+      }
+    }
+
+    // Category filter (case-insensitive partial match)
+    if (category) {
+      additionalFilters.category = new RegExp(category, 'i');
+    }
+
+    // Tags filter (support multiple tags)
+    if (tags) {
+      const tagArray = tags.split(',').map(tag => tag.trim().toLowerCase());
+      additionalFilters.tags = { $in: tagArray };
+    }
+
+    // Due date filter (specific date)
+    if (dueDate) {
+      const date = new Date(dueDate);
+      if (!isNaN(date.getTime())) {
+        additionalFilters.dueDate = {
+          $gte: date,
+          $lt: new Date(date.getTime() + 24 * 60 * 60 * 1000), // Same day
+        };
+      }
+    }
+
+    // Overdue filter (only for non-done tasks)
+    if (overdue === 'true' && status !== 'done') {
+      additionalFilters.dueDate = { $lt: new Date() };
+      additionalFilters.status = { $ne: 'done' };
+    }
+
+    // Get base tasks for the specified status using the model method
+    let tasks = await Task.findByUser(userId, options);
+
+    // Apply additional filters
+    if (Object.keys(additionalFilters).length > 0) {
+      tasks = tasks.filter(task => {
+        return Object.entries(additionalFilters).every(([key, value]) => {
+          if (key === 'category' && value instanceof RegExp) {
+            return value.test(task.category || '');
+          }
+          if (key === 'tags' && value.$in) {
+            return task.tags && task.tags.some(tag => value.$in.includes(tag.toLowerCase()));
+          }
+          if (key === 'dueDate' && typeof value === 'object') {
+            if (!task.dueDate) return false;
+            const taskDate = new Date(task.dueDate);
+            if (value.$lt) return taskDate < value.$lt;
+            if (value.$gte && value.$lt) {
+              return taskDate >= value.$gte && taskDate < value.$lt;
+            }
+          }
+          if (key === 'status' && value.$ne) {
+            return task.status !== value.$ne;
+          }
+          return task[key] === value;
+        });
+      });
+    }
+
+    // Apply search filter across multiple fields
+    if (search) {
+      const searchRegex = new RegExp(search, 'i');
+      tasks = tasks.filter(task => {
+        return (
+          searchRegex.test(task.title || '') ||
+          searchRegex.test(task.description || '') ||
+          (task.tags && task.tags.some(tag => searchRegex.test(tag))) ||
+          searchRegex.test(task.category || '')
+        );
+      });
+    }
+
+    // Sort tasks with enhanced sorting options
+    tasks.sort((a, b) => {
+      let aValue, bValue;
+
+      switch (sortBy) {
+        case 'priority':
+          // Sort by priority: high > medium > low
+          const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1 };
+          aValue = priorityOrder[a.priority] || 0;
+          bValue = priorityOrder[b.priority] || 0;
+          break;
+        case 'dueDate':
+          // Handle null due dates (put them last)
+          aValue = a.dueDate ? new Date(a.dueDate) : new Date('9999-12-31');
+          bValue = b.dueDate ? new Date(b.dueDate) : new Date('9999-12-31');
+          break;
+        case 'title':
+          aValue = (a.title || '').toLowerCase();
+          bValue = (b.title || '').toLowerCase();
+          break;
+        default:
+          // Default to date-based sorting
+          aValue = new Date(a[sortBy] || a.createdAt);
+          bValue = new Date(b[sortBy] || b.createdAt);
+      }
+
+      const multiplier = sortOrder === 'desc' ? -1 : 1;
+
+      if (aValue < bValue) return -1 * multiplier;
+      if (aValue > bValue) return 1 * multiplier;
+      return 0;
+    });
+
+    // Calculate pagination
+    const totalTasks = tasks.length;
+    const totalPages = Math.ceil(totalTasks / limitNum);
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = startIndex + limitNum;
+    const paginatedTasks = tasks.slice(startIndex, endIndex);
+
+    // Status-specific metadata
+    const statusMetadata = {
+      status,
+      totalInStatus: totalTasks,
+      currentPageCount: paginatedTasks.length,
+      hasOverdue: status !== 'done' && paginatedTasks.some(task => 
+        task.dueDate && new Date(task.dueDate) < new Date()
+      ),
+    };
+
+    // Enhanced response with comprehensive metadata
+    res.status(200).json({
+      success: true,
+      message: `${status.replace('_', ' ')} tasks retrieved successfully`,
+      data: {
+        tasks: paginatedTasks,
+        pagination: {
+          currentPage: pageNum,
+          totalPages,
+          totalTasks,
+          limit: limitNum,
+          hasNextPage: endIndex < totalTasks,
+          hasPrevPage: pageNum > 1,
+          startIndex: startIndex + 1, // 1-based index for display
+          endIndex: Math.min(endIndex, totalTasks), // 1-based index for display
+        },
+        filters: {
+          status,
+          priority,
+          role,
+          category,
+          tags,
+          dueDate,
+          overdue,
+          search,
+          sortBy,
+          sortOrder,
+        },
+        statusMetadata,
+      },
+    });
+  } catch (error) {
+    console.error(`Get tasks by status (${req.query.status}) error:`, error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve tasks by status',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+    });
+  }
+};
+
+/**
  * Get Task by ID
  *
  * Retrieves a specific task by its ID, ensuring the user has access to it
@@ -655,6 +940,7 @@ const getOverdueTasks = async (req, res) => {
 
 module.exports = {
   getAllTasks,
+  getTasksByStatus,
   getTaskById,
   createTask,
   updateTask,

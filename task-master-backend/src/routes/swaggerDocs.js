@@ -1245,6 +1245,280 @@
 
 /**
  * @swagger
+ * /tasks/status:
+ *   get:
+ *     summary: Get tasks by specific status with enhanced filtering and pagination
+ *     description: |
+ *       Retrieves tasks for a specific status (todo, in_progress, or done) with comprehensive
+ *       filtering, sorting, and pagination support. This endpoint is optimized for Kanban board
+ *       columns where each status requires independent pagination and filtering capabilities.
+ *       
+ *       **Key Features:**
+ *       - Status-specific task retrieval (required parameter)
+ *       - Independent pagination per status column
+ *       - Enhanced filtering by priority, category, tags, due date
+ *       - Role-based filtering (assignee, assignor, both)
+ *       - Overdue task detection (for non-done status)
+ *       - Full-text search across title, description, tags, and category
+ *       - Flexible sorting with multiple field options
+ *       - Status-specific metadata including overdue detection
+ *       
+ *       **Use Cases:**
+ *       - Kanban board column data loading
+ *       - Status-specific task management interfaces
+ *       - Column-independent pagination and filtering
+ *       - Real-time status-based updates
+ *       - Mobile-optimized smaller page sizes
+ *     tags: [Tasks]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [todo, in_progress, done]
+ *         description: Task status to filter by (REQUIRED)
+ *         example: todo
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *           enum: [low, medium, high]
+ *         description: Filter tasks by priority level
+ *         example: high
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *           enum: [assignee, assignor, both]
+ *           default: both
+ *         description: Filter by user role in task relationship
+ *         example: assignee
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *           maxLength: 50
+ *         description: Filter tasks by category (case-insensitive partial match)
+ *         example: Development
+ *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *           maxLength: 200
+ *         description: Filter by tags (comma-separated list)
+ *         example: "bug,frontend,urgent"
+ *       - in: query
+ *         name: dueDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter tasks by specific due date (ISO 8601 format)
+ *         example: "2024-12-31"
+ *       - in: query
+ *         name: overdue
+ *         schema:
+ *           type: boolean
+ *         description: Filter to show only overdue tasks (ignored for done status)
+ *         example: true
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *           minLength: 1
+ *           maxLength: 100
+ *         description: Search term for title, description, tags, and category
+ *         example: "project deadline"
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Number of tasks per page (smaller default for column optimization)
+ *         example: 10
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [createdAt, updatedAt, dueDate, priority, title, completedAt]
+ *           default: updatedAt
+ *         description: Field to sort by (default to most recently updated)
+ *         example: dueDate
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *         description: Sort order (ascending or descending)
+ *         example: asc
+ *     responses:
+ *       200:
+ *         description: Status-specific tasks retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "todo tasks retrieved successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     tasks:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Task'
+ *                       description: Array of tasks for the specified status
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         currentPage:
+ *                           type: integer
+ *                           example: 1
+ *                         totalPages:
+ *                           type: integer
+ *                           example: 3
+ *                         totalTasks:
+ *                           type: integer
+ *                           example: 25
+ *                         limit:
+ *                           type: integer
+ *                           example: 10
+ *                         hasNextPage:
+ *                           type: boolean
+ *                           example: true
+ *                         hasPrevPage:
+ *                           type: boolean
+ *                           example: false
+ *                         startIndex:
+ *                           type: integer
+ *                           example: 1
+ *                           description: 1-based start index for display
+ *                         endIndex:
+ *                           type: integer
+ *                           example: 10
+ *                           description: 1-based end index for display
+ *                       description: Comprehensive pagination metadata for column display
+ *                     filters:
+ *                       type: object
+ *                       properties:
+ *                         status:
+ *                           type: string
+ *                           example: "todo"
+ *                         priority:
+ *                           type: string
+ *                           example: "high"
+ *                         role:
+ *                           type: string
+ *                           example: "both"
+ *                         category:
+ *                           type: string
+ *                           example: "Development"
+ *                         tags:
+ *                           type: string
+ *                           example: "bug,urgent"
+ *                         dueDate:
+ *                           type: string
+ *                           example: "2024-12-31"
+ *                         overdue:
+ *                           type: string
+ *                           example: "true"
+ *                         search:
+ *                           type: string
+ *                           example: "project"
+ *                         sortBy:
+ *                           type: string
+ *                           example: "updatedAt"
+ *                         sortOrder:
+ *                           type: string
+ *                           example: "desc"
+ *                       description: Summary of applied filters for debugging
+ *                     statusMetadata:
+ *                       type: object
+ *                       properties:
+ *                         status:
+ *                           type: string
+ *                           example: "todo"
+ *                           description: The requested status
+ *                         totalInStatus:
+ *                           type: integer
+ *                           example: 25
+ *                           description: Total tasks matching all filters for this status
+ *                         currentPageCount:
+ *                           type: integer
+ *                           example: 10
+ *                           description: Number of tasks in current page
+ *                         hasOverdue:
+ *                           type: boolean
+ *                           example: true
+ *                           description: Whether current page contains overdue tasks
+ *                       description: Status-specific metadata for enhanced UI display
+ *       400:
+ *         description: Bad request - Missing or invalid status parameter
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Status parameter is required"
+ *                 error:
+ *                   type: string
+ *                   example: "Please specify one of: todo, in_progress, done"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       422:
+ *         $ref: '#/components/responses/ValidationError'
+ *       429:
+ *         $ref: '#/components/responses/RateLimitError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *     examples:
+ *       get_todo_tasks:
+ *         summary: Get todo tasks with pagination
+ *         value:
+ *           url: "/api/tasks/status?status=todo&page=1&limit=10"
+ *           description: "Get the first 10 todo tasks for the user"
+ *       get_high_priority_in_progress:
+ *         summary: Get high priority in-progress tasks
+ *         value:
+ *           url: "/api/tasks/status?status=in_progress&priority=high&sortBy=dueDate"
+ *           description: "Get high priority in-progress tasks sorted by due date"
+ *       search_done_tasks:
+ *         summary: Search within completed tasks
+ *         value:
+ *           url: "/api/tasks/status?status=done&search=project&sortBy=completedAt&sortOrder=desc"
+ *           description: "Search for 'project' within completed tasks, sorted by completion date"
+ *       overdue_todo_tasks:
+ *         summary: Get overdue todo tasks
+ *         value:
+ *           url: "/api/tasks/status?status=todo&overdue=true&sortBy=dueDate&sortOrder=asc"
+ *           description: "Get overdue todo tasks sorted by due date (earliest first)"
+ */
+
+/**
+ * @swagger
  * /tasks/statistics:
  *   get:
  *     summary: Get task statistics for the authenticated user

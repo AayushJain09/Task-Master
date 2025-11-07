@@ -12,6 +12,7 @@
 const express = require('express');
 const {
   getAllTasks,
+  getTasksByStatus,
   getTaskById,
   createTask,
   updateTask,
@@ -27,6 +28,7 @@ const {
   validateTaskStatusUpdate,
   validateTaskId,
   validateTaskQuery,
+  validateTaskStatusQuery,
 } = require('../validators/taskValidator');
 
 const { authenticate } = require('../middleware/auth');
@@ -36,6 +38,9 @@ const router = express.Router();
 
 // GET /api/tasks - Get all tasks (documented in swaggerDocs.js)
 router.get('/', authenticate, rateLimitModerate, validateTaskQuery, getAllTasks);
+
+// GET /api/tasks/status - Get tasks by specific status with enhanced filtering (documented in swaggerDocs.js)
+router.get('/status', authenticate, rateLimitModerate, validateTaskStatusQuery, getTasksByStatus);
 
 // GET /api/tasks/statistics - Get task statistics (documented in swaggerDocs.js)
 router.get('/statistics', authenticate, rateLimitModerate, getTaskStatistics);
