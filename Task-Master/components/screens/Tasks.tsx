@@ -408,6 +408,20 @@ export default function Tasks() {
    * Converts API Task format to the format expected by TaskCard component
    */
   const transformTaskForCard = useCallback((apiTask: Task): TaskCardType => {
+    // Helper function to extract user details if populated
+    const extractUserDetails = (userRef: string | { _id: string; firstName: string; lastName: string; email: string; fullName?: string; }) => {
+      if (typeof userRef === 'object' && userRef !== null) {
+        return {
+          _id: userRef._id,
+          firstName: userRef.firstName,
+          lastName: userRef.lastName,
+          email: userRef.email,
+          fullName: userRef.fullName || `${userRef.firstName} ${userRef.lastName}`.trim(),
+        };
+      }
+      return undefined;
+    };
+
     return {
       id: apiTask._id, // Use the full ObjectId as string to avoid duplicate keys
       title: apiTask.title,
@@ -416,7 +430,10 @@ export default function Tasks() {
       status: apiTask.status,
       dueDate: apiTask.dueDate ? new Date(apiTask.dueDate).toLocaleDateString() : 'No due date',
       category: apiTask.category,
-      createdAt: new Date(apiTask.createdAt).toLocaleDateString()
+      createdAt: new Date(apiTask.createdAt).toLocaleDateString(),
+      tags: apiTask.tags || [],
+      assignedTo: extractUserDetails(apiTask.assignedTo),
+      assignedBy: extractUserDetails(apiTask.assignedBy),
     };
   }, []);
   

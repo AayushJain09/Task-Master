@@ -61,7 +61,7 @@ const getPriorityConfig = (priority: string) => {
   switch (priority) {
     case 'high':
       return {
-        bg: 'linear-gradient(135deg, #FEE2E2, #FCA5A5)',
+        bg: '#FEE2E2',
         text: '#DC2626',
         border: '#F87171',
         icon: '#DC2626',
@@ -71,7 +71,7 @@ const getPriorityConfig = (priority: string) => {
       };
     case 'medium':
       return {
-        bg: 'linear-gradient(135deg, #FEF3C7, #FCD34D)',
+        bg: '#FEF3C7',
         text: '#D97706',
         border: '#FBBF24',
         icon: '#D97706',
@@ -81,7 +81,7 @@ const getPriorityConfig = (priority: string) => {
       };
     case 'low':
       return {
-        bg: 'linear-gradient(135deg, #DCFCE7, #86EFAC)',
+        bg: '#DCFCE7',
         text: '#059669',
         border: '#34D399',
         icon: '#10B981',
@@ -91,7 +91,7 @@ const getPriorityConfig = (priority: string) => {
       };
     default:
       return {
-        bg: 'linear-gradient(135deg, #F9FAFB, #D1D5DB)',
+        bg: '#F9FAFB',
         text: '#374151',
         border: '#9CA3AF',
         icon: '#6B7280',
@@ -109,7 +109,7 @@ const getStatusConfig = (status: string) => {
   switch (status) {
     case 'todo':
       return {
-        bg: 'linear-gradient(135deg, #FEF3F2, #FECACA)',
+        bg: '#FEF3F2',
         text: '#DC2626',
         border: '#F87171',
         icon: '#EF4444',
@@ -119,7 +119,7 @@ const getStatusConfig = (status: string) => {
       };
     case 'in_progress':
       return {
-        bg: 'linear-gradient(135deg, #FFFBEB, #FED7AA)',
+        bg: '#FFFBEB',
         text: '#D97706',
         border: '#FBBF24',
         icon: '#F59E0B',
@@ -129,7 +129,7 @@ const getStatusConfig = (status: string) => {
       };
     case 'done':
       return {
-        bg: 'linear-gradient(135deg, #F0FDF4, #BBF7D0)',
+        bg: '#F0FDF4',
         text: '#059669',
         border: '#34D399',
         icon: '#10B981',
@@ -139,7 +139,7 @@ const getStatusConfig = (status: string) => {
       };
     default:
       return {
-        bg: 'linear-gradient(135deg, #F9FAFB, #E5E7EB)',
+        bg: '#F9FAFB',
         text: '#374151',
         border: '#9CA3AF',
         icon: '#6B7280',
@@ -333,7 +333,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                   </View>
                   <Text className={`text-xl font-bold ml-3  ${isDark ? 'text-white' : 'text-gray-900'
                     }`}>
-                    
+
                     {task.title}
                   </Text>
                 </View>
@@ -366,41 +366,47 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
 
             {/* Compact Status and Priority Row */}
             <View className="px-6 pt-6">
-              <View className="flex-row gap-3 mb-6">
+              <View className="flex-row justify-around gap-3 mb-6">
                 {/* Status Badge */}
-                <View
-                  className="flex-row items-center px-4 py-2 rounded-full"
-                  style={{
-                    backgroundColor: statusConfig.bg,
-                    borderWidth: 1.5,
-                    borderColor: statusConfig.border
-                  }}
-                >
-                  <StatusIcon size={16} color={statusConfig.icon} />
-                  <Text
-                    className="text-sm font-bold ml-2"
-                    style={{ color: statusConfig.text }}
+                <View className='flex-row justify-center items-center gap-x-1'>
+                  <Text className='text-gray-400 text-xs p-1 font-semibold '>Status :</Text>
+                  <View
+                    className="flex-row items-center px-3 py-1 rounded-full"
+                    style={{
+                      backgroundColor: statusConfig.bg,
+                      borderWidth: 1.5,
+                      borderColor: statusConfig.border
+                    }}
                   >
-                    {statusConfig.label}
-                  </Text>
+                    <StatusIcon size={14} color={statusConfig.icon} />
+                    <Text
+                      className="text-sm font-bold ml-2"
+                      style={{ color: statusConfig.text }}
+                    >
+                      {statusConfig.label}
+                    </Text>
+                  </View>
                 </View>
 
                 {/* Priority Badge */}
-                <View
-                  className="flex-row items-center px-4 py-2 rounded-full"
-                  style={{
-                    backgroundColor: priorityConfig.bg,
-                    borderWidth: 1.5,
-                    borderColor: priorityConfig.border
-                  }}
-                >
-                  <PriorityIcon size={16} color={priorityConfig.icon} />
-                  <Text
-                    className="text-sm font-bold ml-2"
-                    style={{ color: priorityConfig.text }}
+                <View className='flex-row justify-center items-center gap-x-1'>
+                  <Text className='text-gray-400 text-xs p-1 font-semibold '>Priority :</Text>
+                  <View
+                    className="flex-row items-center px-3 py-1 rounded-full"
+                    style={{
+                      backgroundColor: priorityConfig.bg,
+                      borderWidth: 1.5,
+                      borderColor: priorityConfig.border
+                    }}
                   >
-                    {priorityConfig.label}
-                  </Text>
+                    <PriorityIcon size={11} color={priorityConfig.icon} />
+                    <Text
+                      className="text-sm font-bold ml-2"
+                      style={{ color: priorityConfig.text }}
+                    >
+                      {priorityConfig.label}
+                    </Text>
+                  </View>
                 </View>
               </View>
             </View>
@@ -412,7 +418,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                 Task Information
               </Text>
 
-              {/* Two Column Grid Layout */}
+              {/* Row 1: Category and Task ID */}
               <View className="flex-row gap-3 mb-4">
                 {/* Category */}
                 <View className={`flex-1 p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-blue-50'
@@ -447,8 +453,8 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                 </View>
               </View>
 
-              {/* Dates Row */}
-              <View className="flex-row gap-3 mb-6">
+              {/* Row 2: Due Date and Created Date */}
+              <View className="flex-row gap-3 mb-4">
                 {/* Due Date */}
                 <View className={`flex-1 p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-purple-50'
                   }`}>
@@ -481,6 +487,78 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                   </Text>
                 </View>
               </View>
+
+              {/* Row 3: Assigned By and Assigned To */}
+              <View className="flex-row gap-3 mb-4">
+                {/* Assigned By */}
+                {task.assignedBy && (
+                  <View className={`flex-1 p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-orange-50'
+                    }`}>
+                    <View className="flex-row items-center mb-1">
+                      <User size={14} color={isDark ? '#FB923C' : '#EA580C'} />
+                      <Text className={`text-xs font-medium ml-1 ${isDark ? 'text-gray-400' : 'text-orange-600'
+                        }`}>
+                        Assigned By
+                      </Text>
+                    </View>
+                    <Text className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'
+                      }`}>
+                      {task.assignedBy.fullName || `${task.assignedBy.firstName} ${task.assignedBy.lastName}`.trim()}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Assigned To */}
+                {task.assignedTo && (
+                  <View className={`flex-1 p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-blue-50'
+                    }`}>
+                    <View className="flex-row items-center mb-1">
+                      <User size={14} color={isDark ? '#60A5FA' : '#3B82F6'} />
+                      <Text className={`text-xs font-medium ml-1 ${isDark ? 'text-gray-400' : 'text-blue-600'
+                        }`}>
+                        Assigned To
+                      </Text>
+                    </View>
+                    <Text className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'
+                      }`}>
+                      {task.assignedTo.fullName || `${task.assignedTo.firstName} ${task.assignedTo.lastName}`.trim()}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Fill empty space if only one assignment exists */}
+                {(task.assignedBy && !task.assignedTo) || (!task.assignedBy && task.assignedTo) ? (
+                  <View className="flex-1" />
+                ) : null}
+              </View>
+
+              {/* Row 4: Tags (if available) */}
+              {task.tags && task.tags.length > 0 && (
+                <View className={`p-3 rounded-xl mb-4 ${isDark ? 'bg-gray-800/50' : 'bg-indigo-50'
+                  }`}>
+                  <View className="flex-row items-center mb-2">
+                    <Tag size={14} color={isDark ? '#A5B4FC' : '#6366F1'} />
+                    <Text className={`text-xs font-medium ml-1 ${isDark ? 'text-gray-400' : 'text-indigo-600'
+                      }`}>
+                      Tags
+                    </Text>
+                  </View>
+                  <View className="flex-row flex-wrap gap-2">
+                    {task.tags.map((tag, index) => (
+                      <View
+                        key={index}
+                        className={`px-2 py-1 rounded-full ${isDark ? 'bg-indigo-500/20' : 'bg-indigo-100'
+                          }`}
+                      >
+                        <Text className={`text-xs font-medium ${isDark ? 'text-indigo-300' : 'text-indigo-700'
+                          }`}>
+                          #{tag}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
             </View>
           </ScrollView>
         </Animated.View>

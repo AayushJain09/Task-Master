@@ -94,7 +94,21 @@ export interface Task {
   dueDate: string;
   category: string;
   createdAt: string;
-  assignedTo?: string;
+  tags?: string[];
+  assignedTo?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    fullName?: string;
+  };
+  assignedBy?: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    fullName?: string;
+  };
 }
 
 /**
@@ -737,6 +751,28 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   </Text>
                 </View>
               </View>
+
+              {/* Assignment Information */}
+              {task.assignedTo && (
+                <View className="flex-row items-center">
+                  <User size={14} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                  <Text className={`text-sm font-medium ml-2 ${isDark ? 'text-gray-400' : 'text-gray-500'
+                    }`}>
+                    Assigned to {task.assignedTo.fullName || `${task.assignedTo.firstName} ${task.assignedTo.lastName}`.trim()}
+                  </Text>
+                </View>
+              )}
+
+              {/* Task Creator Information */}
+              {task.assignedBy && (
+                <View className="flex-row items-center">
+                  <User size={14} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                  <Text className={`text-xs ml-2 ${isDark ? 'text-gray-500' : 'text-gray-400'
+                    }`}>
+                    Created by {task.assignedBy.fullName || `${task.assignedBy.firstName} ${task.assignedBy.lastName}`.trim()}
+                  </Text>
+                </View>
+              )}
 
               {/* Created Date */}
               <View className="flex-row items-center">
