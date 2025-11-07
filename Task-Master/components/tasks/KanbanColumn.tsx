@@ -78,8 +78,8 @@ interface KanbanColumnProps {
   color: string;
   tasks: Task[];
   onEditTask: (task: Task) => void;
-  onDeleteTask: (taskId: number) => void;
-  onMoveTask: (taskId: number, newStatus: ColumnStatus) => void;
+  onDeleteTask: (taskId: string) => void;
+  onMoveTask: (taskId: string, newStatus: ColumnStatus) => void;
   onPressTask?: (task: Task) => void;
 }
 
@@ -243,7 +243,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   ), [onEditTask, onDeleteTask, onMoveTask, onPressTask]);
   
   // Key extractor for FlatList optimization
-  const keyExtractor = useCallback((item: Task) => item.id.toString(), []);
+  const keyExtractor = useCallback((item: Task) => item.id, []);
   
   // Optimized item layout for better scrolling performance
   const getItemLayout = useCallback((_: any, index: number) => ({

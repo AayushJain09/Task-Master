@@ -520,7 +520,7 @@ export const UserAssignmentDropdown: React.FC<UserAssignmentDropdownProps> = ({
                   <Text className={`text-sm font-bold ${
                     isDark ? 'text-white' : 'text-gray-900'
                   }`}>
-                    Assign to Myself
+                    Myself
                   </Text>
                   <Text className={`text-xs ${
                     isDark ? 'text-blue-300' : 'text-blue-600'

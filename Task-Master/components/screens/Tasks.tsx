@@ -314,7 +314,7 @@ export default function Tasks() {
    */
   const transformTaskForCard = useCallback((apiTask: Task): TaskCardType => {
     return {
-      id: parseInt(apiTask._id) || Date.now(), // Fallback for ID conversion
+      id: apiTask._id, // Use the full ObjectId as string to avoid duplicate keys
       title: apiTask.title,
       description: apiTask.description || '',
       priority: apiTask.priority,
@@ -347,19 +347,15 @@ export default function Tasks() {
   }, []);
 
   const handleEditTask = useCallback((task: TaskCardType) => {
-    // Find the original Task from API data using flexible ID matching
-    const originalTask = tasks.find(t => {
-      const taskId = t._id;
-      const cardId = task.id;
-      return taskId === cardId.toString() || parseInt(taskId) === cardId || taskId === cardId;
-    });
+    // Find the original Task from API data - now task.id is the ObjectId string
+    const originalTask = tasks.find(t => t._id === task.id);
     
     if (originalTask) {
       // console.log('Found original task for editing:', originalTask);
       
       // Transform API Task to the format expected by TaskFormModal
       const editingTaskData: EditableTaskData = {
-        id: parseInt(originalTask._id) || Date.now(), // Convert to number for TaskCard compatibility
+        id: originalTask._id, // Keep as string ObjectId
         title: originalTask.title,
         description: originalTask.description || '',
         priority: originalTask.priority,
@@ -381,7 +377,7 @@ export default function Tasks() {
     }
   }, [tasks]);
 
-  const handleDeleteTask = useCallback(async (taskId: number) => {
+  const handleDeleteTask = useCallback(async (taskId: string) => {
     Alert.alert(
       'Delete Task',
       'Are you sure you want to delete this task? This action cannot be undone.',
@@ -395,14 +391,11 @@ export default function Tasks() {
               setLoading(prev => ({ ...prev, deleting: true }));
               setErrors(prev => ({ ...prev, delete: null }));
               
-              // Find the task's actual ID from API data
-              const taskToDelete = tasks.find(t => parseInt(t._id) === taskId || t._id === taskId.toString());
-              if (taskToDelete) {
-                await tasksService.deleteTask(taskToDelete._id);
-                
-                // Remove from local state
-                setTasks(prev => prev.filter(task => task._id !== taskToDelete._id));
-              }
+              // Now taskId is the actual ObjectId string
+              await tasksService.deleteTask(taskId);
+              
+              // Remove from local state
+              setTasks(prev => prev.filter(task => task._id !== taskId));
             } catch (error) {
               const taskError = error as TaskError;
               setErrors(prev => ({ 
@@ -417,25 +410,22 @@ export default function Tasks() {
         }
       ]
     );
-  }, [tasks]);
+  }, []);
 
-  const handleMoveTask = useCallback(async (taskId: number, newStatus: ColumnStatus) => {
+  const handleMoveTask = useCallback(async (taskId: string, newStatus: ColumnStatus) => {
     try {
       setLoading(prev => ({ ...prev, updating: true }));
       setErrors(prev => ({ ...prev, update: null }));
       
-      // Find the task's actual ID from API data
-      const taskToUpdate = tasks.find(t => parseInt(t._id) === taskId || t._id === taskId.toString());
-      if (taskToUpdate) {
-        await tasksService.updateTaskStatus(taskToUpdate._id, newStatus);
-        
-        // Update local state
-        setTasks(prev => prev.map(task => 
-          task._id === taskToUpdate._id 
-            ? { ...task, status: newStatus }
-            : task
-        ));
-      }
+      // Now taskId is the actual ObjectId string
+      await tasksService.updateTaskStatus(taskId, newStatus);
+      
+      // Update local state
+      setTasks(prev => prev.map(task => 
+        task._id === taskId 
+          ? { ...task, status: newStatus }
+          : task
+      ));
     } catch (error) {
       const taskError = error as TaskError;
       setErrors(prev => ({ 
@@ -446,7 +436,7 @@ export default function Tasks() {
     } finally {
       setLoading(prev => ({ ...prev, updating: false }));
     }
-  }, [tasks]);
+  }, []);
 
   const handleTaskPress = useCallback((task: TaskCardType) => {
     setSelectedTask(task);
@@ -464,8 +454,8 @@ export default function Tasks() {
         setLoading(prev => ({ ...prev, updating: true }));
         setErrors(prev => ({ ...prev, update: null }));
         
-        // Find the original task using the editing task's ID (convert number back to string)
-        const originalTask = tasks.find(t => t._id === editingTask.id.toString());
+        // Find the original task using the editing task's ID (now already a string)
+        const originalTask = tasks.find(t => t._id === editingTask.id);
         if (originalTask) {
           console.log('Updating task:', originalTask._id, 'with data:', formData);
           
@@ -476,7 +466,8 @@ export default function Tasks() {
             category: formData.category.trim() || undefined,
             dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
             tags: formData.tags.length > 0 ? formData.tags : undefined,
-            estimatedHours: formData.estimatedHours > 0 ? formData.estimatedHours : undefined
+            estimatedHours: formData.estimatedHours > 0 ? formData.estimatedHours : undefined,
+            assignedTo: formData.assignedTo || undefined
           };
           
           const response = await tasksService.updateTask(originalTask._id, updateData);
@@ -504,7 +495,8 @@ export default function Tasks() {
           category: formData.category.trim() || undefined,
           dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : undefined,
           tags: formData.tags.length > 0 ? formData.tags : undefined,
-          estimatedHours: formData.estimatedHours > 0 ? formData.estimatedHours : undefined
+          estimatedHours: formData.estimatedHours > 0 ? formData.estimatedHours : undefined,
+          assignedTo: formData.assignedTo || undefined
         };
         
         const response = await tasksService.createTask(createData);

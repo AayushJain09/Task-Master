@@ -86,7 +86,7 @@ import {
  * @property {string} createdAt - ISO date string of creation
  */
 export interface Task {
-  id: number;
+  id: string;
   title: string;
   description?: string;
   priority: 'high' | 'medium' | 'low';
@@ -120,8 +120,8 @@ export type ColumnStatus = 'todo' | 'in_progress' | 'done';
 interface TaskCardProps {
   task: Task;
   onEdit: (task: Task) => void;
-  onDelete: (taskId: number) => void;
-  onMove: (taskId: number, newStatus: ColumnStatus) => void;
+  onDelete: (taskId: string) => void;
+  onMove: (taskId: string, newStatus: ColumnStatus) => void;
   onPress?: (task: Task) => void;
 }
 

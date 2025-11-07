@@ -526,8 +526,12 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             : undefined,
           estimatedHours: sanitizedFormData.estimatedHours > 0 
             ? sanitizedFormData.estimatedHours 
-            : undefined
+            : undefined,
+          assignedTo: sanitizedFormData.assignedTo 
+            ? InputSanitizer.sanitizeText(sanitizedFormData.assignedTo, { maxLength: 100 })
+            : currentUser?.id // Default to current user if no assignment specified
         };
+        console.log("api Data ", apiData)
         
         // Submit form
         await onSubmit(apiData as any);
@@ -717,7 +721,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
       }
       
       // Auto-save draft periodically (debounced)
-      debouncedSaveDraft(field, sanitizedValue);
+      debouncedSaveDraft();
       
     } catch (error) {
       console.error('Error updating form field:', error);
