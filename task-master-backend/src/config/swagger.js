@@ -146,6 +146,50 @@ const swaggerDefinition = {
           },
         },
       },
+      AssignableUser: {
+        type: 'object',
+        description: 'Limited user information for task assignment purposes',
+        properties: {
+          id: {
+            type: 'string',
+            description: 'User ID',
+            example: '507f1f77bcf86cd799439011',
+          },
+          firstName: {
+            type: 'string',
+            description: 'User first name',
+            example: 'John',
+          },
+          lastName: {
+            type: 'string',
+            description: 'User last name',
+            example: 'Doe',
+          },
+          fullName: {
+            type: 'string',
+            description: 'User full name (computed field)',
+            example: 'John Doe',
+          },
+          email: {
+            type: 'string',
+            format: 'email',
+            description: 'User email address',
+            example: 'user@example.com',
+          },
+          role: {
+            type: 'string',
+            enum: ['user', 'admin', 'moderator'],
+            description: 'User role',
+            example: 'user',
+          },
+          isActive: {
+            type: 'boolean',
+            description: 'Account active status',
+            example: true,
+          },
+        },
+        required: ['id', 'firstName', 'lastName', 'fullName', 'email', 'role', 'isActive'],
+      },
       BiometricCredentials: {
         type: 'object',
         required: ['email', 'biometricToken'],

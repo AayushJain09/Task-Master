@@ -355,7 +355,7 @@ export default function Tasks() {
     });
     
     if (originalTask) {
-      console.log('Found original task for editing:', originalTask);
+      // console.log('Found original task for editing:', originalTask);
       
       // Transform API Task to the format expected by TaskFormModal
       const editingTaskData: EditableTaskData = {
@@ -371,7 +371,7 @@ export default function Tasks() {
         createdAt: new Date(originalTask.createdAt).toLocaleDateString()
       };
       
-      console.log('Setting editing task data:', editingTaskData);
+      // console.log('Setting editing task data:', editingTaskData);
       setEditingTask(editingTaskData);
       setModalTitle('Edit Task');
       setShowTaskModal(true);

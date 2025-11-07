@@ -10,6 +10,40 @@
 const { body, param, query } = require('express-validator');
 
 /**
+ * Get Assignable Users Query Validation
+ *
+ * Validates query parameters for fetching assignable users.
+ *
+ * @constant {Array} getAssignableUsersValidation
+ */
+const getAssignableUsersValidation = [
+  // Search query validation
+  query('search')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Search query must be between 1 and 100 characters'),
+
+  // Limit validation (max 50 for assignable users)
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 50 })
+    .withMessage('Limit must be between 1 and 50'),
+
+  // Offset validation
+  query('offset')
+    .optional()
+    .isInt({ min: 0 })
+    .withMessage('Offset must be a non-negative integer'),
+
+  // Exclude current user validation
+  query('excludeCurrentUser')
+    .optional()
+    .isIn(['true', 'false'])
+    .withMessage('excludeCurrentUser must be true or false'),
+];
+
+/**
  * Get All Users Query Validation
  *
  * Validates query parameters for fetching all users.
@@ -128,6 +162,7 @@ const deleteUserValidation = [
 ];
 
 module.exports = {
+  getAssignableUsersValidation,
   getAllUsersValidation,
   getUserByIdValidation,
   updateUserStatusValidation,

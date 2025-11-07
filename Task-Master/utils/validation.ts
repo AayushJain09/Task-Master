@@ -324,6 +324,34 @@ export class FormValidator {
   }
   
   /**
+   * Validates assignedTo user ID
+   * 
+   * @param assignedTo - User ID to validate
+   * @returns Validation result
+   */
+  static validateAssignedTo(assignedTo: string): { isValid: boolean; error?: string; sanitized: string } {
+    // assignedTo is optional - it can be empty for unassigned tasks
+    if (!assignedTo) {
+      return { isValid: true, sanitized: '' };
+    }
+    
+    // Basic sanitization for user ID
+    const sanitized = InputSanitizer.sanitizeText(assignedTo, {
+      maxLength: 100,
+      allowSpecialChars: false,
+      trim: true,
+      normalizeSpaces: true
+    });
+    
+    // Basic user ID format validation (assuming MongoDB ObjectId or similar)
+    if (sanitized && !/^[a-zA-Z0-9_-]{1,100}$/.test(sanitized)) {
+      return { isValid: false, error: 'Invalid user ID format', sanitized };
+    }
+    
+    return { isValid: true, sanitized };
+  }
+
+  /**
    * Validates entire form with comprehensive error collection
    * 
    * @param formData - Form data to validate
@@ -393,6 +421,13 @@ export class FormValidator {
       errors.estimatedHours = hoursValidation.error;
     }
     sanitizedData.estimatedHours = hoursValidation.sanitized;
+    
+    // Validate assignedTo (user ID)
+    const assignedToValidation = this.validateAssignedTo(formData.assignedTo || '');
+    if (!assignedToValidation.isValid) {
+      errors.assignedTo = assignedToValidation.error;
+    }
+    sanitizedData.assignedTo = assignedToValidation.sanitized;
     
     const isValid = Object.keys(errors).length === 0;
     

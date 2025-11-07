@@ -59,6 +59,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
 import {
   X,
   Save,
@@ -71,6 +72,7 @@ import {
   Hash
 } from 'lucide-react-native';
 import { Task as TaskCardType } from './TaskCard';
+import UserAssignmentDropdown from '@/components/ui/UserAssignmentDropdown';
 
 // Import API types and service
 import { 
@@ -260,6 +262,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
   error = null
 }) => {
   const { isDark } = useTheme();
+  const { user: currentUser } = useAuth();
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
   // Enhanced form state management
@@ -271,7 +274,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     dueDate: new Date().toISOString().split('T')[0],
     tags: [],
     estimatedHours: 0,
-    assignedTo: ''
+    assignedTo: currentUser?.id || ''
   });
 
   // Enhanced validation and error handling state
@@ -331,7 +334,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             dueDate: formattedDueDate,
             tags: editingTask.tags || [], // Use tags from editing task
             estimatedHours: editingTask.estimatedHours || 0, // Use estimated hours from editing task
-            assignedTo: '' // Will be set by backend to current user
+            assignedTo: currentUser?.id || '' // Will be set by backend to current user
           };
         } else {
           // Try to load draft for new task creation
@@ -349,7 +352,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               dueDate: today,
               tags: [],
               estimatedHours: 0,
-              assignedTo: ''
+              assignedTo: currentUser?.id || ''
             };
           } else {
             initialData = {
@@ -360,7 +363,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               dueDate: today,
               tags: [],
               estimatedHours: 0,
-              assignedTo: ''
+              assignedTo: currentUser?.id || ''
             };
           }
         }
@@ -390,7 +393,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
           dueDate: today,
           tags: [],
           estimatedHours: 0,
-          assignedTo: ''
+          assignedTo: currentUser?.id || ''
         });
       }
     };
@@ -925,6 +928,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               paddingBottom: 120 // Extra space for bottom controls
             }}
             showsVerticalScrollIndicator={false}
+            nestedScrollEnabled={true}
             keyboardShouldPersistTaps="handled"
             bounces={true}
           >
@@ -1130,6 +1134,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               {/* Category Suggestions */}
               <ScrollView 
                 horizontal 
+                nestedScrollEnabled={true}
                 showsHorizontalScrollIndicator={false}
                 className="mt-3"
                 contentContainerStyle={{ paddingHorizontal: 0 }}
@@ -1171,7 +1176,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             </View>
 
             {/* Tags Field */}
-            <View className="mb-6">
+            <View className="mb-2">
               <View className="flex-row items-center mb-3">
                 <Hash size={18} color={isDark ? '#9CA3AF' : '#6B7280'} />
                 <Text className={`text-base font-semibold ml-2 ${
@@ -1266,6 +1271,26 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
                 <View className="flex-row items-center mt-2">
                   <AlertCircle size={14} color="#EF4444" />
                   <Text className="text-red-500 text-sm ml-1">{errors.tags}</Text>
+                </View>
+              )}
+            </View>
+
+            {/* User Assignment Field */}
+            <View className="mb-4">
+              <UserAssignmentDropdown
+                selectedUserId={formData.assignedTo}
+                onUserSelect={(userId, userName) => {
+                  updateFormField('assignedTo', userId);
+                }}
+                placeholder="Select user to assign task"
+                showLabel={true}
+                required={false}
+              />
+              
+              {errors.assignedTo && (
+                <View className="flex-row items-center mt-2">
+                  <AlertCircle size={14} color="#EF4444" />
+                  <Text className="text-red-500 text-sm ml-1">{errors.assignedTo}</Text>
                 </View>
               )}
             </View>

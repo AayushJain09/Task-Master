@@ -267,6 +267,7 @@ export interface TaskFormValidation {
   estimatedHours?: string;
   tags?: string;
   category?: string;
+  assignedTo?: string;
 }
 
 /**

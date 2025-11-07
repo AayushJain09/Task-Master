@@ -19,12 +19,53 @@ const { handleValidationErrors } = require('../middleware/errorHandler');
 
 // Import validators
 const {
+  getAssignableUsersValidation,
   getAllUsersValidation,
   getUserByIdValidation,
   updateUserStatusValidation,
   updateUserRoleValidation,
   deleteUserValidation,
 } = require('../validators/userValidator');
+
+/**
+ * @route   GET /api/v1/users/assignable
+ * @desc    Get assignable users (limited info for task assignment)
+ * @access  Private (User, Moderator, Admin)
+ *
+ * Query Parameters:
+ * - search: string (search by name or email)
+ * - limit: number (default: 10, max: 50)
+ * - offset: number (default: 0)
+ * - excludeCurrentUser: boolean (default: false)
+ *
+ * Response:
+ * {
+ *   success: true,
+ *   data: {
+ *     users: [
+ *       {
+ *         id: "userId",
+ *         firstName: "John",
+ *         lastName: "Doe", 
+ *         fullName: "John Doe",
+ *         email: "john@example.com",
+ *         role: "user",
+ *         isActive: true
+ *       }
+ *     ],
+ *     total: 25,
+ *     hasMore: true
+ *   }
+ * }
+ */
+router.get(
+  '/assignable',
+  authenticate,
+  authorize('user', 'moderator', 'admin'),
+  getAssignableUsersValidation,
+  handleValidationErrors,
+  userController.getAssignableUsers
+);
 
 /**
  * @route   GET /api/v1/users

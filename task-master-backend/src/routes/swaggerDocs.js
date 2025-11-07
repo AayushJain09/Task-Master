@@ -462,6 +462,86 @@
 
 /**
  * @swagger
+ * /users/assignable:
+ *   get:
+ *     summary: Get assignable users
+ *     description: Fetches users that can be assigned to tasks. Returns limited user information for task assignment purposes. Available to all authenticated users.
+ *     tags: [User Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *           maxLength: 100
+ *         description: Search by name or email
+ *         example: "john doe"
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 50
+ *           default: 10
+ *         description: Number of results to return (max 50)
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: Number of results to skip for pagination
+ *       - in: query
+ *         name: excludeCurrentUser
+ *         schema:
+ *           type: string
+ *           enum: [true, false]
+ *           default: false
+ *         description: Exclude current user from results
+ *     responses:
+ *       200:
+ *         description: Assignable users retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     users:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/AssignableUser'
+ *                     total:
+ *                       type: integer
+ *                       description: Total number of matching users
+ *                       example: 25
+ *                     hasMore:
+ *                       type: boolean
+ *                       description: Whether there are more results available
+ *                       example: true
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         description: Forbidden - Insufficient permissions
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: Access denied. Insufficient permissions.
+ */
+
+/**
+ * @swagger
  * /users/stats:
  *   get:
  *     summary: Get user statistics

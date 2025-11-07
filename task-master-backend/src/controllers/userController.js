@@ -19,6 +19,106 @@ const {
 } = require('../dtos');
 
 /**
+ * Get Assignable Users
+ *
+ * Fetches users that can be assigned to tasks (limited information).
+ * Accessible by all authenticated users for task assignment purposes.
+ *
+ * @async
+ * @function getAssignableUsers
+ * @param {Object} req - Express request object
+ * @param {Object} req.query - Query parameters
+ * @param {string} [req.query.search] - Search by name or email
+ * @param {number} [req.query.limit=10] - Number of results to return (max 50)
+ * @param {number} [req.query.offset=0] - Number of results to skip
+ * @param {boolean} [req.query.excludeCurrentUser=false] - Exclude current user from results
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>} JSON response with assignable users
+ *
+ * @throws {500} If fetch fails
+ *
+ * Response Format:
+ * {
+ *   success: true,
+ *   data: {
+ *     users: [
+ *       {
+ *         id: "userId",
+ *         firstName: "John",
+ *         lastName: "Doe",
+ *         fullName: "John Doe",
+ *         email: "john@example.com",
+ *         role: "user",
+ *         isActive: true
+ *       }
+ *     ],
+ *     total: 25,
+ *     hasMore: true
+ *   }
+ * }
+ */
+const getAssignableUsers = asyncHandler(async (req, res) => {
+  // Parse query parameters with defaults and limits
+  const limit = Math.min(parseInt(req.query.limit) || 10, 50); // Max 50 users per request
+  const offset = parseInt(req.query.offset) || 0;
+  const search = req.query.search || '';
+  const excludeCurrentUser = req.query.excludeCurrentUser === 'true';
+
+  // Build filter object - only return active users
+  const filter = { isActive: true };
+
+  // Exclude current user if requested
+  if (excludeCurrentUser && req.user.userId) {
+    filter._id = { $ne: req.user.userId };
+  }
+
+  // Add search filter if provided
+  if (search) {
+    const searchRegex = new RegExp(search, 'i');
+    filter.$or = [
+      { firstName: searchRegex },
+      { lastName: searchRegex },
+      { email: searchRegex },
+    ];
+  }
+
+  // Fetch users with limited fields for security
+  const [users, totalCount] = await Promise.all([
+    User.find(filter)
+      .select('firstName lastName email role isActive') // Only return necessary fields
+      .sort({ firstName: 1, lastName: 1 }) // Sort alphabetically by name
+      .skip(offset)
+      .limit(limit)
+      .lean(), // Return plain JavaScript objects for better performance
+    User.countDocuments(filter),
+  ]);
+
+  // Transform users to include computed fullName and id fields
+  const transformedUsers = users.map(user => ({
+    id: user._id.toString(),
+    firstName: user.firstName,
+    lastName: user.lastName,
+    fullName: `${user.firstName} ${user.lastName}`,
+    email: user.email,
+    role: user.role,
+    isActive: user.isActive
+  }));
+
+  // Determine if there are more results
+  const hasMore = offset + users.length < totalCount;
+
+  // Send response
+  res.status(200).json({
+    success: true,
+    data: {
+      users: transformedUsers,
+      total: totalCount,
+      hasMore
+    }
+  });
+});
+
+/**
  * Get All Users
  *
  * Fetches all users from the database with pagination and filtering.
@@ -365,6 +465,7 @@ const getUserStats = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  getAssignableUsers,
   getAllUsers,
   getUserById,
   updateUserStatus,
