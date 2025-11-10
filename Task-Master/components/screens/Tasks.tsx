@@ -42,21 +42,24 @@
  * @requires ../tasks/TaskFormModal - Advanced form modal component
  */
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { 
-  View, 
-  Text, 
-  ScrollView, 
-  TouchableOpacity, 
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
   Pressable,
   Alert,
   Dimensions,
   FlatList,
   RefreshControl,
-  ActivityIndicator
+  ActivityIndicator,
+  Animated,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
-import { Plus, AlertCircle, Clock, Filter } from 'lucide-react-native';
+import { Plus, AlertCircle, Filter } from 'lucide-react-native';
 
 // Import focused task management components
 import KanbanColumn from '../tasks/KanbanColumn';
@@ -65,7 +68,7 @@ import TaskDetailsModal from '../tasks/TaskDetailsModal';
 import { Task as TaskCardType, ColumnStatus } from '../tasks/TaskCard';
 
 // Import API types and service
-import { Task, TasksListResponse, TaskError, TaskQueryParams, EnhancedOverdueMetadata, StatusMetadata } from '@/types/task.types';
+import { Task, TasksListResponse, TaskError, TaskQueryParams, EnhancedOverdueMetadata, StatusMetadata, TaskStatistics } from '@/types/task.types';
 import { tasksService } from '@/services/tasks.service';
 import { formatDateForAPI } from '@/utils/dateUtils';
 
@@ -81,6 +84,7 @@ const severitySummaryTheme: Record<string, { bg: string; text: string }> = {
   medium: { bg: '#FFFBEB', text: '#92400E' },
   low: { bg: '#ECFCCB', text: '#3F6212' },
 };
+const ERROR_CARD_WIDTH = Math.min(280, SCREEN_WIDTH * 0.85);
 
 /**
  * Form Data Interface for Task Creation/Editing
@@ -97,7 +101,7 @@ interface FormData {
   tags: string[];
   estimatedHours: number;
   assignedTo: string;
-}
+};
 
 /**
  * Extended Task Interface for Editing
@@ -113,6 +117,15 @@ interface EditableTaskData extends TaskCardType {
  * Column Status Type for enhanced type safety
  */
 type KanbanColumnStatus = 'todo' | 'in_progress' | 'done';
+
+/**
+ * Props shared by the Home screen so Tasks can consume global statistics
+ */
+interface TasksScreenProps {
+  taskStatistics?: TaskStatistics | null;
+  statisticsLoading?: boolean;
+  onRefreshStatistics?: () => Promise<void> | void;
+}
 
 /**
  * Column-Specific State Interface
@@ -195,9 +208,13 @@ interface GlobalErrorState {
  * 
  * @returns {JSX.Element} Focused Kanban board interface
  */
-export default function Tasks() {
+const Tasks: React.FC<TasksScreenProps> = ({
+  taskStatistics = null,
+  statisticsLoading = false,
+  onRefreshStatistics,
+}) => {
   const { isDark } = useTheme();
-  
+
   /**
    * Column-Specific State Management
    * 
@@ -226,7 +243,7 @@ export default function Tasks() {
     in_progress: createInitialColumnState(),
     done: createInitialColumnState(),
   });
-  
+
   /**
    * Global Operation State Management
    * 
@@ -237,7 +254,7 @@ export default function Tasks() {
     updating: false,
     deleting: false,
   });
-  
+
   const [globalErrors, setGlobalErrors] = useState<GlobalErrorState>({
     create: null,
     update: null,
@@ -253,11 +270,11 @@ export default function Tasks() {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState<EditableTaskData | null>(null);
   const [modalTitle, setModalTitle] = useState('Create New Task');
-  
+
   // Details modal state
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<TaskCardType | null>(null);
-  
+
   /**
    * Overdue Filter State Management
    * 
@@ -266,6 +283,16 @@ export default function Tasks() {
    */
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   const [overdueCounts, setOverdueCounts] = useState<{ todo: number; in_progress: number }>({ todo: 0, in_progress: 0 });
+  const [localStatistics, setLocalStatistics] = useState<TaskStatistics | null>(null);
+  const [localStatsLoading, setLocalStatsLoading] = useState(false);
+  const effectiveStatistics = taskStatistics ?? localStatistics;
+  const effectiveStatsLoading = statisticsLoading || localStatsLoading;
+  const [activeErrorIndex, setActiveErrorIndex] = useState(0);
+  const overdueSwitchAnim = useRef(new Animated.Value(showOverdueOnly ? 1 : 0)).current;
+  const handleToggleOverdue = useCallback(() => {
+    setShowOverdueOnly(prev => !prev);
+  }, []);
+
   const overdueSummary = useMemo(() => {
     const total = overdueCounts.todo + overdueCounts.in_progress;
     const severities = { critical: 0, high: 0, medium: 0, low: 0 };
@@ -280,13 +307,40 @@ export default function Tasks() {
     return { total, severities };
   }, [overdueCounts, columnStates]);
 
+  useEffect(() => {
+    Animated.timing(overdueSwitchAnim, {
+      toValue: showOverdueOnly ? 1 : 0,
+      duration: 220,
+      useNativeDriver: false,
+    }).start();
+  }, [showOverdueOnly, overdueSwitchAnim]);
+
+  useEffect(() => {
+    if (effectiveStatistics) {
+      setOverdueCounts({
+        todo: effectiveStatistics.overdueBreakdown.active.todo,
+        in_progress: effectiveStatistics.overdueBreakdown.active.in_progress,
+      });
+    }
+  }, [effectiveStatistics]);
+
+  const overdueTrackBackground = overdueSwitchAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [isDark ? '#374151' : '#E5E7EB', isDark ? '#991B1B' : '#DC2626'],
+  });
+
+  const overdueKnobTranslate = overdueSwitchAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [2, 14],
+  });
+
   /**
    * Column-Specific API Integration Functions
    * 
    * Functions for fetching and managing tasks from the backend API
    * with column-specific state management and error handling.
    */
-  
+
   /**
    * Fetch Tasks for Specific Column
    * 
@@ -298,9 +352,9 @@ export default function Tasks() {
    * @param loadMore - Whether this is loading more pages (pagination)
    */
   const fetchColumnTasks = useCallback(async (
-    status: KanbanColumnStatus, 
-    params: Omit<TaskQueryParams, 'status'> = {}, 
-    isRefresh = false, 
+    status: KanbanColumnStatus,
+    params: Omit<TaskQueryParams, 'status'> = {},
+    isRefresh = false,
     loadMore = false
   ) => {
     try {
@@ -316,7 +370,7 @@ export default function Tasks() {
       }));
 
       let response;
-      
+
       // Use overdue endpoint if showing overdue only, regular endpoint otherwise
       if (showOverdueOnly && (status === 'todo' || status === 'in_progress')) {
         response = await tasksService.getOverdueTasksByStatus(status, {
@@ -342,8 +396,8 @@ export default function Tasks() {
         ...prev,
         [status]: {
           ...prev[status],
-          tasks: isRefresh || !loadMore 
-            ? response.tasks 
+          tasks: isRefresh || !loadMore
+            ? response.tasks
             : [...prev[status].tasks, ...response.tasks],
           pagination: response.pagination,
           statusMetadata,
@@ -357,7 +411,7 @@ export default function Tasks() {
     } catch (error) {
       const taskError = error as TaskError;
       console.error(`Error fetching ${status} tasks:`, taskError);
-      
+
       setColumnStates(prev => ({
         ...prev,
         [status]: {
@@ -374,27 +428,27 @@ export default function Tasks() {
   }, [showOverdueOnly]);
 
   /**
-   * Fetch Overdue Counts
+   * Refresh Task Statistics Snapshot
    * 
-   * Gets the total count of overdue tasks for todo and in_progress columns
-   * Used to display overdue indicators in the header toggle.
+   * Pulls analytics either via the parent-provided callback or, when unavailable,
+   * falls back to a local API call so this screen keeps working in isolation.
    */
-  const fetchOverdueCounts = useCallback(async () => {
-    try {
-      const [todoResponse, inProgressResponse] = await Promise.all([
-        tasksService.getOverdueTasksByStatus('todo', { limit: 1 }),
-        tasksService.getOverdueTasksByStatus('in_progress', { limit: 1 })
-      ]);
-
-      setOverdueCounts({
-        todo: todoResponse.pagination.totalTasks,
-        in_progress: inProgressResponse.pagination.totalTasks,
-      });
-    } catch (error) {
-      console.error('Error fetching overdue counts:', error);
-      // Don't show error to user for overdue counts, just log it
+  const refreshStatisticsSnapshot = useCallback(async () => {
+    if (onRefreshStatistics) {
+      await onRefreshStatistics();
+      return;
     }
-  }, []);
+
+    try {
+      setLocalStatsLoading(true);
+      const response = await tasksService.getTaskStatistics();
+      setLocalStatistics(response.statistics);
+    } catch (error) {
+      console.error('Error fetching task statistics locally:', error);
+    } finally {
+      setLocalStatsLoading(false);
+    }
+  }, [onRefreshStatistics]);
 
   /**
    * Fetch All Columns
@@ -403,7 +457,7 @@ export default function Tasks() {
    */
   const fetchAllColumns = useCallback(async (isRefresh = false) => {
     const statuses: KanbanColumnStatus[] = ['todo', 'in_progress', 'done'];
-    
+
     // Fetch all columns in parallel for better performance
     await Promise.allSettled(
       statuses.map(status => fetchColumnTasks(status, {}, isRefresh))
@@ -434,7 +488,7 @@ export default function Tasks() {
       page: currentState.pagination.currentPage + 1,
     }, false, true);
   }, [columnStates, fetchColumnTasks]);
-  
+
   /**
    * Initial Data Load
    * 
@@ -442,8 +496,8 @@ export default function Tasks() {
    */
   useEffect(() => {
     fetchAllColumns();
-    fetchOverdueCounts();
-  }, [fetchAllColumns, fetchOverdueCounts]);
+    refreshStatisticsSnapshot();
+  }, [fetchAllColumns, refreshStatisticsSnapshot]);
 
   /**
    * Handle Overdue Filter Toggle
@@ -459,13 +513,13 @@ export default function Tasks() {
       fetchAllColumns(true);
     }
   }, [showOverdueOnly, fetchAllColumns]);
-  
+
   useEffect(() => {
     if (showOverdueOnly) {
-      fetchOverdueCounts();
+      refreshStatisticsSnapshot();
     }
-  }, [showOverdueOnly, fetchOverdueCounts]);
-  
+  }, [showOverdueOnly, refreshStatisticsSnapshot]);
+
   /**
    * Auto-refresh tasks periodically
    * 
@@ -477,22 +531,22 @@ export default function Tasks() {
       const anyColumnLoading = Object.values(columnStates).some(
         column => column.loading || column.refreshing
       );
-      
+
       if (!anyColumnLoading && !globalLoading.creating && !globalLoading.updating && !globalLoading.deleting) {
         fetchAllColumns(true);
       }
     }, 5 * 60 * 1000); // 5 minutes
-    
+
     return () => clearInterval(interval);
   }, [fetchAllColumns, columnStates, globalLoading]);
-  
+
   /**
    * Utility Functions for Column-Specific Task Management
    * 
    * Efficient helper functions for working with column-specific state
    * and transforming data for TaskCard components.
    */
-  
+
   /**
    * Transform backend Task to TaskCard format
    * 
@@ -529,7 +583,7 @@ export default function Tasks() {
       overdueMetadata: apiTask.overdueMetadata,
     };
   }, []);
-  
+
   /**
    * Get transformed tasks for a specific column
    * 
@@ -546,15 +600,15 @@ export default function Tasks() {
    */
   const updateTaskInColumnState = useCallback((updatedTask: Task) => {
     const status = updatedTask.status as KanbanColumnStatus;
-    
+
     setColumnStates(prev => {
       const newStates = { ...prev };
-      
+
       // Find and update the task in its current status column
       Object.keys(newStates).forEach(columnStatus => {
         const column = newStates[columnStatus as KanbanColumnStatus];
         const taskIndex = column.tasks.findIndex(task => task._id === updatedTask._id);
-        
+
         if (taskIndex !== -1) {
           if (columnStatus === status) {
             // Update task in same column
@@ -565,14 +619,14 @@ export default function Tasks() {
           }
         }
       });
-      
+
       // Add task to new column if it moved
       const targetColumn = newStates[status];
       const existsInTargetColumn = targetColumn.tasks.some(task => task._id === updatedTask._id);
       if (!existsInTargetColumn) {
         targetColumn.tasks = [updatedTask, ...targetColumn.tasks];
       }
-      
+
       return newStates;
     });
   }, []);
@@ -585,12 +639,12 @@ export default function Tasks() {
   const removeTaskFromColumnState = useCallback((taskId: string) => {
     setColumnStates(prev => {
       const newStates = { ...prev };
-      
+
       Object.keys(newStates).forEach(status => {
-        newStates[status as KanbanColumnStatus].tasks = 
+        newStates[status as KanbanColumnStatus].tasks =
           newStates[status as KanbanColumnStatus].tasks.filter(task => task._id !== taskId);
       });
-      
+
       return newStates;
     });
   }, []);
@@ -602,7 +656,7 @@ export default function Tasks() {
    */
   const addTaskToColumnState = useCallback((newTask: Task) => {
     const status = newTask.status as KanbanColumnStatus;
-    
+
     setColumnStates(prev => ({
       ...prev,
       [status]: {
@@ -629,7 +683,7 @@ export default function Tasks() {
   const handleEditTask = useCallback((task: TaskCardType) => {
     // Find the original Task from column state data - task.id is the ObjectId string
     let originalTask: Task | undefined;
-    
+
     // Search through all column states to find the task
     Object.values(columnStates).forEach(column => {
       const found = column.tasks.find(t => t._id === task.id);
@@ -637,7 +691,7 @@ export default function Tasks() {
         originalTask = found;
       }
     });
-    
+
     if (originalTask) {
       // Transform API Task to the format expected by TaskFormModal
       const editingTaskData: EditableTaskData = {
@@ -652,7 +706,7 @@ export default function Tasks() {
         estimatedHours: originalTask.estimatedHours || 0, // Include estimated hours from API
         createdAt: new Date(originalTask.createdAt).toLocaleDateString()
       };
-      
+
       setEditingTask(editingTaskData);
       setModalTitle('Edit Task');
       setShowTaskModal(true);
@@ -675,21 +729,21 @@ export default function Tasks() {
             try {
               setGlobalLoading(prev => ({ ...prev, deleting: true }));
               setGlobalErrors(prev => ({ ...prev, delete: null }));
-              
+
               // Delete task via API
               await tasksService.deleteTask(taskId);
-              
+
               // Remove from column states
               removeTaskFromColumnState(taskId);
-              await fetchOverdueCounts();
-              
+              await refreshStatisticsSnapshot();
+
               // Optional: Show success message
               // Alert.alert('Success', 'Task deleted successfully');
             } catch (error) {
               const taskError = error as TaskError;
-              setGlobalErrors(prev => ({ 
-                ...prev, 
-                delete: taskError.message || 'Failed to delete task. Please try again.' 
+              setGlobalErrors(prev => ({
+                ...prev,
+                delete: taskError.message || 'Failed to delete task. Please try again.'
               }));
               console.error('Error deleting task:', taskError);
             } finally {
@@ -699,31 +753,31 @@ export default function Tasks() {
         }
       ]
     );
-  }, [removeTaskFromColumnState, fetchOverdueCounts]);
+  }, [removeTaskFromColumnState, refreshStatisticsSnapshot]);
 
   const handleMoveTask = useCallback(async (taskId: string, newStatus: ColumnStatus) => {
     try {
       setGlobalLoading(prev => ({ ...prev, updating: true }));
       setGlobalErrors(prev => ({ ...prev, update: null }));
-      
+
       // Update task status via API
       const response = await tasksService.updateTaskStatus(taskId, newStatus);
-      
+
       // Update column states with the updated task
       updateTaskInColumnState(response.task);
-      await fetchOverdueCounts();
-      
+      await refreshStatisticsSnapshot();
+
     } catch (error) {
       const taskError = error as TaskError;
-      setGlobalErrors(prev => ({ 
-        ...prev, 
-        update: taskError.message || 'Failed to update task status. Please try again.' 
+      setGlobalErrors(prev => ({
+        ...prev,
+        update: taskError.message || 'Failed to update task status. Please try again.'
       }));
       console.error('Error updating task:', taskError);
     } finally {
       setGlobalLoading(prev => ({ ...prev, updating: false }));
     }
-  }, [updateTaskInColumnState, fetchOverdueCounts]);
+  }, [updateTaskInColumnState, refreshStatisticsSnapshot]);
 
   const handleTaskPress = useCallback((task: TaskCardType) => {
     setSelectedTask(task);
@@ -740,9 +794,9 @@ export default function Tasks() {
       if (editingTask) {
         setGlobalLoading(prev => ({ ...prev, updating: true }));
         setGlobalErrors(prev => ({ ...prev, update: null }));
-        
+
         console.log('Updating task:', editingTask.id, 'with data:', formData);
-        
+
         const updateData = {
           title: formData.title?.trim() || '',
           description: formData.description?.trim() || undefined,
@@ -753,19 +807,19 @@ export default function Tasks() {
           estimatedHours: formData.estimatedHours && formData.estimatedHours > 0 ? formData.estimatedHours : undefined,
           assignedTo: formData.assignedTo?.trim() || undefined
         };
-        
+
         const response = await tasksService.updateTask(editingTask.id, updateData);
         console.log('Update response:', response);
-        
+
         // Update column states with the updated task
         updateTaskInColumnState(response.task);
-        await fetchOverdueCounts();
-        
+        await refreshStatisticsSnapshot();
+
         Alert.alert('Success', 'Task updated successfully!');
       } else {
         setGlobalLoading(prev => ({ ...prev, creating: true }));
         setGlobalErrors(prev => ({ ...prev, create: null }));
-        
+
         // Create new task
         const createData = {
           title: formData.title?.trim() || '',
@@ -777,32 +831,32 @@ export default function Tasks() {
           estimatedHours: formData.estimatedHours && formData.estimatedHours > 0 ? formData.estimatedHours : undefined,
           assignedTo: formData.assignedTo?.trim() || undefined
         };
-        
+
         const response = await tasksService.createTask(createData);
         console.log('Create response:', response);
-        
+
         // Add to column states
         addTaskToColumnState(response.task);
-        await fetchOverdueCounts();
-        
+        await refreshStatisticsSnapshot();
+
         Alert.alert('Success', 'Task created successfully!');
       }
-      
+
       setShowTaskModal(false);
       setEditingTask(null);
     } catch (error) {
       const taskError = error as TaskError;
       const errorKey = editingTask ? 'update' : 'create';
-      setGlobalErrors(prev => ({ 
-        ...prev, 
-        [errorKey]: taskError.message || `Failed to ${editingTask ? 'update' : 'create'} task. Please try again.` 
+      setGlobalErrors(prev => ({
+        ...prev,
+        [errorKey]: taskError.message || `Failed to ${editingTask ? 'update' : 'create'} task. Please try again.`
       }));
       console.error(`Error ${editingTask ? 'updating' : 'creating'} task:`, taskError);
     } finally {
       const loadingKey = editingTask ? 'updating' : 'creating';
       setGlobalLoading(prev => ({ ...prev, [loadingKey]: false }));
     }
-  }, [editingTask, updateTaskInColumnState, addTaskToColumnState, fetchOverdueCounts]);
+  }, [editingTask, updateTaskInColumnState, addTaskToColumnState, refreshStatisticsSnapshot]);
 
   const handleCloseModal = useCallback(() => {
     setShowTaskModal(false);
@@ -810,7 +864,7 @@ export default function Tasks() {
     // Clear any create/update errors when closing modal
     setGlobalErrors(prev => ({ ...prev, create: null, update: null }));
   }, []);
-  
+
   /**
    * Column-Specific Refresh Handler
    * 
@@ -819,7 +873,7 @@ export default function Tasks() {
   const handleColumnRefresh = useCallback((status: KanbanColumnStatus) => {
     return () => refreshColumn(status);
   }, [refreshColumn]);
-  
+
   /**
    * Global Refresh Handler
    * 
@@ -828,7 +882,7 @@ export default function Tasks() {
   const handleGlobalRefresh = useCallback(() => {
     fetchAllColumns(true);
   }, [fetchAllColumns]);
-  
+
   /**
    * Column Load More Handler
    * 
@@ -837,7 +891,7 @@ export default function Tasks() {
   const handleColumnLoadMore = useCallback((status: KanbanColumnStatus) => {
     return () => loadMoreColumnTasks(status);
   }, [loadMoreColumnTasks]);
-  
+
   /**
    * Error Dismissal Handlers
    * 
@@ -866,6 +920,73 @@ export default function Tasks() {
     return Math.max(280, SCREEN_WIDTH * 0.88); // Mobile - maximize screen usage
   };
 
+  const errorCards = useMemo(() => {
+    const cards: Array<{
+      id: string;
+      title: string;
+      message: string;
+      tone: 'warning' | 'danger';
+      onDismiss: () => void;
+    }> = [];
+
+    if (globalErrors.create) {
+      cards.push({
+        id: 'global-create',
+        title: 'Create issue',
+        message: globalErrors.create,
+        tone: 'warning',
+        onDismiss: () => dismissGlobalError('create'),
+      });
+    }
+    if (globalErrors.update) {
+      cards.push({
+        id: 'global-update',
+        title: 'Update issue',
+        message: globalErrors.update,
+        tone: 'warning',
+        onDismiss: () => dismissGlobalError('update'),
+      });
+    }
+    if (globalErrors.delete) {
+      cards.push({
+        id: 'global-delete',
+        title: 'Delete issue',
+        message: globalErrors.delete,
+        tone: 'warning',
+        onDismiss: () => dismissGlobalError('delete'),
+      });
+    }
+
+    Object.entries(columnStates).forEach(([status, col]) => {
+      if (col.error) {
+        cards.push({
+          id: `column-${status}`,
+          title: `${status.replace('_', ' ')} column`,
+          message: col.error,
+          tone: 'danger',
+          onDismiss: () => dismissColumnError(status as KanbanColumnStatus),
+        });
+      }
+    });
+
+    return cards;
+  }, [globalErrors, columnStates, dismissGlobalError, dismissColumnError]);
+
+  const handleErrorScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (!errorCards.length) return;
+      const index = Math.round(event.nativeEvent.contentOffset.x / (ERROR_CARD_WIDTH + 16));
+      setActiveErrorIndex(Math.min(errorCards.length - 1, Math.max(0, index)));
+    },
+    [errorCards.length]
+  );
+
+  useEffect(() => {
+    if (activeErrorIndex >= errorCards.length) {
+      setActiveErrorIndex(errorCards.length > 0 ? errorCards.length - 1 : 0);
+    }
+  }, [activeErrorIndex, errorCards.length]);
+
   /**
    * Focused Kanban Board Render
    * 
@@ -875,56 +996,92 @@ export default function Tasks() {
   return (
     <View className="flex-1">
       {/* Minimal Header - Maximum space for content */}
-      <View className={`px-4 py-3 border-b ${
-        isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'
-      }`}>
+      <View className={`px-4 py-3 border-b ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'
+        }`}>
         <View className="flex-row items-center justify-between">
-          <Text className={`text-xl font-bold ${
-            isDark ? 'text-white' : 'text-gray-900'
-          }`}>
+          <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'
+            }`}>
             Tasks
           </Text>
-          
-          {/* Overdue Filter Toggle & Task Statistics */}
-          <View className="flex-row items-center gap-x-4">
-            {/* Overdue Toggle */}
-            <TouchableOpacity
-              onPress={() => setShowOverdueOnly(!showOverdueOnly)}
-              className={`flex-row items-center px-3 py-1.5 rounded-full ${
-                showOverdueOnly
-                  ? isDark ? 'bg-red-600/20 border border-red-600/40' : 'bg-red-100 border border-red-300'
-                  : isDark ? 'bg-gray-700/50 border border-gray-600/40' : 'bg-gray-100 border border-gray-300'
-              }`}
-              accessibilityLabel={showOverdueOnly ? "Show all tasks" : "Show overdue tasks only"}
-            >
-              <Clock 
-                size={14} 
-                color={
-                  showOverdueOnly
-                    ? isDark ? '#F87171' : '#DC2626'
-                    : isDark ? '#9CA3AF' : '#6B7280'
-                } 
-              />
-              {(overdueCounts.todo + overdueCounts.in_progress > 0) && (
-                <View className={`ml-1.5 px-1.5 py-0.5 rounded-full min-w-[18px] ${
-                  showOverdueOnly
-                    ? isDark ? 'bg-red-600' : 'bg-red-500'
-                    : isDark ? 'bg-orange-600' : 'bg-orange-500'
-                }`}>
-                  <Text className="text-white text-xs font-semibold text-center leading-none">
-                    {overdueCounts.todo + overdueCounts.in_progress}
-                  </Text>
-                </View>
-              )}
-            </TouchableOpacity>
-            {(Object.values(columnStates).some(col => col.loading || col.refreshing) || 
-              globalLoading.creating || globalLoading.updating || globalLoading.deleting) && (
-              <ActivityIndicator 
-                size="small" 
-                color={isDark ? '#60A5FA' : '#3B82F6'} 
+          {/* Loader */}
+          {(Object.values(columnStates).some(col => col.loading || col.refreshing) ||
+            globalLoading.creating || globalLoading.updating || globalLoading.deleting ||
+            effectiveStatsLoading) && (
+              <ActivityIndicator
+                size="small"
+                color={isDark ? '#60A5FA' : '#3B82F6'}
               />
             )}
-            <Text className={`text-sm ${
+
+          {/* Overdue Filter Toggle & Task Statistics */}
+          <View className="flex-row items-center gap-x-4">
+            <Pressable
+              onPress={handleToggleOverdue}
+              accessibilityRole="switch"
+              accessibilityState={{ checked: showOverdueOnly }}
+              accessibilityLabel="Toggle overdue filter"
+              className={`flex-row items-center px-3 py-1 rounded-2xl border ${showOverdueOnly
+                  ? isDark
+                    ? 'bg-red-600/20 border-red-600/40'
+                    : 'bg-red-50 border-red-200'
+                  : isDark
+                    ? 'bg-gray-800 border-gray-700'
+                    : 'bg-gray-50 border-gray-200'
+                }`}
+            >
+              <Animated.View
+                style={[
+                  {
+                    width: 40,
+                    height: 24,
+                    borderRadius: 999,
+                    padding: 2,
+                    justifyContent: 'center',
+                  },
+                  { backgroundColor: overdueTrackBackground },
+                ]}
+              >
+                <Animated.View
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 999,
+                    backgroundColor: '#FFFFFF',
+                    transform: [{ translateX: overdueKnobTranslate }],
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 1 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 1.5,
+                    elevation: 2,
+                  }}
+                />
+              </Animated.View>
+              <View className="ml-3">
+                <Text
+                  className={`text-sm font-semibold ${showOverdueOnly
+                      ? isDark
+                        ? 'text-red-200'
+                        : 'text-red-700'
+                      : isDark
+                        ? 'text-gray-200'
+                        : 'text-gray-800'
+                    }`}
+                >
+                  {showOverdueOnly ? 'Overdue only' : 'All tasks'}
+                </Text>
+                {effectiveStatistics && (
+                  <Text
+                    className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'
+                      }`}
+                  >
+                    {effectiveStatistics.overdueBreakdown.active.total} overdue ·{' '}
+                    {effectiveStatistics.normalBreakdown.total} on track
+                  </Text>
+                )}
+              </View>
+            </Pressable>
+
+            {/* <Text className={`text-sm ${
               isDark ? 'text-gray-400' : 'text-gray-500'
             }`}>
               {(() => {
@@ -935,11 +1092,10 @@ export default function Tasks() {
                   ? `${totalTasks} of ${totalFromAPI}` 
                   : `${totalTasks} total`;
               })()}
-            </Text>
+            </Text> */}
             {Object.values(columnStates).some(col => col.pagination.hasNextPage) && (
-              <Text className={`text-xs ${
-                isDark ? 'text-blue-400' : 'text-blue-600'
-              }`}>
+              <Text className={`text-xs ${isDark ? 'text-blue-400' : 'text-blue-600'
+                }`}>
                 More available
               </Text>
             )}
@@ -949,155 +1105,143 @@ export default function Tasks() {
 
       {overdueSummary.total > 0 && (
         <View className="px-4 py-3">
-          <View className={`rounded-2xl p-4 border ${
-            isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-sm'
-          }`}>
+          <View className={`rounded-2xl p-4 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-sm'
+            }`}>
             <View className="flex-row items-center justify-between">
               <View>
-                <Text className={`text-sm font-semibold ${
-                  isDark ? 'text-gray-200' : 'text-gray-700'
-                }`}>
+                <Text className={`text-sm font-semibold ${isDark ? 'text-gray-200' : 'text-gray-700'
+                  }`}>
                   Overdue overview
                 </Text>
-                <Text className={`text-base font-bold ${
-                  isDark ? 'text-white' : 'text-gray-900'
-                }`}>
+                <Text className={`text-base font-bold ${isDark ? 'text-white' : 'text-gray-900'
+                  }`}>
                   {overdueSummary.total} task{overdueSummary.total !== 1 ? 's' : ''} behind schedule
                 </Text>
               </View>
-              {!showOverdueOnly && (
-                <TouchableOpacity
-                  onPress={() => setShowOverdueOnly(true)}
-                  className="px-3 py-1.5 rounded-full bg-red-600"
-                >
-                  <Text className="text-xs font-semibold text-white">
-                    Review overdue
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-            <View className="flex-row flex-wrap gap-2 mt-3">
-              {(Object.keys(overdueSummary.severities) as Array<keyof typeof overdueSummary.severities>).map((severity) => {
-                const count = overdueSummary.severities[severity];
-                if (!count) return null;
-                const palette = severitySummaryTheme[severity];
-                return (
-                  <View
-                    key={`summary-${severity}`}
-                    className="px-2 py-1 rounded-full"
-                    style={{ backgroundColor: palette.bg }}
-                  >
-                    <Text
-                      className="text-xs font-semibold uppercase"
-                      style={{ color: palette.text }}
+
+              <View className="flex-row flex-wrap gap-2 mt-3">
+                {(Object.keys(overdueSummary.severities) as Array<keyof typeof overdueSummary.severities>).map((severity) => {
+                  const count = overdueSummary.severities[severity];
+                  if (!count) return null;
+                  const palette = severitySummaryTheme[severity];
+                  return (
+                    <View
+                      key={`summary-${severity}`}
+                      className="px-2 py-1 rounded-full"
+                      style={{ backgroundColor: palette.bg }}
                     >
-                      {severity} · {count}
-                    </Text>
-                  </View>
-                );
-              })}
+                      <Text
+                        className="text-xs font-semibold uppercase"
+                        style={{ color: palette.text }}
+                      >
+                        {severity} · {count}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+              {!showOverdueOnly && (
+              <TouchableOpacity
+                onPress={() => setShowOverdueOnly(true)}
+                className="px-3 py-1.5 rounded-full bg-red-600 w-28 mt-1"
+              >
+                <Text className="text-xs font-semibold text-white">
+                  Review overdue
+                </Text>
+              </TouchableOpacity>
+            )}
             </View>
+            
           </View>
         </View>
       )}
 
       {/* Error Display */}
-      {(() => {
-        const hasGlobalErrors = globalErrors.create || globalErrors.update || globalErrors.delete;
-        const columnErrors = Object.entries(columnStates)
-          .filter(([_, col]) => col.error)
-          .map(([status, col]) => ({ status, error: col.error }));
-        
-        return (hasGlobalErrors || columnErrors.length > 0) && (
-          <View className={`mx-4 mb-4 gap-y-2`}>
-            {/* Column-Specific Errors */}
-            {columnErrors.map(({ status, error }) => (
-              <View 
-                key={status}
-                className={`p-4 rounded-lg border ${
-                  isDark ? 'bg-red-900/20 border-red-800' : 'bg-red-50 border-red-200'
-                }`}
-              >
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center flex-1">
-                    <AlertCircle size={20} color={isDark ? '#F87171' : '#EF4444'} />
-                    <View className="ml-2 flex-1">
-                      <Text className={`text-xs font-medium ${
-                        isDark ? 'text-red-400' : 'text-red-600'
-                      }`}>
-                        {status.replace('_', ' ').toUpperCase()} COLUMN
-                      </Text>
-                      <Text className={`${
-                        isDark ? 'text-red-300' : 'text-red-700'
-                      }`}>
-                        {error}
+      {errorCards.length > 0 && (
+        <View className="px-4 mb-4">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            pagingEnabled
+            snapToInterval={ERROR_CARD_WIDTH + 16}
+            decelerationRate="fast"
+            onScroll={handleErrorScroll}
+            scrollEventThrottle={16}
+            contentContainerStyle={{ paddingVertical: 4 }}
+          >
+            {errorCards.map((card, index) => {
+              const isWarning = card.tone === 'warning';
+              const containerClasses = isWarning
+                ? isDark
+                  ? 'bg-orange-900/30 border border-orange-800/60'
+                  : 'bg-orange-50 border border-orange-200'
+                : isDark
+                  ? 'bg-red-900/30 border border-red-800/60'
+                  : 'bg-red-50 border border-red-200';
+              const textColor = isWarning
+                ? isDark ? 'text-orange-200' : 'text-orange-700'
+                : isDark ? 'text-red-200' : 'text-red-700';
+
+              return (
+                <View
+                  key={card.id}
+                  style={{
+                    width: ERROR_CARD_WIDTH,
+                    marginRight: index === errorCards.length - 1 ? 0 : 16,
+                  }}
+                  className={`rounded-2xl px-4 py-3 ${containerClasses}`}
+                >
+                  <View className="flex-row items-center justify-between mb-2">
+                    <View className="flex-row items-center flex-1">
+                      <AlertCircle
+                        size={18}
+                        color={isWarning ? (isDark ? '#FDBA74' : '#EA580C') : (isDark ? '#F87171' : '#B91C1C')}
+                      />
+                      <Text className={`ml-2 text-xs font-semibold uppercase ${textColor}`}>
+                        {card.title}
                       </Text>
                     </View>
+                    <TouchableOpacity onPress={card.onDismiss}>
+                      <Text className={textColor}>✕</Text>
+                    </TouchableOpacity>
                   </View>
-                  <TouchableOpacity 
-                    onPress={() => dismissColumnError(status as KanbanColumnStatus)}
-                    className="ml-2 p-1"
-                  >
-                    <Text className={isDark ? 'text-red-400' : 'text-red-600'}>✕</Text>
-                  </TouchableOpacity>
+                  <Text className={`text-sm ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>
+                    {card.message}
+                  </Text>
                 </View>
-              </View>
-            ))}
-            
-            {/* Global Operation Errors */}
-            {hasGlobalErrors && (
-              <View className={`p-3 rounded-lg border ${
-                isDark ? 'bg-orange-900/20 border-orange-800' : 'bg-orange-50 border-orange-200'
-              }`}>
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-row items-center flex-1">
-                    <AlertCircle size={18} color={isDark ? '#FB923C' : '#EA580C'} />
-                    <Text className={`ml-2 flex-1 text-sm ${
-                      isDark ? 'text-orange-300' : 'text-orange-700'
-                    }`}>
-                      {globalErrors.create || globalErrors.update || globalErrors.delete}
-                    </Text>
-                  </View>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      if (globalErrors.create) dismissGlobalError('create');
-                      if (globalErrors.update) dismissGlobalError('update');
-                      if (globalErrors.delete) dismissGlobalError('delete');
-                    }}
-                    className="ml-2 p-1"
-                  >
-                    <Text className={isDark ? 'text-orange-400' : 'text-orange-600'}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
+              );
+            })}
+          </ScrollView>
+          <View className="flex-row justify-center mt-2">
+            <Text className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>
+              {activeErrorIndex + 1} / {errorCards.length}
+            </Text>
           </View>
-        );
-      })()}
+        </View>
+      )}
 
       {/* Full-Screen Kanban Board */}
       <View className="flex-1">
         {Object.values(columnStates).every(col => col.loading) ? (
           // Initial Loading State - All columns loading
           <View className="flex-1 items-center justify-center">
-            <ActivityIndicator 
-              size="large" 
-              color={isDark ? '#60A5FA' : '#3B82F6'} 
+            <ActivityIndicator
+              size="large"
+              color={isDark ? '#60A5FA' : '#3B82F6'}
             />
-            <Text className={`mt-4 text-base ${
-              isDark ? 'text-gray-300' : 'text-gray-600'
-            }`}>
+            <Text className={`mt-4 text-base ${isDark ? 'text-gray-300' : 'text-gray-600'
+              }`}>
               Loading tasks...
             </Text>
           </View>
         ) : (
-          <ScrollView 
-            horizontal 
+          <ScrollView
+            horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ 
+            contentContainerStyle={{
               paddingHorizontal: SCREEN_WIDTH >= 768 ? 24 : 16,
               paddingVertical: SCREEN_WIDTH >= 768 ? 24 : 16,
-              minWidth: SCREEN_WIDTH 
+              minWidth: SCREEN_WIDTH
             }}
             style={{ flex: 1 }}
             bounces={true}
@@ -1106,9 +1250,11 @@ export default function Tasks() {
             snapToInterval={SCREEN_WIDTH < 768 ? getColumnWidth() + 16 : undefined}
             snapToAlignment="start"
           >
-            <View 
+            <View
               className="flex-row h-full"
-              style={{ 
+              style={{
+                maxHeight: 700,
+                minHeight: 450,
                 gap: SCREEN_WIDTH >= 768 ? 20 : 16, // Larger gaps on tablets/desktop
                 minWidth: SCREEN_WIDTH - (SCREEN_WIDTH >= 768 ? 48 : 32),
                 width: getColumnWidth() * (showOverdueOnly ? 2 : 3) + (SCREEN_WIDTH >= 768 ? (showOverdueOnly ? 20 : 40) : (showOverdueOnly ? 16 : 32)) // Adjust for 2 or 3 columns
@@ -1116,8 +1262,8 @@ export default function Tasks() {
             >
               {/* To Do Column */}
               <View style={{ width: getColumnWidth() }}>
-                <KanbanColumn 
-                  status="todo" 
+                <KanbanColumn
+                  status="todo"
                   title={showOverdueOnly ? "Overdue To Do" : "To Do"}
                   color="#EF4444"
                   tasks={getColumnTasks('todo')}
@@ -1132,11 +1278,11 @@ export default function Tasks() {
                   showOverdueDetails={showOverdueOnly}
                 />
               </View>
-              
+
               {/* In Progress Column */}
               <View style={{ width: getColumnWidth() }}>
-                <KanbanColumn 
-                  status="in_progress" 
+                <KanbanColumn
+                  status="in_progress"
                   title={showOverdueOnly ? "Overdue In Progress" : "In Progress"}
                   color="#F59E0B"
                   tasks={getColumnTasks('in_progress')}
@@ -1151,25 +1297,25 @@ export default function Tasks() {
                   showOverdueDetails={showOverdueOnly}
                 />
               </View>
-              
+
               {/* Done Column - Hidden when showing overdue only */}
               {!showOverdueOnly && (
                 <View style={{ width: getColumnWidth() }}>
-                  <KanbanColumn 
-                    status="done" 
-                    title="Done" 
+                  <KanbanColumn
+                    status="done"
+                    title="Done"
                     color="#10B981"
                     tasks={getColumnTasks('done')}
-                  onEditTask={handleEditTask}
-                  onDeleteTask={handleDeleteTask}
-                  onMoveTask={handleMoveTask}
-                  onPressTask={handleTaskPress}
-                  onRefresh={handleColumnRefresh('done')}
-                  refreshing={columnStates.done.refreshing}
-                  statusMetadata={columnStates.done.statusMetadata}
-                  overdueMetadata={columnStates.done.overdueMetadata}
-                />
-              </View>
+                    onEditTask={handleEditTask}
+                    onDeleteTask={handleDeleteTask}
+                    onMoveTask={handleMoveTask}
+                    onPressTask={handleTaskPress}
+                    onRefresh={handleColumnRefresh('done')}
+                    refreshing={columnStates.done.refreshing}
+                    statusMetadata={columnStates.done.statusMetadata}
+                    overdueMetadata={columnStates.done.overdueMetadata}
+                  />
+                </View>
               )}
             </View>
           </ScrollView>
@@ -1180,11 +1326,9 @@ export default function Tasks() {
       <Pressable
         onPress={handleCreateTask}
         disabled={globalLoading.creating}
-        className={`absolute ${
-          SCREEN_WIDTH >= 768 ? 'bottom-8 right-8 w-16 h-16' : 'bottom-6 right-6 w-14 h-14'
-        } rounded-full items-center justify-center bg-green-500 border-[0.3px] elevation-xl ${
-          isDark ? 'border-white' : 'border-gray-300'
-        }`}
+        className={`absolute ${SCREEN_WIDTH >= 768 ? 'bottom-8 right-8 w-16 h-16' : 'bottom-6 right-6 w-14 h-14'
+          } rounded-full items-center justify-center bg-green-500 border-[0.3px] elevation-xl ${isDark ? 'border-white' : 'border-gray-300'
+          }`}
         style={({ pressed }) => ({
           opacity: pressed ? 0.8 : 1,
           transform: [{ scale: pressed ? 0.95 : 1 }],
@@ -1223,3 +1367,5 @@ export default function Tasks() {
     </View>
   );
 }
+
+export default Tasks;

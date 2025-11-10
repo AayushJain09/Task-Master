@@ -25,7 +25,7 @@ export type TaskUserRole = 'assignee' | 'assignor' | 'both';
 /**
  * Task Sort Fields
  */
-export type TaskSortField = 'createdAt' | 'updatedAt' | 'dueDate' | 'priority' | 'status' | 'title';
+export type TaskSortField = 'createdAt' | 'updatedAt' | 'dueDate' | 'priority' | 'status' | 'title' | 'daysPastDue' | 'completedAt';
 
 /**
  * Sort Order
@@ -167,6 +167,51 @@ export interface TaskStatistics {
   overdue: number;
   completionRate: number; // Percentage
   avgHours: number;
+  overdueBreakdown: OverdueBreakdown;
+  normalBreakdown: NormalStatusBreakdown;
+}
+
+/**
+ * Overdue Active Breakdown
+ * 
+ * Fine-grained counts for tasks that are currently overdue.
+ */
+export interface OverdueActiveBreakdown {
+  total: number;
+  todo: number;
+  in_progress: number;
+}
+
+/**
+ * Overdue Resolved Breakdown
+ * 
+ * Tracks tasks that slipped into overdue but were eventually completed.
+ */
+export interface OverdueResolvedBreakdown {
+  total: number;
+  done: number;
+}
+
+/**
+ * Overdue Breakdown
+ * 
+ * Combined structure for active overdue work and resolved overdue completions.
+ */
+export interface OverdueBreakdown {
+  active: OverdueActiveBreakdown;
+  resolved: OverdueResolvedBreakdown;
+}
+
+/**
+ * Normal Status Breakdown
+ * 
+ * Counts for tasks that are still on track (not overdue).
+ */
+export interface NormalStatusBreakdown {
+  total: number;
+  todo: number;
+  in_progress: number;
+  done: number;
 }
 
 /**

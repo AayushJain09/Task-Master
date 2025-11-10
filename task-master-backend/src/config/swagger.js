@@ -541,6 +541,182 @@ const swaggerDefinition = {
             description: 'Average hours per task',
             example: 6.5,
           },
+          overdueBreakdown: {
+            type: 'object',
+            description: 'Detailed counts for tasks that are overdue or were completed after becoming overdue',
+            properties: {
+              active: {
+                type: 'object',
+                description: 'Tasks that are currently overdue (due date passed and not done)',
+                properties: {
+                  total: {
+                    type: 'integer',
+                    description: 'Total number of currently overdue tasks',
+                    example: 3,
+                  },
+                  todo: {
+                    type: 'integer',
+                    description: 'Todo tasks that are overdue',
+                    example: 2,
+                  },
+                  in_progress: {
+                    type: 'integer',
+                    description: 'In-progress tasks that are overdue',
+                    example: 1,
+                  },
+                },
+              },
+              resolved: {
+                type: 'object',
+                description: 'Tasks that became overdue but are now completed',
+                properties: {
+                  total: {
+                    type: 'integer',
+                    description: 'Total number of completed tasks that were overdue',
+                    example: 4,
+                  },
+                  done: {
+                    type: 'integer',
+                    description: 'Alias for total to keep API consistent with status naming',
+                    example: 4,
+                  },
+                },
+              },
+            },
+          },
+          normalBreakdown: {
+            type: 'object',
+            description: 'Status counts for tasks that are on track (not overdue)',
+            properties: {
+              total: {
+                type: 'integer',
+                description: 'Total number of non-overdue tasks',
+                example: 12,
+              },
+              todo: {
+                type: 'integer',
+                description: 'Todo tasks that are still on track',
+                example: 5,
+              },
+              in_progress: {
+                type: 'integer',
+                description: 'In-progress tasks that are still on track',
+                example: 4,
+              },
+              done: {
+                type: 'integer',
+                description: 'Completed tasks that never went overdue',
+                example: 3,
+              },
+            },
+          },
+        },
+      },
+      ActivityLogEntry: {
+        type: 'object',
+        properties: {
+          _id: {
+            type: 'string',
+            description: 'Activity identifier',
+            example: '660f1d25534f2c45b8c11e90',
+          },
+          action: {
+            type: 'string',
+            description: 'High-level action verb',
+            example: 'task_completed',
+          },
+          description: {
+            type: 'string',
+            description: 'Human-readable summary for UI display',
+            example: 'Completed task "Prepare weekly status"',
+          },
+          entityType: {
+            type: 'string',
+            example: 'task',
+          },
+          entityId: {
+            type: 'string',
+            example: '660f1b95534f2c45b8c11e8d',
+          },
+          metadata: {
+            type: 'object',
+            description: 'Arbitrary metadata bundle',
+          },
+          performedBy: {
+            type: 'object',
+            description: 'User who triggered the action',
+            properties: {
+              _id: { type: 'string', example: '65fe20dd54a5d5a3171f54f8' },
+              firstName: { type: 'string', example: 'Alex' },
+              lastName: { type: 'string', example: 'Morgan' },
+              email: { type: 'string', example: 'alex@example.com' },
+            },
+          },
+          createdAt: {
+            type: 'string',
+            format: 'date-time',
+            example: '2024-04-04T09:45:12.000Z',
+          },
+        },
+      },
+      DashboardMetrics: {
+        type: 'object',
+        properties: {
+          tasks: {
+            type: 'object',
+            properties: {
+              total: { type: 'integer', example: 42 },
+              todo: { type: 'integer', example: 12 },
+              in_progress: { type: 'integer', example: 18 },
+              done: { type: 'integer', example: 12 },
+            },
+          },
+          overdue: {
+            type: 'object',
+            properties: {
+              active: { type: 'integer', example: 3 },
+              upcoming: { type: 'integer', example: 5 },
+            },
+          },
+          weekly: {
+            type: 'object',
+            properties: {
+              created: { type: 'integer', example: 14 },
+              completed: { type: 'integer', example: 9 },
+            },
+          },
+          priority: {
+            type: 'object',
+            properties: {
+              high: { type: 'integer', example: 6 },
+              medium: { type: 'integer', example: 21 },
+              low: { type: 'integer', example: 15 },
+            },
+          },
+          trends: {
+            type: 'object',
+            properties: {
+              completedLast7Days: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  properties: {
+                    date: { type: 'string', example: '2024-04-01' },
+                    count: { type: 'integer', example: 3 },
+                  },
+                },
+              },
+            },
+          },
+          activitySummary: {
+            type: 'object',
+            nullable: true,
+            properties: {
+              lastAction: { type: 'string', example: 'task_created' },
+              description: { type: 'string', example: 'Created task "Draft launch plan"' },
+              occurredAt: { type: 'string', format: 'date-time' },
+            },
+          },
         },
       },
       SuccessResponse: {

@@ -312,7 +312,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
         )}
         
         {/* Header Content */}
-        <View className="relative px-6 py-5">
+        <View className="relative px-6 py-2">
           <View className="flex-row items-center justify-between">
             {/* Column Title */}
             <View className="flex-row items-center flex-1">
@@ -365,7 +365,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
           </View>
           
           {/* Column Description */}
-          <Text 
+          {/* <Text 
             className={`text-xs mt-2 opacity-80 ${
               isDark ? 'text-gray-300' : ''
             }`}
@@ -376,11 +376,11 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
             {status === 'todo' && 'Tasks waiting to be started'}
             {status === 'in_progress' && 'Currently active tasks'}
             {status === 'done' && 'Completed tasks'}
-          </Text>
+          </Text> */}
 
           {/* Overdue Awareness */}
           {showOverdueDetails && overdueMetadata ? (
-            <View className="mt-3">
+            <View className="mt-1.5">
               <Text
                 className={`text-xs font-semibold ${
                   isDark ? 'text-gray-200' : 'text-gray-700'
@@ -521,7 +521,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
       </View>
       
       {/* Column Footer */}
-      {tasks.length > 0 && (
+      {/* {tasks.length > 0 && (
         <View 
           className={`px-6 py-3 border-t ${
             isDark ? 'border-gray-700 bg-gray-800/50' : 'border-gray-100 bg-gray-50/50'
@@ -535,7 +535,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
             {tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}
           </Text>
         </View>
-      )}
+      )} */}
     </View>
   );
 };

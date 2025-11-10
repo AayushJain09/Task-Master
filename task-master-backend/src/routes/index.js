@@ -14,6 +14,7 @@ const router = express.Router();
 const authRoutes = require('./authRoutes');
 const userRoutes = require('./userRoutes');
 const taskRoutes = require('./taskRoutes');
+const dashboardRoutes = require('./dashboardRoutes');
 
 /**
  * Health Check Endpoint
@@ -73,6 +74,7 @@ router.get('/', (req, res) => {
         auth: '/auth',
         users: '/users',
         tasks: '/tasks',
+        dashboard: '/dashboard',
       },
       documentation: 'See README.md for detailed API documentation',
     },
@@ -94,6 +96,7 @@ router.get('/', (req, res) => {
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/tasks', taskRoutes);
+router.use('/dashboard', dashboardRoutes);
 
 /**
  * Add more route modules here as your application grows

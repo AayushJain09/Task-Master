@@ -1,0 +1,240 @@
+/**
+ * Dashboard Controller
+ *
+ * Provides data endpoints for the Analytics / Dashboard surface area,
+ * including recent activity feeds and productivity metrics that power
+ * the home screen in the mobile app.
+ *
+ * @module controllers/dashboardController
+ */
+
+const mongoose = require('mongoose');
+const Task = require('../models/Task');
+const ActivityLog = require('../models/ActivityLog');
+
+const MS_IN_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Builds a reusable task visibility filter so we only return
+ * resources the authenticated user created or is responsible for.
+ *
+ * @param {string} userId - Authenticated user id string
+ * @returns {Object} Mongo query matcher
+ */
+const buildTaskVisibilityFilter = (userId) => ({
+  isActive: true,
+  $or: [{ assignedTo: userId }, { assignedBy: userId }],
+});
+
+/**
+ * Recent Activity Feed
+ *
+ * Returns the most recent activity log entries visible to the current user.
+ *
+ * @route   GET /api/v1/dashboard/activity
+ * @access  Authenticated
+ *
+ * Query Parameters:
+ * - limit (optional): number of records to return (default 15, max 100)
+ * - actions (optional): comma-separated list of action verbs to filter by
+ */
+const getRecentActivity = async (req, res) => {
+  try {
+    if (!req.user?.userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required to access activity feed.',
+      });
+    }
+
+    const { userId, role } = req.user;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 15, 100);
+    const actions = req.query.actions
+      ? req.query.actions.split(',').map(action => action.trim()).filter(Boolean)
+      : [];
+
+    const activities = await ActivityLog.getRecentActivitiesForUser(userId, { limit, actions });
+
+    res.status(200).json({
+      success: true,
+      message: 'Recent activity retrieved successfully',
+      data: {
+        activities,
+        userContext: {
+          userId,
+          role,
+        },
+        pagination: {
+          limit,
+          returned: activities.length,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Get recent activity error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve recent activity',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+    });
+  }
+};
+
+/**
+ * Dashboard Metrics
+ *
+ * Provides aggregated productivity metrics, overdue counts, and
+ * short-term trends for the authenticated user.
+ *
+ * @route   GET /api/v1/dashboard/metrics
+ * @access  Authenticated
+ */
+const getDashboardMetrics = async (req, res) => {
+  try {
+    if (!req.user?.userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required to access dashboard metrics.',
+      });
+    }
+
+    const { userId, role } = req.user;
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    const visibilityFilter = buildTaskVisibilityFilter(userObjectId);
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * MS_IN_DAY);
+    const threeDaysAhead = new Date(now.getTime() + 3 * MS_IN_DAY);
+
+    const [
+      statusBreakdown,
+      priorityBreakdown,
+      createdThisWeek,
+      completedThisWeek,
+      overdueCount,
+      upcomingDueSoon,
+      activityTrend,
+      lastActivity,
+    ] = await Promise.all([
+      Task.aggregate([
+        { $match: visibilityFilter },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Task.aggregate([
+        { $match: visibilityFilter },
+        {
+          $group: {
+            _id: '$priority',
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Task.countDocuments({
+        ...visibilityFilter,
+        createdAt: { $gte: sevenDaysAgo },
+      }),
+      Task.countDocuments({
+        ...visibilityFilter,
+        completedAt: { $gte: sevenDaysAgo },
+      }),
+      Task.countDocuments({
+        ...visibilityFilter,
+        dueDate: { $lt: now },
+        status: { $ne: 'done' },
+      }),
+      Task.countDocuments({
+        ...visibilityFilter,
+        dueDate: { $gte: now, $lt: threeDaysAhead },
+        status: { $ne: 'done' },
+      }),
+      Task.aggregate([
+        {
+          $match: {
+            ...visibilityFilter,
+            completedAt: { $gte: sevenDaysAgo },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m-%d', date: '$completedAt' },
+            },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]),
+      ActivityLog.findOne({ participants: userObjectId })
+        .sort({ createdAt: -1 })
+        .select('action description createdAt')
+        .lean(),
+    ]);
+
+    const statusMap = statusBreakdown.reduce(
+      (acc, entry) => ({ ...acc, [entry._id]: entry.count }),
+      { todo: 0, in_progress: 0, done: 0 }
+    );
+
+    const priorityMap = priorityBreakdown.reduce(
+      (acc, entry) => ({ ...acc, [entry._id]: entry.count }),
+      { high: 0, medium: 0, low: 0 }
+    );
+
+    const metrics = {
+      tasks: {
+        total: statusBreakdown.reduce((sum, entry) => sum + entry.count, 0),
+        ...statusMap,
+      },
+      overdue: {
+        active: overdueCount,
+        upcoming: upcomingDueSoon,
+      },
+      weekly: {
+        created: createdThisWeek,
+        completed: completedThisWeek,
+      },
+      priority: priorityMap,
+      trends: {
+        completedLast7Days: activityTrend.map(point => ({
+          date: point._id,
+          count: point.count,
+        })),
+      },
+      activitySummary: lastActivity
+        ? {
+            lastAction: lastActivity.action,
+            description: lastActivity.description,
+            occurredAt: lastActivity.createdAt,
+          }
+        : null,
+    };
+
+    res.status(200).json({
+      success: true,
+      message: 'Dashboard metrics retrieved successfully',
+      data: {
+        userContext: {
+          userId,
+          role,
+        },
+        metrics,
+      },
+    });
+  } catch (error) {
+    console.error('Get dashboard metrics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve dashboard metrics',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+    });
+  }
+};
+
+module.exports = {
+  getRecentActivity,
+  getDashboardMetrics,
+};

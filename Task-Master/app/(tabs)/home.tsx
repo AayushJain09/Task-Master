@@ -2,19 +2,22 @@ import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
-  Alert,
 } from 'react-native';
 
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import SideDrawer, { DrawerToggle } from '@/components/ui/SideDrawer';
 import DrawerContent from '@/components/ui/DrawerContent';
+import { tasksService } from '@/services/tasks.service';
+import { TaskStatistics } from '@/types/task.types';
 
 export default function HomeScreen() {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activeDrawerOption, setActiveDrawerOption] = useState('dashboard');
+  const [statisticsLoading, setStatisticsLoading] = useState(false);
+  const [taskStatistics, setTaskStatistics] = useState<TaskStatistics | null>(null);
 
   const handleDrawerToggle = () => {
     setIsDrawerOpen(!isDrawerOpen);
@@ -24,6 +27,21 @@ export default function HomeScreen() {
     setActiveDrawerOption(optionId);
   };
 
+  const fetchTaskStatistics = useCallback(async () => {
+    try {
+      setStatisticsLoading(true);
+      const response = await tasksService.getTaskStatistics();
+      setTaskStatistics(response.statistics);
+    } catch (error) {
+      console.error('Failed to load task statistics:', error);
+    } finally {
+      setStatisticsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTaskStatistics();
+  }, [fetchTaskStatistics]);
 
   return (
     <View className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -51,7 +69,12 @@ export default function HomeScreen() {
       </View>
 
       {/* Dynamic Content Based on Drawer Selection */}
-      <DrawerContent activeOption={activeDrawerOption} />
+      <DrawerContent 
+        activeOption={activeDrawerOption} 
+        taskStatistics={taskStatistics}
+        statisticsLoading={statisticsLoading}
+        onRefreshStatistics={fetchTaskStatistics}
+      />
     </View>
   );
 }

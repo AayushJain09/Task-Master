@@ -423,46 +423,156 @@ taskSchema.statics.findOverdueTasks = async function (userId = null) {
  * @returns {Promise<Object>} Task statistics object
  */
 taskSchema.statics.getTaskStatistics = async function (userId) {
-  const pipeline = [
-    {
-      $match: {
-        assignedTo: new mongoose.Types.ObjectId(userId),
-        isActive: true,
-      },
-    },
+  const matchStage = {
+    assignedTo: new mongoose.Types.ObjectId(userId),
+    isActive: true,
+  };
+
+  // Helper expressions reused across aggregations
+  const now = new Date();
+  const overdueActiveExpr = {
+    $and: [
+      { $ne: ['$dueDate', null] },
+      { $lt: ['$dueDate', now] },
+      { $ne: ['$status', 'done'] },
+    ],
+  };
+
+  const overdueCompletedExpr = {
+    $and: [
+      { $eq: ['$status', 'done'] },
+      { $ne: ['$dueDate', null] },
+      { $ne: ['$completedAt', null] },
+      { $gt: ['$completedAt', '$dueDate'] },
+    ],
+  };
+
+  const [stats] = await this.aggregate([
+    { $match: matchStage },
     {
       $group: {
-        _id: '$status',
-        count: { $sum: 1 },
-        avgActualHours: { $avg: '$actualHours' },
+        _id: null,
+        total: { $sum: 1 },
+        todo: { $sum: { $cond: [{ $eq: ['$status', 'todo'] }, 1, 0] } },
+        in_progress: { $sum: { $cond: [{ $eq: ['$status', 'in_progress'] }, 1, 0] } },
+        done: { $sum: { $cond: [{ $eq: ['$status', 'done'] }, 1, 0] } },
+        actualHoursSum: { $sum: { $ifNull: ['$actualHours', 0] } },
+        overdueActiveTotal: { $sum: { $cond: [overdueActiveExpr, 1, 0] } },
+        overdueTodo: {
+          $sum: {
+            $cond: [
+              { $and: [{ $eq: ['$status', 'todo'] }, overdueActiveExpr] },
+              1,
+              0,
+            ],
+          },
+        },
+        overdueInProgress: {
+          $sum: {
+            $cond: [
+              { $and: [{ $eq: ['$status', 'in_progress'] }, overdueActiveExpr] },
+              1,
+              0,
+            ],
+          },
+        },
+        overdueCompletedTotal: { $sum: { $cond: [overdueCompletedExpr, 1, 0] } },
+        normalTodo: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ['$status', 'todo'] },
+                  { $not: [overdueActiveExpr] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+        },
+        normalInProgress: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ['$status', 'in_progress'] },
+                  { $not: [overdueActiveExpr] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+        },
+        normalDone: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $eq: ['$status', 'done'] },
+                  { $not: [overdueCompletedExpr] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+        },
       },
     },
-  ];
-  
-  const stats = await this.aggregate(pipeline);
-  
-  // Transform results into a more usable format
-  const result = {
+  ]);
+
+  const baseStats = stats || {
+    total: 0,
     todo: 0,
     in_progress: 0,
     done: 0,
-    total: 0,
-    avgHours: 0,
+    actualHoursSum: 0,
+    overdueActiveTotal: 0,
+    overdueTodo: 0,
+    overdueInProgress: 0,
+    overdueCompletedTotal: 0,
+    normalTodo: 0,
+    normalInProgress: 0,
+    normalDone: 0,
   };
-  
-  let totalHours = 0;
-  let totalTasks = 0;
-  
-  stats.forEach(stat => {
-    result[stat._id] = stat.count;
-    result.total += stat.count;
-    totalHours += stat.avgActualHours * stat.count;
-    totalTasks += stat.count;
-  });
-  
-  result.avgHours = totalTasks > 0 ? totalHours / totalTasks : 0;
-  
-  return result;
+
+  const avgHours =
+    baseStats.total > 0 ? baseStats.actualHoursSum / baseStats.total : 0;
+
+  return {
+    todo: baseStats.todo,
+    in_progress: baseStats.in_progress,
+    done: baseStats.done,
+    total: baseStats.total,
+    overdue: baseStats.overdueActiveTotal,
+    completionRate:
+      baseStats.total > 0
+        ? Math.round((baseStats.done / baseStats.total) * 100)
+        : 0,
+    avgHours,
+    overdueBreakdown: {
+      active: {
+        total: baseStats.overdueActiveTotal,
+        todo: baseStats.overdueTodo,
+        in_progress: baseStats.overdueInProgress,
+      },
+      resolved: {
+        total: baseStats.overdueCompletedTotal,
+        done: baseStats.overdueCompletedTotal,
+      },
+    },
+    normalBreakdown: {
+      total:
+        baseStats.normalTodo +
+        baseStats.normalInProgress +
+        baseStats.normalDone,
+      todo: baseStats.normalTodo,
+      in_progress: baseStats.normalInProgress,
+      done: baseStats.normalDone,
+    },
+  };
 };
 
 /**

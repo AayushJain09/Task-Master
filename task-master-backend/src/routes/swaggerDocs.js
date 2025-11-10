@@ -2268,3 +2268,111 @@
  */
 
 module.exports = {};
+/**
+ * @swagger
+ * /dashboard/activity:
+ *   get:
+ *     summary: Get recent activity feed for the authenticated user
+ *     description: Returns the latest actions (task creation, updates, status changes, etc.) visible to the current user for dashboard timelines.
+ *     tags: [Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 15
+ *           maximum: 100
+ *         description: Maximum number of activity entries to return
+ *       - in: query
+ *         name: actions
+ *         schema:
+ *           type: string
+ *         description: Comma-separated list of action verbs to filter by (e.g., task_created,task_completed)
+ *     responses:
+ *       200:
+ *         description: Recent activity retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Recent activity retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userContext:
+ *                       type: object
+ *                       properties:
+ *                         userId:
+ *                           type: string
+ *                           example: '65fe20dd54a5d5a3171f54f8'
+ *                         role:
+ *                           type: string
+ *                           example: 'user'
+ *                     activities:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/ActivityLogEntry'
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         limit:
+ *                           type: integer
+ *                           example: 15
+ *                         returned:
+ *                           type: integer
+ *                           example: 12
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /dashboard/metrics:
+ *   get:
+ *     summary: Get dashboard metrics for the authenticated user
+ *     description: Provides task breakdowns, overdue counts, and short-term productivity trends powering the home dashboard.
+ *     tags: [Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dashboard metrics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Dashboard metrics retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userContext:
+ *                       type: object
+ *                       properties:
+ *                         userId:
+ *                           type: string
+ *                         role:
+ *                           type: string
+ *                           example: 'user'
+ *                     metrics:
+ *                       $ref: '#/components/schemas/DashboardMetrics'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */

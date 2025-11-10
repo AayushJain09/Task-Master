@@ -9,8 +9,90 @@
 
 const Task = require('../models/Task');
 const User = require('../models/User');
+const ActivityLog = require('../models/ActivityLog');
 const { validationResult } = require('express-validator');
 const mongoose = require('mongoose');
+
+const MS_IN_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Determines overdue severity based on how many days a task is past due
+ * and the task's inherent priority.
+ *
+ * @param {number} daysPastDue - Whole days past the original due date
+ * @param {'low'|'medium'|'high'} priority - Task priority hint
+ * @returns {'critical'|'high'|'medium'|'low'} severity bucket
+ */
+const classifyOverdueSeverity = (daysPastDue, priority = 'medium') => {
+  if (daysPastDue >= 7 || (priority === 'high' && daysPastDue >= 3)) {
+    return 'critical';
+  }
+  if (daysPastDue >= 3 || ((priority === 'medium' || priority === 'high') && daysPastDue >= 1)) {
+    return 'high';
+  }
+  if (daysPastDue >= 1) {
+    return 'medium';
+  }
+  return 'low';
+};
+
+/**
+ * Builds the overdue metadata object that the mobile app expects so
+ * that every task response (not just the overdue endpoint) carries
+ * consistent deadline intelligence.
+ *
+ * @param {Object} task - Plain task object (not a mongoose document)
+ * @param {Date} referenceDate - Date used to calculate lateness (defaults to now)
+ * @returns {Object|null} Overdue metadata payload or null when not overdue
+ */
+const buildOverdueMetadata = (task, referenceDate = new Date()) => {
+  if (!task?.dueDate || task.status === 'done') {
+    return null;
+  }
+
+  const dueDate = new Date(task.dueDate);
+  if (Number.isNaN(dueDate.getTime()) || dueDate >= referenceDate) {
+    return null;
+  }
+
+  const daysPastDue = Math.ceil((referenceDate - dueDate) / MS_IN_DAY);
+
+  return {
+    daysPastDue,
+    severity: classifyOverdueSeverity(daysPastDue, task.priority),
+    isOverdue: true,
+  };
+};
+
+/**
+ * Safely records a task-related activity without blocking the main request.
+ * Any logging error is swallowed after being reported to the console so that
+ * primary task operations continue unaffected.
+ *
+ * @param {Object} params - Parameters accepted by ActivityLog.logTaskActivity
+ */
+const recordTaskActivity = async (params) => {
+  try {
+    await ActivityLog.logTaskActivity(params);
+  } catch (error) {
+    console.error('Activity logging failed:', error.message);
+  }
+};
+
+/**
+ * Safely converts a variety of mongoose value shapes (documents, ObjectIds,
+ * raw strings) into a string representation of the underlying identifier.
+ *
+ * @param {*} value - Candidate value to normalize
+ * @returns {string|null}
+ */
+const normalizeObjectId = (value) => {
+  if (!value) return null;
+  if (typeof value === 'string') return value;
+  if (value._id) return value._id.toString();
+  if (typeof value.toString === 'function') return value.toString();
+  return String(value);
+};
 
 /**
  * Get All Tasks for User
@@ -82,6 +164,10 @@ const getAllTasks = async (req, res) => {
 
     // Get base tasks using the model method
     let tasks = await Task.findByUser(userId, options);
+    const referenceDate = new Date();
+
+    // Work with plain objects so we can annotate metadata consistently
+    tasks = tasks.map(task => (typeof task.toObject === 'function' ? task.toObject() : task));
 
     // Apply additional filters
     if (Object.keys(additionalFilters).length > 0) {
@@ -106,6 +192,18 @@ const getAllTasks = async (req, res) => {
         });
       });
     }
+
+    // Attach overdue metadata so every consumer gets the same insights
+    tasks = tasks.map(task => {
+      const overdueMetadata = buildOverdueMetadata(task, referenceDate);
+      if (overdueMetadata) {
+        task.overdueMetadata = overdueMetadata;
+        task.isOverdue = true;
+      } else if (task.status !== 'done') {
+        task.isOverdue = false;
+      }
+      return task;
+    });
 
     // Sort tasks
     tasks.sort((a, b) => {
@@ -314,6 +412,9 @@ const getTasksByStatus = async (req, res) => {
 
     // Get base tasks for the specified status using the model method
     let tasks = await Task.findByUser(userId, options);
+    const referenceDate = new Date();
+
+    tasks = tasks.map(task => (typeof task.toObject === 'function' ? task.toObject() : task));
 
     // Apply additional filters
     if (Object.keys(additionalFilters).length > 0) {
@@ -354,6 +455,18 @@ const getTasksByStatus = async (req, res) => {
       });
     }
 
+    // Attach overdue metadata to keep downstream consumers aligned
+    tasks = tasks.map(task => {
+      const overdueMetadata = buildOverdueMetadata(task, referenceDate);
+      if (overdueMetadata) {
+        task.overdueMetadata = overdueMetadata;
+        task.isOverdue = true;
+      } else if (task.status !== 'done') {
+        task.isOverdue = false;
+      }
+      return task;
+    });
+
     // Sort tasks with enhanced sorting options
     tasks.sort((a, b) => {
       let aValue, bValue;
@@ -369,6 +482,10 @@ const getTasksByStatus = async (req, res) => {
           // Handle null due dates (put them last)
           aValue = a.dueDate ? new Date(a.dueDate) : new Date('9999-12-31');
           bValue = b.dueDate ? new Date(b.dueDate) : new Date('9999-12-31');
+          break;
+        case 'daysPastDue':
+          aValue = a.overdueMetadata?.daysPastDue || 0;
+          bValue = b.overdueMetadata?.daysPastDue || 0;
           break;
         case 'title':
           aValue = (a.title || '').toLowerCase();
@@ -399,9 +516,7 @@ const getTasksByStatus = async (req, res) => {
       status,
       totalInStatus: totalTasks,
       currentPageCount: paginatedTasks.length,
-      hasOverdue: status !== 'done' && paginatedTasks.some(task => 
-        task.dueDate && new Date(task.dueDate) < new Date()
-      ),
+      hasOverdue: status !== 'done' && paginatedTasks.some(task => task.overdueMetadata?.isOverdue),
     };
 
     // Enhanced response with comprehensive metadata
@@ -579,6 +694,19 @@ const createTask = async (req, res) => {
     await task.populate('assignedBy', 'firstName lastName email');
     await task.populate('assignedTo', 'firstName lastName email');
 
+    // Log activity asynchronously (fire-and-forget)
+    recordTaskActivity({
+      task,
+      performedBy: userId,
+      action: 'task_created',
+      description: `Created task "${task.title}"`,
+      metadata: {
+        priority: task.priority,
+        dueDate: task.dueDate,
+      },
+      context: 'dashboard',
+    });
+
     res.status(201).json({
       success: true,
       message: 'Task created successfully',
@@ -665,6 +793,9 @@ const updateTask = async (req, res) => {
       });
     }
 
+    const previousStatus = task.status;
+    const previousAssignee = normalizeObjectId(task.assignedTo);
+
     // Extract update fields
     const {
       title,
@@ -734,6 +865,54 @@ const updateTask = async (req, res) => {
     // Populate user references for response
     await task.populate('assignedBy', 'firstName lastName email');
     await task.populate('assignedTo', 'firstName lastName email');
+
+    const changedFields = Object.keys(updateData);
+    const currentAssignee = normalizeObjectId(task.assignedTo);
+
+    if (status !== undefined && status !== previousStatus) {
+      const isCompletion = task.status === 'done';
+      recordTaskActivity({
+        task,
+        performedBy: userId,
+        action: isCompletion ? 'task_completed' : 'task_status_changed',
+        description: isCompletion
+          ? `Completed task "${task.title}"`
+          : `Moved task "${task.title}" to ${task.status.replace('_', ' ')}`,
+        metadata: {
+          previousStatus,
+          newStatus: task.status,
+        },
+      });
+    }
+
+    if (assignedTo !== undefined && previousAssignee !== currentAssignee) {
+      recordTaskActivity({
+        task,
+        performedBy: userId,
+        action: 'task_reassigned',
+        description: `Reassigned task "${task.title}"`,
+        metadata: {
+          previousAssignee,
+          newAssignee: currentAssignee,
+        },
+      });
+    }
+
+    const genericFields = changedFields.filter(
+      field => !['status', 'assignedTo'].includes(field)
+    );
+
+    if (genericFields.length > 0) {
+      recordTaskActivity({
+        task,
+        performedBy: userId,
+        action: 'task_updated',
+        description: `Updated ${genericFields.join(', ')} on "${task.title}"`,
+        metadata: {
+          changedFields: genericFields,
+        },
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -807,6 +986,14 @@ const deleteTask = async (req, res) => {
     task.isActive = false;
     await task.save();
 
+    recordTaskActivity({
+      task,
+      performedBy: userId,
+      action: 'task_deleted',
+      description: `Archived task "${task.title}"`,
+      metadata: { reason: 'user_deleted' },
+    });
+
     res.status(200).json({
       success: true,
       message: 'Task deleted successfully',
@@ -871,12 +1058,27 @@ const updateTaskStatus = async (req, res) => {
       });
     }
 
+    const previousStatus = task.status;
+
     // Update the status using the model method
     await task.updateStatus(status);
 
     // Populate user references for response
     await task.populate('assignedBy', 'firstName lastName email');
     await task.populate('assignedTo', 'firstName lastName email');
+
+    recordTaskActivity({
+      task,
+      performedBy: userId,
+      action: status === 'done' ? 'task_completed' : 'task_status_changed',
+      description: status === 'done'
+        ? `Completed task "${task.title}"`
+        : `Updated status of "${task.title}" to ${status.replace('_', ' ')}`,
+      metadata: {
+        previousStatus,
+        newStatus: status,
+      },
+    });
 
     res.status(200).json({
       success: true,
@@ -910,13 +1112,6 @@ const getTaskStatistics = async (req, res) => {
 
     // Get statistics using the model method
     const stats = await Task.getTaskStatistics(userId);
-
-    // Get overdue tasks count
-    const overdueTasks = await Task.findOverdueTasks(userId);
-    stats.overdue = overdueTasks.length;
-
-    // Calculate completion rate
-    stats.completionRate = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
 
     res.status(200).json({
       success: true,

@@ -1,25 +1,63 @@
 import React from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { 
   CheckSquare, 
   TrendingUp,
-  Activity,
   Calendar,
   Clock,
   Target,
   BarChart3,
+  AlertTriangle,
 } from 'lucide-react-native';
 import Card from '../ui/Card';
+import { TaskStatistics } from '@/types/task.types';
 
-export default function Dashboard() {
+interface DashboardProps {
+  statistics?: TaskStatistics | null;
+  statisticsLoading?: boolean;
+  onRefreshStatistics?: () => Promise<void> | void;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({
+  statistics,
+  statisticsLoading = false,
+  onRefreshStatistics,
+}) => {
   const { isDark } = useTheme();
+  const activeTasks = (statistics?.todo || 0) + (statistics?.in_progress || 0);
+  const completionRate = statistics?.completionRate ?? 0;
+  const overdueActive = statistics?.overdueBreakdown.active.total ?? 0;
+  const onTrack = statistics?.normalBreakdown.total ?? 0;
+
+  const handleRefresh = () => {
+    if (onRefreshStatistics) {
+      onRefreshStatistics();
+    }
+  };
 
   return (
     <ScrollView className="flex-1 px-4 py-6" showsVerticalScrollIndicator={false}>
-      <Text className={`text-2xl font-bold mb-6 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-        Dashboard Overview
-      </Text>
+      <View className="flex-row items-center justify-between mb-6">
+        <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          Dashboard Overview
+        </Text>
+        <TouchableOpacity
+          onPress={handleRefresh}
+          disabled={statisticsLoading}
+          className={`px-3 py-1.5 rounded-full border ${
+            isDark ? 'border-gray-700' : 'border-gray-200'
+          }`}
+        >
+          {statisticsLoading ? (
+            <ActivityIndicator size="small" color={isDark ? '#93C5FD' : '#2563EB'} />
+          ) : (
+            <Text className={isDark ? 'text-gray-300 text-sm' : 'text-gray-700 text-sm'}>
+              Refresh stats
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
 
       {/* Stats Cards Row */}
       <View className="flex-row mb-6">
@@ -30,7 +68,7 @@ export default function Dashboard() {
             </View>
             <View>
               <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                24
+                {statisticsLoading ? '—' : activeTasks}
               </Text>
               <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                 Active Tasks
@@ -46,15 +84,84 @@ export default function Dashboard() {
             </View>
             <View>
               <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                87%
+                {statisticsLoading ? '—' : `${completionRate}%`}
               </Text>
               <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                Completion
+                Completion Rate
               </Text>
             </View>
           </View>
         </Card>
       </View>
+
+      {/* Task Health Summary */}
+      <Card variant="elevated" className="mb-6 p-4">
+        <View className="flex-row items-center justify-between mb-4">
+          <Text className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            Task Health
+          </Text>
+          {statistics && (
+            <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              {statistics.total} tracked tasks
+            </Text>
+          )}
+        </View>
+
+        <View className="flex-row flex-wrap gap-4">
+          <View
+            className={`flex-1 min-w-[150px] rounded-2xl p-4 border ${
+              isDark ? 'bg-red-900/20 border-red-900/40' : 'bg-red-50 border-red-100'
+            }`}
+          >
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className={`text-sm font-semibold ${isDark ? 'text-red-200' : 'text-red-700'}`}>
+                Overdue now
+              </Text>
+              <AlertTriangle size={16} color={isDark ? '#F87171' : '#DC2626'} />
+            </View>
+            <Text className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {statisticsLoading ? '—' : overdueActive}
+            </Text>
+            <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              {statisticsLoading
+                ? 'Updating...'
+                : `${statistics?.overdueBreakdown.active.todo ?? 0} todo · ${
+                    statistics?.overdueBreakdown.active.in_progress ?? 0
+                  } in progress`}
+            </Text>
+            <Text className={`text-xs mt-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              {statisticsLoading
+                ? '—'
+                : `${statistics?.overdueBreakdown.resolved.done ?? 0} finished after deadline`}
+            </Text>
+          </View>
+
+          <View
+            className={`flex-1 min-w-[150px] rounded-2xl p-4 border ${
+              isDark ? 'bg-emerald-900/20 border-emerald-900/40' : 'bg-emerald-50 border-emerald-100'
+            }`}
+          >
+            <Text className={`text-sm font-semibold ${isDark ? 'text-emerald-200' : 'text-emerald-700'}`}>
+              On track
+            </Text>
+            <Text className={`text-3xl font-bold mt-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              {statisticsLoading ? '—' : onTrack}
+            </Text>
+            <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              {statisticsLoading
+                ? 'Updating...'
+                : `${statistics?.normalBreakdown.todo ?? 0} todo · ${
+                    statistics?.normalBreakdown.in_progress ?? 0
+                  } in progress`}
+            </Text>
+            <Text className={`text-xs mt-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              {statisticsLoading
+                ? '—'
+                : `${statistics?.normalBreakdown.done ?? 0} completed on time`}
+            </Text>
+          </View>
+        </View>
+      </Card>
 
       {/* Progress Overview */}
       <Card variant="elevated" className="mb-6 p-4">
@@ -72,11 +179,14 @@ export default function Dashboard() {
                 Tasks Completed
               </Text>
               <Text className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                18/24
+                {statisticsLoading ? '—' : `${statistics?.done ?? 0}/${statistics?.total ?? 0}`}
               </Text>
             </View>
             <View className={`h-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
-              <View className="h-2 bg-green-500 rounded-full" style={{ width: '75%' }} />
+              <View
+                className="h-2 bg-green-500 rounded-full"
+                style={{ width: `${Math.min(completionRate, 100)}%` }}
+              />
             </View>
           </View>
 
@@ -160,30 +270,32 @@ export default function Dashboard() {
         <View className="flex-row justify-between">
           <View className="items-center">
             <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              8
+              {statisticsLoading ? '—' : statistics?.todo ?? 0}
             </Text>
             <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              Tasks Due
+              To Do
             </Text>
           </View>
           <View className="items-center">
             <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              5
+              {statisticsLoading ? '—' : statistics?.in_progress ?? 0}
             </Text>
             <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              Completed
+              In Progress
             </Text>
           </View>
           <View className="items-center">
             <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              3
+              {statisticsLoading ? '—' : statistics?.done ?? 0}
             </Text>
             <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              Reminders
+              Done
             </Text>
           </View>
         </View>
       </Card>
     </ScrollView>
   );
-}
+};
+
+export default Dashboard;

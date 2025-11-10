@@ -188,6 +188,15 @@ class ApiService {
       }
 
       // Server responded with error status
+      if (error.response?.status === 429) {
+        return {
+          message: 'Rate limit exceeded, try again in some time.',
+          status: 429,
+          code: error.response?.data?.code || 'RATE_LIMIT_EXCEEDED',
+          details: error.response?.data?.message || null,
+        };
+      }
+
       const apiError: ApiError = {
         message:
           error.response?.data?.message ||

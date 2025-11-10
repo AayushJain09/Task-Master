@@ -56,7 +56,7 @@ const appConfig = {
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
 
     // Maximum number of requests per window
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1200,
 
     // Message to send when rate limit is exceeded
     message: 'Too many requests from this IP, please try again later.',

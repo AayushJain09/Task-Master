@@ -45,11 +45,11 @@ const createRateLimiter = (options) => {
  * General Rate Limiter
  *
  * General purpose rate limiter for most API endpoints
- * 100 requests per 15 minutes per IP
+ * 1200 requests per 15 minutes per IP
  */
 const rateLimitGeneral = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 1200, // Limit each IP to 1200 requests per windowMs
   message: 'Too many requests from this IP, please try again later.',
 });
 
@@ -68,12 +68,12 @@ const rateLimitStrict = createRateLimiter({
 /**
  * Moderate Rate Limiter
  *
- * Moderate rate limiter for read operations
- * 200 requests per 15 minutes per IP
+ * Moderate rate limiter for read operations where higher throughput is acceptable
+ * 1200 requests per 15 minutes per IP
  */
 const rateLimitModerate = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // Limit each IP to 200 requests per windowMs
+  max: 1200, // Limit each IP to 1200 requests per windowMs
   message: 'Too many requests from this IP, please try again later.',
 });
 

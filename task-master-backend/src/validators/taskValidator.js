@@ -302,8 +302,8 @@ const validateTaskQuery = [
   // Sorting validation
   query('sortBy')
     .optional()
-    .isIn(['createdAt', 'updatedAt', 'dueDate', 'priority', 'status', 'title'])
-    .withMessage('Sort by must be one of: createdAt, updatedAt, dueDate, priority, status, title'),
+    .isIn(['createdAt', 'updatedAt', 'dueDate', 'priority', 'status', 'title', 'daysPastDue'])
+    .withMessage('Sort by must be one of: createdAt, updatedAt, dueDate, priority, status, title, daysPastDue'),
 
   query('sortOrder')
     .optional()
@@ -437,8 +437,8 @@ const validateTaskStatusQuery = [
   // Enhanced sorting validation for status-specific queries
   query('sortBy')
     .optional()
-    .isIn(['createdAt', 'updatedAt', 'dueDate', 'priority', 'title', 'completedAt'])
-    .withMessage('Sort by must be one of: createdAt, updatedAt, dueDate, priority, title, completedAt'),
+    .isIn(['createdAt', 'updatedAt', 'dueDate', 'priority', 'title', 'completedAt', 'daysPastDue'])
+    .withMessage('Sort by must be one of: createdAt, updatedAt, dueDate, priority, title, completedAt, daysPastDue'),
 
   query('sortOrder')
     .optional()
