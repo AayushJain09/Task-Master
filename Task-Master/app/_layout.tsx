@@ -1,14 +1,16 @@
 import { useEffect, memo } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as SplashScreen from 'expo-splash-screen';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
+import '../global.css';
+
 import { useFrameworkReady } from '../hooks/useFrameworkReady';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
-import '../global.css';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
-import * as SplashScreen from 'expo-splash-screen';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 SplashScreen.preventAutoHideAsync();
 // Theme-aware wrapper component
@@ -70,7 +72,7 @@ export default function RootLayout() {
           <AuthProvider>
             <ThemedSafeAreaView>
               <SplashScreenHandler />
-              <Stack screenOptions={{headerShown: false }}>
+              <Stack screenOptions={{ headerShown: false }}>
                 <Stack.Screen name="index" />
                 <Stack.Screen name="(auth)" />
                 <Stack.Screen name="(tabs)" />
