@@ -1,19 +1,16 @@
-import React, { useMemo } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Animated, Easing } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import {
   CheckSquare,
   TrendingUp,
   Calendar,
-  Clock,
-  Target,
   BarChart3,
   AlertTriangle,
   ListChecks,
   MapPin,
   Activity as ActivityIcon,
 } from 'lucide-react-native';
-import Card from '../ui/Card';
 import {
   DashboardMetricsResponse,
   ActivityLogEntry,
@@ -42,11 +39,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   onRefresh,
 }) => {
   const { isDark } = useTheme();
-  const activeTasks = (metrics?.tasks.todo || 0) + (metrics?.tasks.in_progress || 0);
   const completionRate =
     metrics?.tasks.total ? Math.round((metrics.tasks.done / metrics.tasks.total) * 100) : 0;
-  const overdueActive = metrics?.overdue.active ?? 0;
-  const onTrack = metrics ? metrics.tasks.total - overdueActive : 0;
   const chartBackground = isDark ? '#111827' : '#FFFFFF';
   const chartGridColor = isDark ? '#1F2937' : '#E5E7EB';
 
@@ -91,6 +85,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     [analytics]
   );
 
+  // Only surface the freshest five activity events to keep the card focused.
+  const visibleActivities = useMemo(() => activityFeed.slice(0, 5), [activityFeed]);
+
   const handleRefresh = () => {
     if (onRefresh) {
       onRefresh();
@@ -103,54 +100,131 @@ const Dashboard: React.FC<DashboardProps> = ({
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{ paddingBottom: 32 }}
     >
-      <View className="flex-row items-center justify-between mb-6">
-        <View>
-          <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Productivity Overview
-          </Text>
-          <Text className={`text-sm mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-            Track workload, momentum, and completion speed.
-          </Text>
-        </View>
-        <TouchableOpacity
-          onPress={handleRefresh}
-          disabled={loading}
-          className={`px-3 py-1.5 rounded-full border ${isDark ? 'border-gray-700' : 'border-gray-200'
-            }`}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color={isDark ? '#93C5FD' : '#2563EB'} />
-          ) : (
-            <Text className={isDark ? 'text-gray-300 text-sm' : 'text-gray-700 text-sm'}>
-              Refresh
+      <LinearGradient
+        colors={isDark ? ['#111827', '#1F2937'] : ['#EFF6FF', '#FFFFFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          borderRadius: 24,
+          padding: 20,
+          marginBottom: 18,
+          borderWidth: 1,
+          borderColor: isDark ? '#1F2937' : '#DBEAFE',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <AccentBlob color={isDark ? '#1E3A8A' : '#BFDBFE'} size={180} style={{ right: -40, top: -60 }} />
+        <AccentBlob color={isDark ? '#0EA5E9' : '#60A5FA'} size={120} style={{ left: -50, bottom: -50 }} />
+        <View className="flex-row items-start justify-between">
+          <View className="flex-1 pr-6">
+            <Text className={`text-xs uppercase tracking-[0.25em] ${isDark ? 'text-indigo-200' : 'text-indigo-600'}`}>
+              Mission Control
             </Text>
-          )}
-        </TouchableOpacity>
-      </View>
+            <Text className={`text-3xl font-black mt-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              Productivity Overview
+            </Text>
+            <Text className={`text-sm mt-3 leading-5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              Monitor flow health, uncover bottlenecks, and keep the sprint pulse steady.
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleRefresh}
+            disabled={loading}
+            className="px-4 py-2 rounded-full border"
+            style={{
+              borderColor: isDark ? '#93C5FD40' : '#2563EB30',
+              backgroundColor: isDark ? '#312E8140' : '#DBEAFE70',
+            }}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color={isDark ? '#93C5FD' : '#2563EB'} />
+            ) : (
+              <Text
+                className="text-sm font-semibold"
+                style={{ color: isDark ? '#F8FAFC' : '#1E3A8A' }}
+              >
+                Refresh
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
 
-      {/* Summary chips */}
+      {/* Summary chips - vector-styled */}
       <View className="flex-row flex-wrap gap-3 mb-6">
         {buildSummaryChips(analytics, metrics, isDark).map(chip => (
-          <View
+          <LinearGradient
             key={chip.label}
-            className={`flex-1 min-w-[150px] rounded-2xl p-4 ${chip.bg} border ${chip.border}`}
+            colors={chip.gradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{
+              flex: 1,
+              minWidth: 150,
+              borderRadius: 22,
+              padding: 18,
+              borderWidth: 1,
+              borderColor: chip.borderColor,
+              overflow: 'hidden',
+            }}
           >
-            <Text className={`text-xs font-semibold ${chip.textMuted}`}>{chip.label}</Text>
-            <Text className={`text-2xl font-bold mt-2 ${chip.textStrong}`}>{chip.value}</Text>
+            <AccentBlob color={chip.accentBlob} size={120} style={{ right: -30, top: -40 }} />
+            <View className="flex-row items-center mb-4">
+              <View
+                className="w-9 h-9 rounded-full items-center justify-center"
+                style={{ backgroundColor: chip.iconBg }}
+              >
+                {chip.icon}
+              </View>
+              <Text className="ml-3 text-xs font-semibold uppercase tracking-widest" style={{ color: chip.labelColor }}>
+                {chip.label}
+              </Text>
+            </View>
+            <Text className="text-3xl font-black" style={{ color: chip.valueColor }}>
+              {chip.value}
+            </Text>
             {chip.subLabel && (
-              <Text className={`text-xs mt-1 ${chip.textMuted}`}>{chip.subLabel}</Text>
+              <Text className="text-xs mt-2" style={{ color: chip.helperColor }}>
+                {chip.subLabel}
+              </Text>
             )}
-          </View>
+          </LinearGradient>
         ))}
       </View>
 
-      {/* Recent Activity */}
       {/* Recent Activity Feed */}
-      <Card variant="elevated" className="mb-6 p-4">
-        <Text className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          Recent Activity
-        </Text>
-        <View className="gap-y-4">
+      <LinearGradient
+        colors={isDark ? ['#0F172A', '#111827'] : ['#F8FAFC', '#FFFFFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          borderRadius: 24,
+          padding: 20,
+          marginBottom: 18,
+          borderWidth: 1,
+          borderColor: isDark ? '#1F2937' : '#E2E8F0',
+          position: 'relative',
+          overflow: 'hidden',
+        }}
+      >
+        <AccentBlob color={isDark ? '#1D4ED8' : '#C7D2FE'} size={200} style={{ right: -80, top: -40 }} />
+        <View className="flex-row items-center justify-between mb-4">
+          <View>
+            <Text className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              Recent Activity
+            </Text>
+            <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              Task updates flowing through your workspace.
+            </Text>
+          </View>
+          <View className="px-3 py-1 rounded-full" style={{ backgroundColor: isDark ? '#1F2937' : '#E0E7FF' }}>
+            <Text className={`text-xs font-semibold ${isDark ? 'text-indigo-200' : 'text-indigo-700'}`}>
+              Live
+            </Text>
+          </View>
+        </View>
+        <View className="gap-y-5">
           {loading && activityFeed.length === 0 ? (
             <Text className={isDark ? 'text-gray-400' : 'text-gray-600'}>Loading activity...</Text>
           ) : activityFeed.length === 0 ? (
@@ -158,18 +232,31 @@ const Dashboard: React.FC<DashboardProps> = ({
               No recent activity yet.
             </Text>
           ) : (
-            activityFeed.map(entry => {
+            visibleActivities.map((entry, index) => {
               const palette = getActivityPalette(entry.action, isDark);
+              const isLast = index === visibleActivities.length - 1;
               return (
-                <View key={entry._id} className="flex-row items-center">
-                  <View
-                    className="w-10 h-10 rounded-full items-center justify-center mr-3"
-                    style={{ backgroundColor: palette.bg }}
-                  >
-                    {palette.icon}
+                <View key={entry._id} className="flex-row">
+                  <View className="items-center mr-3">
+                    <View
+                      className="w-10 h-10 rounded-full items-center justify-center"
+                      style={{ backgroundColor: palette.bg }}
+                    >
+                      {palette.icon}
+                    </View>
+                    {!isLast && (
+                      <View
+                        style={{
+                          width: 2,
+                          flex: 1,
+                          backgroundColor: isDark ? '#1F2937' : '#E5E7EB',
+                          marginTop: 4,
+                        }}
+                      />
+                    )}
                   </View>
                   <View className="flex-1">
-                    <Text className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    <Text className={`font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {entry.description}
                     </Text>
                     <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -181,79 +268,114 @@ const Dashboard: React.FC<DashboardProps> = ({
             })
           )}
         </View>
-      </Card>
+      </LinearGradient>
 
       {/* Today's Summary */}
-      <Card variant="elevated" className="mb-6 p-4">
-        <View className="flex-row items-center mb-4">
-          <Calendar size={24} color="#F59E0B" />
-          <Text className={`text-lg font-semibold ml-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Today&apos;s Summary
-          </Text>
+      <LinearGradient
+        colors={isDark ? ['#1B1F31', '#111826'] : ['#FFF7ED', '#FFFFFF']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{
+          borderRadius: 24,
+          padding: 20,
+          marginBottom: 18,
+          borderWidth: 1,
+          borderColor: isDark ? '#1F2937' : '#FED7AA',
+          overflow: 'hidden',
+        }}
+      >
+        <AccentBlob color={isDark ? '#9A3412' : '#FDBA74'} size={160} style={{ right: -60, top: -50 }} />
+        <View className="flex-row items-center mb-6">
+          <View className="w-12 h-12 rounded-2xl items-center justify-center" style={{ backgroundColor: isDark ? '#78350F' : '#FDE68A' }}>
+            <Calendar size={26} color={isDark ? '#FCD34D' : '#B45309'} />
+          </View>
+          <View className="ml-4">
+            <Text className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              Today&apos;s Summary
+            </Text>
+            <Text className={`text-xs mt-1 ${isDark ? 'text-amber-200' : 'text-amber-600'}`}>
+              Where the sprint stands right now.
+            </Text>
+          </View>
         </View>
 
         <View className="flex-row justify-between">
-          <View className="items-center">
-            <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {loading ? '—' : metrics?.tasks.todo ?? 0}
-            </Text>
-            <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              To Do
-            </Text>
-          </View>
-          <View className="items-center">
-            <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {loading ? '—' : metrics?.tasks.in_progress ?? 0}
-            </Text>
-            <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              In Progress
-            </Text>
-          </View>
-          <View className="items-center">
-            <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {loading ? '—' : metrics?.tasks.done ?? 0}
-            </Text>
-            <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              Done
-            </Text>
-          </View>
+          {[
+            { label: 'To Do', value: metrics?.tasks.todo ?? 0 },
+            { label: 'In Progress', value: metrics?.tasks.in_progress ?? 0 },
+            { label: 'Done', value: metrics?.tasks.done ?? 0 },
+          ].map(bucket => (
+            <View key={bucket.label} className="items-center flex-1">
+              <Text className={`text-3xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {loading ? '—' : bucket.value}
+              </Text>
+              <Text className={`text-xs mt-2 tracking-widest ${isDark ? 'text-amber-200' : 'text-amber-600'}`}>
+                {bucket.label}
+              </Text>
+            </View>
+          ))}
         </View>
-      </Card>
+      </LinearGradient>
 
       {/* Bottom charts */}
       <View className="gap-y-6 mb-10">
-        <Card variant="elevated" className="p-4">
-          <Text className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Workload Breakdown
-          </Text>
+        <LinearGradient
+          colors={isDark ? ['#0F172A', '#111827'] : ['#F0F9FF', '#FFFFFF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            borderRadius: 24,
+            padding: 20,
+            borderWidth: 1,
+            borderColor: isDark ? '#1E3A8A' : '#BAE6FD',
+          }}
+        >
+          <View className="flex-row items-center justify-between mb-4">
+            <View>
+              <Text className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Workload Breakdown
+              </Text>
+              <Text className={`text-xs mt-1 ${isDark ? 'text-sky-200' : 'text-sky-600'}`}>
+                Priority blend across your active portfolio.
+              </Text>
+            </View>
+          </View>
           {priorityPieData.length ? (
             <View className="items-center">
               <PieChart
                 data={priorityPieData}
                 showGradient
+                donut
+                innerRadius={60}
+                radius={90}
                 shadow
                 shadowColor={isDark ? '#0f172a' : '#cbd5f5'}
                 shadowWidth={8}
                 strokeWidth={1}
-                focusOnPress
-                
-                strokeColor={isDark ? '#111827' : '#ffffff'}
-                gradientCenterColor='lightblue'
+                strokeColor={isDark ? '#111827' : '#FFFFFF'}
                 centerLabelComponent={() => (
                   <View
-                    className="items-center justify-center rounded-full p-1"
-
+                    style={{
+                      width: 90,
+                      height: 90,
+                      borderRadius: 45,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+                      borderWidth: 1,
+                      borderColor: isDark ? '#1E40AF' : '#E0F2FE',
+                    }}
                   >
-                    <Text className={`text-xl font-bold ${isDark ? 'text-gray-600' : 'text-gray-900'}`}>
+                    <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
                       {priorityTotal}
                     </Text>
-                    <Text className={`text-sm ${isDark ? 'text-gray-600' : 'text-gray-800'}`}>
+                    <Text className={`text-xs uppercase tracking-widest ${isDark ? 'text-sky-200' : 'text-sky-600'}`}>
                       tasks
                     </Text>
                   </View>
                 )}
               />
-              <View className="flex-row flex-wrap justify-between mt-4">
+              <View className="flex-row flex-wrap justify-between mt-6 w-full">
                 {priorityPieData.map(slice => (
                   <WorkloadLegend
                     key={slice.text}
@@ -270,17 +392,27 @@ const Dashboard: React.FC<DashboardProps> = ({
               Assign priorities to visualize workload composition.
             </Text>
           )}
-        </Card>
+        </LinearGradient>
 
-        <Card variant="elevated" className="p-4">
+        <LinearGradient
+          colors={isDark ? ['#111827', '#0F172A'] : ['#EEF2FF', '#FFFFFF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            borderRadius: 24,
+            padding: 20,
+            borderWidth: 1,
+            borderColor: isDark ? '#312E81' : '#E0E7FF',
+          }}
+        >
           <View className="flex-row items-center justify-between mb-2">
             <View className="flex-row items-center">
-              <BarChart3 size={20} color="#3B82F6" />
+              <BarChart3 size={20} color={isDark ? '#A5B4FC' : '#4338CA'} />
               <Text className={`text-lg font-semibold ml-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
                 Weekly Progress
               </Text>
             </View>
-            <Text className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            <Text className={`text-xs ${isDark ? 'text-indigo-200' : 'text-indigo-500'}`}>
               Created vs completed
             </Text>
           </View>
@@ -322,70 +454,37 @@ const Dashboard: React.FC<DashboardProps> = ({
               <LegendPill label="Completed" color={isDark ? '#6EE7B7' : '#10B981'} />
             </View>
           )}
-        </Card>
+        </LinearGradient>
       </View>
 
-      {/* Cycle Time Insight */}
+      <CycleInsightCard cycleTime={analytics?.cycleTime} isDark={isDark} />
+
+      {/* Delivery velocity */}
       <LinearGradient
-        colors={isDark ? ['#1E1B4B', '#111827'] : ['#EEF2FF', '#FFFFFF']}
+        colors={isDark ? ['#2E1065', '#1E1B4B', '#111827'] : ['#F5F3FF', '#EEF2FF', '#FFFFFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{
-          borderRadius: 24,
-          padding: 20,
-          marginBottom: 24,
+          borderRadius: 28,
+          padding: 24,
           borderWidth: 1,
-          borderColor: isDark ? '#312E81' : '#E0E7FF',
-          shadowColor: isDark ? '#000' : '#94A3B8',
-          shadowOpacity: 0.2,
-          shadowOffset: { width: 0, height: 6 },
-          shadowRadius: 12,
-          elevation: 6,
+          borderColor: isDark ? '#7C3AED' : '#DDD6FE',
+          marginBottom: 16,
         }}
       >
         <View className="flex-row items-center justify-between mb-4">
-          <View>
-            <Text className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              Cycle Time
-            </Text>
-            <Text className={`text-xs mt-1 ${isDark ? 'text-indigo-200' : 'text-indigo-500'}`}>
-              Days from creation to completion
-            </Text>
-          </View>
-          <View className="px-3 py-1 rounded-full bg-white/20">
-            <Text className="text-xs text-white">{analytics?.cycleTime ? 'Live' : 'Awaiting data'}</Text>
-          </View>
-        </View>
-        {analytics?.cycleTime ? (
-          <View className="gap-y-3">
-            {buildCycleMetrics(analytics.cycleTime).map(metric => (
-              <CycleMetric
-                key={metric.label}
-                label={metric.label}
-                value={metric.value}
-                isDark={isDark}
-                percentage={metric.percentage}
-                accent={metric.accent}
-              />
-            ))}
-          </View>
-        ) : (
-          <Text className={`text-sm ${isDark ? 'text-indigo-100' : 'text-indigo-600'}`}>
-            Complete a few tasks to start tracking cycle times.
-          </Text>
-        )}
-      </LinearGradient>
-
-      {/* Delivery velocity */}
-      <Card variant="elevated" className="mb-10 p-4">
-        <View className="flex-row items-center justify-between mb-4">
           <View className="flex-row items-center">
-            <TrendingUp size={20} color={isDark ? '#C084FC' : '#6366F1'} />
-            <Text className={`text-lg font-semibold ml-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              Delivery Velocity
-            </Text>
+            <TrendingUp size={20} color={isDark ? '#F0ABFC' : '#7C3AED'} />
+            <View className="ml-3">
+              <Text className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Delivery Velocity
+              </Text>
+              <Text className={`text-xs ${isDark ? 'text-purple-200' : 'text-purple-600'}`}>
+                Completed stories each week
+              </Text>
+            </View>
           </View>
-          <Text className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+          <Text className={`text-xs ${isDark ? 'text-purple-200' : 'text-purple-600'}`}>
             Last 6 weeks
           </Text>
         </View>
@@ -394,22 +493,22 @@ const Dashboard: React.FC<DashboardProps> = ({
             data={velocityLineData}
             curved
             isAnimated
-            color1={isDark ? '#C084FC' : '#6366F1'}
-            startFillColor1={isDark ? '#7C3AED' : '#C7D2FE'}
+            color1={isDark ? '#F0ABFC' : '#7C3AED'}
+            startFillColor1={isDark ? '#7C3AED' : '#DDD6FE'}
             endFillColor1={isDark ? '#111827' : '#FFFFFF'}
             startOpacity={0.6}
             endOpacity={0.05}
             thickness={4}
             hideDataPoints={false}
-            dataPointsColor={isDark ? '#FDE68A' : '#A5B4FC'}
+            dataPointsColor={isDark ? '#FDE68A' : '#7C3AED'}
             dataPointsWidth={10}
             yAxisThickness={0}
             xAxisThickness={0}
-            height={180}
+            height={200}
             areaChart
             hideRules={true}
             yAxisColor="#0BA5A4"
-            backgroundColor={chartBackground}
+            backgroundColor="transparent"
             rulesColor={chartGridColor}
           />
         ) : (
@@ -417,7 +516,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             Ship a few tasks to start tracking velocity.
           </Text>
         )}
-      </Card>
+      </LinearGradient>
     </ScrollView>
   );
 };
@@ -444,33 +543,47 @@ const buildSummaryChips = (
   isDark: boolean
 ) => {
   const summary = analytics?.summary;
+  const baseValueColor = isDark ? '#F9FAFB' : '#0F172A';
+
   return [
     {
-      label: 'Open tasks',
+      label: 'Open orbit',
       value: summary ? summary.openTasks : metrics?.tasks.total ?? '—',
-      subLabel: 'Active workload',
-      bg: isDark ? 'bg-blue-900/30' : 'bg-blue-50',
-      border: isDark ? 'border-blue-800/60' : 'border-blue-100',
-      textStrong: isDark ? 'text-white' : 'text-blue-900',
-      textMuted: isDark ? 'text-blue-200' : 'text-blue-700',
+      subLabel: 'Active workload in flight',
+      gradient: isDark ? ['#1E1B4B', '#0F172A'] : ['#DBEAFE', '#FFFFFF'],
+      borderColor: isDark ? '#312E81' : '#BFDBFE',
+      labelColor: isDark ? '#C7D2FE' : '#1D4ED8',
+      helperColor: isDark ? '#E0E7FF' : '#475569',
+      valueColor: baseValueColor,
+      iconBg: isDark ? '#312E81' : '#DBEAFE',
+      accentBlob: isDark ? '#4338CA' : '#A5B4FC',
+      icon: <ListChecks size={18} color={isDark ? '#C7D2FE' : '#1D4ED8'} />,
     },
     {
-      label: 'Completed',
+      label: 'Completion',
       value: summary ? summary.completedTasks : metrics?.tasks.done ?? '—',
-      subLabel: `${completionRate(metrics)}% completion`,
-      bg: isDark ? 'bg-emerald-900/25' : 'bg-emerald-50',
-      border: isDark ? 'border-emerald-900/40' : 'border-emerald-100',
-      textStrong: isDark ? 'text-white' : 'text-emerald-900',
-      textMuted: isDark ? 'text-emerald-200' : 'text-emerald-700',
+      subLabel: `${completionRate(metrics)}% completion rate`,
+      gradient: isDark ? ['#064E3B', '#052E16'] : ['#D1FAE5', '#FFFFFF'],
+      borderColor: isDark ? '#065F46' : '#A7F3D0',
+      labelColor: isDark ? '#6EE7B7' : '#047857',
+      helperColor: isDark ? '#D1FAE5' : '#047857',
+      valueColor: baseValueColor,
+      iconBg: isDark ? '#065F46' : '#DEF7EC',
+      accentBlob: isDark ? '#10B981' : '#34D399',
+      icon: <CheckSquare size={18} color={isDark ? '#6EE7B7' : '#047857'} />,
     },
     {
-      label: 'Overdue',
+      label: 'Overdue watch',
       value: summary ? summary.overdueTasks : metrics?.overdue.active ?? '—',
-      subLabel: summary ? `${summary.upcomingTasks} due soon` : '',
-      bg: isDark ? 'bg-red-900/30' : 'bg-red-50',
-      border: isDark ? 'border-red-900/40' : 'border-red-100',
-      textStrong: isDark ? 'text-white' : 'text-red-900',
-      textMuted: isDark ? 'text-red-200' : 'text-red-700',
+      subLabel: summary ? `${summary.upcomingTasks} deadlines approaching` : 'Monitor approaching work',
+      gradient: isDark ? ['#7F1D1D', '#450A0A'] : ['#FEE2E2', '#FFFFFF'],
+      borderColor: isDark ? '#991B1B' : '#FCA5A5',
+      labelColor: isDark ? '#FCA5A5' : '#B91C1C',
+      helperColor: isDark ? '#FECACA' : '#7F1D1D',
+      valueColor: baseValueColor,
+      iconBg: isDark ? '#991B1B' : '#FEE2E2',
+      accentBlob: isDark ? '#F87171' : '#FCA5A5',
+      icon: <AlertTriangle size={18} color={isDark ? '#FECACA' : '#B91C1C'} />,
     },
   ];
 };
@@ -478,26 +591,6 @@ const buildSummaryChips = (
 const completionRate = (metrics?: DashboardMetricsResponse['metrics'] | null) => {
   if (!metrics?.tasks.total) return 0;
   return Math.round((metrics.tasks.done / metrics.tasks.total) * 100);
-};
-
-const buildCycleMetrics = (cycleTime: {
-  averageDays?: number;
-  fastestDays?: number;
-  slowestDays?: number;
-}) => {
-  const entries = [
-    { label: 'Average', value: cycleTime.averageDays ?? 0, accent: '#C4B5FD' },
-    { label: 'Fastest', value: cycleTime.fastestDays ?? 0, accent: '#6EE7B7' },
-    { label: 'Slowest', value: cycleTime.slowestDays ?? 0, accent: '#FDE68A' },
-  ];
-  const max = Math.max(...entries.map(entry => entry.value), 1);
-
-  return entries.map(entry => ({
-    label: entry.label,
-    value: `${entry.value.toFixed(1)}d`,
-    percentage: Math.min((entry.value / max) * 100, 100),
-    accent: entry.accent,
-  }));
 };
 
 const buildPriorityPieData = (
@@ -554,40 +647,235 @@ const LegendPill = ({ label, color }: { label: string; color: string }) => (
   </View>
 );
 
-const CycleMetric = ({
-  label,
-  value,
-  isDark,
-  percentage,
-  accent,
+/**
+ * AccentBlob renders subtle vector circles so each card gets a soft, futuristic accent without extra SVG assets.
+ */
+const AccentBlob = ({
+  color,
+  size = 140,
+  style,
 }: {
-  label: string;
-  value: string;
-  isDark: boolean;
-  percentage: number;
-  accent: string;
+  color: string;
+  size?: number;
+  style?: object;
 }) => (
-  <View className="mb-2">
-    <View className="flex-row justify-between mb-1">
-      <Text className={`text-sm ${isDark ? 'text-indigo-100' : 'text-indigo-900'}`}>{label}</Text>
-      <Text className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-        {value}
-      </Text>
-    </View>
-    <View className={`h-2 rounded-full ${isDark ? 'bg-indigo-900/50' : 'bg-indigo-100'}`}>
-      <View
-        className="h-2 rounded-full"
-        style={{
-          width: `${percentage}%`,
-          backgroundColor: accent,
-          shadowColor: accent,
-          shadowOpacity: 0.4,
-          shadowOffset: { width: 0, height: 4 },
-          shadowRadius: 6,
-        }}
-      />
-    </View>
-  </View>
+  <View
+    pointerEvents="none"
+    style={[
+      {
+        position: 'absolute',
+        width: size,
+        height: size,
+        borderRadius: size,
+        backgroundColor: color,
+        opacity: 0.35,
+      },
+      style,
+    ]}
+  />
 );
+
+const CycleInsightCard = ({
+  cycleTime,
+  isDark,
+}: {
+  cycleTime?: {
+    averageDays?: number;
+    fastestDays?: number;
+    slowestDays?: number;
+  } | null;
+  isDark: boolean;
+}) => {
+  const animatedValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(animatedValue, {
+      toValue: cycleTime ? 1 : 0,
+      duration: 700,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [cycleTime, animatedValue]);
+
+  const metrics = useMemo(() => {
+    if (!cycleTime) return [];
+    return [
+      {
+        label: 'Average pace',
+        value: cycleTime.averageDays ?? 0,
+        accent: '#C4B5FD',
+        subtle: '#4C1D95',
+      },
+      {
+        label: 'Fastest turn',
+        value: cycleTime.fastestDays ?? 0,
+        accent: '#6EE7B7',
+        subtle: '#064E3B',
+      },
+      {
+        label: 'Slowest turn',
+        value: cycleTime.slowestDays ?? 0,
+        accent: '#FDE68A',
+        subtle: '#92400E',
+      },
+    ];
+  }, [cycleTime]);
+
+  const maxValue = Math.max(...metrics.map(item => item.value), 1);
+  const sparklineData = metrics.map(item => ({
+    value: item.value,
+    label: item.label[0],
+    dataPointText: `${item.value.toFixed(1)}d`,
+  }));
+
+  return (
+    <LinearGradient
+      colors={isDark ? ['#1B1A4B', '#0F172A'] : ['#E0E7FF', '#F9FAFB']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={{
+        borderRadius: 28,
+        padding: 24,
+        marginBottom: 24,
+        overflow: 'hidden',
+      }}
+    >
+      {/* Subtle vector accents */}
+      <View pointerEvents="none" style={{ position: 'absolute', right: -40, top: -20 }}>
+        <View
+          style={{
+            width: 160,
+            height: 160,
+            borderRadius: 999,
+            backgroundColor: isDark ? '#312E8140' : '#C4B5FD40',
+          }}
+        />
+      </View>
+      <View pointerEvents="none" style={{ position: 'absolute', left: -50, bottom: -60 }}>
+        <View
+          style={{
+            width: 200,
+            height: 200,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: isDark ? '#4338CA40' : '#A5B4FC60',
+          }}
+        />
+      </View>
+
+      <View className="flex-row items-center justify-between mb-6">
+        <View>
+          <Text className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            Cycle Time Radar
+          </Text>
+          <Text className={`text-xs mt-1 ${isDark ? 'text-indigo-200' : 'text-indigo-500'}`}>
+            Snapshot of delivery speed over recent work.
+          </Text>
+        </View>
+        <View className="px-3 py-1 rounded-full bg-white/20">
+          <Text className="text-xs text-white">{cycleTime ? 'Tracking' : 'Awaiting data'}</Text>
+        </View>
+      </View>
+
+      {!cycleTime ? (
+        <Text className={`text-sm ${isDark ? 'text-indigo-100' : 'text-indigo-700'}`}>
+          Complete a few tasks to start measuring cycle time insights.
+        </Text>
+      ) : (
+        <>
+          <View className="flex-row items-end justify-between mb-6">
+            <View>
+              <Text className={`text-4xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {cycleTime.averageDays?.toFixed(1) ?? '0.0'}
+                <Text className="text-lg font-semibold"> d</Text>
+              </Text>
+              <Text className={`text-sm mt-1 ${isDark ? 'text-indigo-100' : 'text-indigo-700'}`}>
+                Mean time from kickoff to done
+              </Text>
+            </View>
+            <View className="items-end">
+              <Text className={`text-xs uppercase tracking-widest ${isDark ? 'text-indigo-200' : 'text-indigo-600'}`}>
+                Sparkline
+              </Text>
+              <LineChart
+                data={sparklineData}
+                hideRules
+                hideDataPoints
+                isAnimated
+                animationDuration={700}
+                adjustToWidth
+                noOfSections={2}
+                width={140}
+                height={80}
+                curved
+                areaChart
+                startOpacity={0.3}
+                endOpacity={0}
+                startFillColor={isDark ? '#C4B5FD' : '#4C1D95'}
+                color1={isDark ? '#F472B6' : '#7C3AED'}
+                backgroundColor="transparent"
+              />
+            </View>
+          </View>
+
+          <View className="gap-y-4">
+            {metrics.map(metric => {
+              const progressWidth = animatedValue.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0%', `${Math.min((metric.value / maxValue) * 100, 100)}%`],
+              });
+
+              return (
+                <View key={metric.label}>
+                  <View className="flex-row justify-between mb-1">
+                    <Text className={`text-xs font-semibold ${isDark ? 'text-indigo-100' : 'text-indigo-900'}`}>
+                      {metric.label}
+                    </Text>
+                    <Text className={`text-xs font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {metric.value.toFixed(1)} d
+                    </Text>
+                  </View>
+                  <View className={`h-2.5 rounded-full ${isDark ? 'bg-white/10' : 'bg-indigo-100'}`}>
+                    <Animated.View
+                      style={{
+                        width: progressWidth,
+                        height: '100%',
+                        borderRadius: 999,
+                        backgroundColor: metric.accent,
+                        shadowColor: metric.subtle,
+                        shadowOpacity: 0.4,
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowRadius: 8,
+                      }}
+                    />
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+
+          <View className="flex-row mt-6 gap-3">
+            {metrics.map(metric => (
+              <View
+                key={`${metric.label}-chip`}
+                className="flex-1 rounded-2xl px-3 py-2"
+                style={{
+                  backgroundColor: isDark ? `${metric.subtle}40` : `${metric.accent}30`,
+                }}
+              >
+                <Text className="text-xs font-semibold text-white">
+                  {metric.label.split(' ')[0]}
+                </Text>
+                <Text className="text-sm font-bold text-white">
+                  {metric.value.toFixed(1)} d
+                </Text>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
+    </LinearGradient>
+  );
+};
 
 export default Dashboard;
