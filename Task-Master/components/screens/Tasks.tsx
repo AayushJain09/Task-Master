@@ -833,7 +833,7 @@ const Tasks: React.FC<TasksScreenProps> = ({
         };
 
         const response = await tasksService.createTask(createData);
-        console.log('Create response:', response);
+        // console.log('Create response:', response);
 
         // Add to column states
         addTaskToColumnState(response.task);

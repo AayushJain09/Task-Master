@@ -675,7 +675,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
         const shouldTrigger = finalAnalysis.isValid &&
           (Math.abs(translationX) > 80 || (Math.abs(velocityX) > 500 && Math.abs(translationX) > 40));
 
-        console.log('Should trigger:', shouldTrigger, 'Analysis:', finalAnalysis);
+        // console.log('Should trigger:', shouldTrigger, 'Analysis:', finalAnalysis);
 
         if (shouldTrigger && finalAnalysis.targetStatus) {
           console.log('Triggering status change to:', finalAnalysis.targetStatus);

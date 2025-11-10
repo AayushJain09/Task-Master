@@ -8,16 +8,17 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import SideDrawer, { DrawerToggle } from '@/components/ui/SideDrawer';
 import DrawerContent from '@/components/ui/DrawerContent';
-import { tasksService } from '@/services/tasks.service';
-import { TaskStatistics } from '@/types/task.types';
+import { dashboardService } from '@/services/dashboard.service';
+import { DashboardMetricsResponse, DashboardActivityResponse } from '@/types/dashboard.types';
 
 export default function HomeScreen() {
   const { user } = useAuth();
   const { isDark } = useTheme();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activeDrawerOption, setActiveDrawerOption] = useState('dashboard');
-  const [statisticsLoading, setStatisticsLoading] = useState(false);
-  const [taskStatistics, setTaskStatistics] = useState<TaskStatistics | null>(null);
+  const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metrics, setMetrics] = useState<DashboardMetricsResponse['metrics'] | null>(null);
+  const [activityFeed, setActivityFeed] = useState<DashboardActivityResponse['activities']>([]);
 
   const handleDrawerToggle = () => {
     setIsDrawerOpen(!isDrawerOpen);
@@ -27,21 +28,25 @@ export default function HomeScreen() {
     setActiveDrawerOption(optionId);
   };
 
-  const fetchTaskStatistics = useCallback(async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
-      setStatisticsLoading(true);
-      const response = await tasksService.getTaskStatistics();
-      setTaskStatistics(response.statistics);
+      setMetricsLoading(true);
+      const [metricsResponse, activityResponse] = await Promise.all([
+        dashboardService.getMetrics(),
+        dashboardService.getRecentActivity({ limit: 10 }),
+      ]);
+      setMetrics(metricsResponse.metrics);
+      setActivityFeed(activityResponse.activities);
     } catch (error) {
-      console.error('Failed to load task statistics:', error);
+      console.error('Failed to load dashboard data:', error);
     } finally {
-      setStatisticsLoading(false);
+      setMetricsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchTaskStatistics();
-  }, [fetchTaskStatistics]);
+    fetchDashboardData();
+  }, [fetchDashboardData]);
 
   return (
     <View className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -69,11 +74,12 @@ export default function HomeScreen() {
       </View>
 
       {/* Dynamic Content Based on Drawer Selection */}
-      <DrawerContent 
-        activeOption={activeDrawerOption} 
-        taskStatistics={taskStatistics}
-        statisticsLoading={statisticsLoading}
-        onRefreshStatistics={fetchTaskStatistics}
+      <DrawerContent
+        activeOption={activeDrawerOption}
+        dashboardMetrics={metrics}
+        activityFeed={activityFeed}
+        metricsLoading={metricsLoading}
+        onRefreshDashboard={fetchDashboardData}
       />
     </View>
   );

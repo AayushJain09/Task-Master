@@ -13,6 +13,7 @@ const Task = require('../models/Task');
 const ActivityLog = require('../models/ActivityLog');
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
+const MS_IN_WEEK = MS_IN_DAY * 7;
 
 /**
  * Builds a reusable task visibility filter so we only return
@@ -234,7 +235,242 @@ const getDashboardMetrics = async (req, res) => {
   }
 };
 
+/**
+ * Dashboard Analytics (Deep-Dive)
+ *
+ * Provides chart-friendly datasets used by the analytics screen:
+ * - status/priority distributions
+ * - 7-day created vs. completed trend
+ * - multi-week velocity trend
+ * - cycle time statistics
+ *
+ * @route   GET /api/v1/dashboard/analytics
+ * @access  Authenticated
+ */
+const getDashboardAnalytics = async (req, res) => {
+  try {
+    if (!req.user?.userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required to access analytics.',
+      });
+    }
+
+    const { userId, role } = req.user;
+    const userObjectId = new mongoose.Types.ObjectId(userId);
+    const visibilityFilter = buildTaskVisibilityFilter(userObjectId);
+    const now = new Date();
+
+    const sevenDayWindowStart = new Date(now.getTime() - (7 - 1) * MS_IN_DAY);
+    const eightWeekWindowStart = new Date(now.getTime() - 8 * MS_IN_WEEK);
+
+    const [
+      statusBreakdown,
+      priorityBreakdown,
+      overdueCount,
+      upcomingDueSoon,
+      weeklyCreatedRaw,
+      weeklyCompletedRaw,
+      velocityRaw,
+      cycleStats,
+    ] = await Promise.all([
+      Task.aggregate([
+        { $match: visibilityFilter },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Task.aggregate([
+        { $match: visibilityFilter },
+        {
+          $group: {
+            _id: '$priority',
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Task.countDocuments({
+        ...visibilityFilter,
+        dueDate: { $lt: now },
+        status: { $ne: 'done' },
+      }),
+      Task.countDocuments({
+        ...visibilityFilter,
+        dueDate: { $gte: now, $lt: new Date(now.getTime() + 3 * MS_IN_DAY) },
+        status: { $ne: 'done' },
+      }),
+      Task.aggregate([
+        {
+          $match: {
+            ...visibilityFilter,
+            createdAt: { $gte: sevenDayWindowStart },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+            },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Task.aggregate([
+        {
+          $match: {
+            ...visibilityFilter,
+            completedAt: { $gte: sevenDayWindowStart },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: { format: '%Y-%m-%d', date: '$completedAt' },
+            },
+            count: { $sum: 1 },
+          },
+        },
+      ]),
+      Task.aggregate([
+        {
+          $match: {
+            ...visibilityFilter,
+            completedAt: { $gte: eightWeekWindowStart },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              week: { $isoWeek: '$completedAt' },
+              year: { $isoWeekYear: '$completedAt' },
+            },
+            completed: { $sum: 1 },
+          },
+        },
+        { $sort: { '_id.year': 1, '_id.week': 1 } },
+      ]),
+      Task.aggregate([
+        {
+          $match: {
+            ...visibilityFilter,
+            status: 'done',
+            createdAt: { $ne: null },
+            completedAt: { $ne: null },
+          },
+        },
+        {
+          $project: {
+            cycleDays: {
+              $divide: [{ $subtract: ['$completedAt', '$createdAt'] }, MS_IN_DAY],
+            },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            avgCycleDays: { $avg: '$cycleDays' },
+            fastestDays: { $min: '$cycleDays' },
+            slowestDays: { $max: '$cycleDays' },
+          },
+        },
+      ]),
+    ]);
+
+    const statusMap = statusBreakdown.reduce(
+      (acc, entry) => ({ ...acc, [entry._id]: entry.count }),
+      { todo: 0, in_progress: 0, done: 0 }
+    );
+
+    const priorityMap = priorityBreakdown.reduce(
+      (acc, entry) => ({ ...acc, [entry._id]: entry.count }),
+      { high: 0, medium: 0, low: 0 }
+    );
+
+    const buildDayKey = (date) => date.toISOString().split('T')[0];
+    const lastSevenDays = Array.from({ length: 7 }).map((_, idx) => {
+      const day = new Date(now.getTime() - (6 - idx) * MS_IN_DAY);
+      return {
+        key: buildDayKey(day),
+        label: day.toLocaleDateString('en-US', { weekday: 'short' }),
+      };
+    });
+
+    const createdMap = weeklyCreatedRaw.reduce(
+      (acc, entry) => ({ ...acc, [entry._id]: entry.count }),
+      {}
+    );
+    const completedMap = weeklyCompletedRaw.reduce(
+      (acc, entry) => ({ ...acc, [entry._id]: entry.count }),
+      {}
+    );
+
+    const weeklyProgress = lastSevenDays.map(day => ({
+      date: day.key,
+      label: day.label,
+      created: createdMap[day.key] || 0,
+      completed: completedMap[day.key] || 0,
+    }));
+
+    const velocityTrend = velocityRaw.map(entry => ({
+      week: entry._id.week,
+      year: entry._id.year,
+      completed: entry.completed,
+    }));
+
+    const cycleSummary = cycleStats.length
+      ? {
+          averageDays: parseFloat(cycleStats[0].avgCycleDays.toFixed(2)),
+          fastestDays: parseFloat(cycleStats[0].fastestDays.toFixed(2)),
+          slowestDays: parseFloat(cycleStats[0].slowestDays.toFixed(2)),
+        }
+      : {
+          averageDays: 0,
+          fastestDays: 0,
+          slowestDays: 0,
+        };
+
+    const totalTasks = Object.values(statusMap).reduce((sum, count) => sum + count, 0);
+    const summary = {
+      totalTasks,
+      openTasks: totalTasks - statusMap.done,
+      completedTasks: statusMap.done,
+      overdueTasks: overdueCount,
+      upcomingTasks: upcomingDueSoon,
+    };
+
+    res.status(200).json({
+      success: true,
+      message: 'Dashboard analytics retrieved successfully',
+      data: {
+        userContext: {
+          userId,
+          role,
+        },
+        analytics: {
+          summary,
+          statusDistribution: statusMap,
+          priorityDistribution: priorityMap,
+          weeklyProgress,
+          velocityTrend,
+          cycleTime: cycleSummary,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('Get dashboard analytics error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve dashboard analytics',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+    });
+  }
+};
+
 module.exports = {
   getRecentActivity,
   getDashboardMetrics,
+  getDashboardAnalytics,
 };

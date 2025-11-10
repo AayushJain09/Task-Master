@@ -113,18 +113,30 @@ activityLogSchema.statics.logTaskActivity = async function ({
     throw new Error('Task reference is required to log activity');
   }
 
+  const normalizeId = (value) => {
+    if (!value) return null;
+    if (typeof value === 'string') return value;
+    if (value instanceof mongoose.Types.ObjectId) return value.toString();
+    if (value._id) return value._id.toString();
+    return null;
+  };
+
   const participantSet = new Set();
 
-  if (task.assignedTo) {
-    participantSet.add(task.assignedTo.toString());
+  const assignedToId = normalizeId(task.assignedTo);
+  if (assignedToId) {
+    participantSet.add(assignedToId);
   }
-  if (task.assignedBy) {
-    participantSet.add(task.assignedBy.toString());
+
+  const assignedById = normalizeId(task.assignedBy);
+  if (assignedById) {
+    participantSet.add(assignedById);
   }
 
   // Ensure the performer also sees the entry even if not assignor/assignee
-  if (performedBy) {
-    participantSet.add(performedBy.toString());
+  const performerId = normalizeId(performedBy);
+  if (performerId) {
+    participantSet.add(performerId);
   }
 
   const participants = Array.from(participantSet).map(id => new mongoose.Types.ObjectId(id));

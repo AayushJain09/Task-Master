@@ -1553,6 +1553,105 @@
 
 /**
  * @swagger
+ * /dashboard/analytics:
+ *   get:
+ *     summary: Get advanced dashboard analytics for the authenticated user
+ *     description: Provides datasets used for analytics charts, including weekly progress, velocity trends, and cycle time stats.
+ *     tags: [Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Dashboard analytics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Dashboard analytics retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userContext:
+ *                       type: object
+ *                       properties:
+ *                         userId:
+ *                           type: string
+ *                           example: '65fe20dd54a5d5a3171f54f8'
+ *                         role:
+ *                           type: string
+ *                           example: 'user'
+ *                     analytics:
+ *                       type: object
+ *                       properties:
+ *                         summary:
+ *                           type: object
+ *                           properties:
+ *                             totalTasks:
+ *                               type: integer
+ *                             openTasks:
+ *                               type: integer
+ *                             completedTasks:
+ *                               type: integer
+ *                             overdueTasks:
+ *                               type: integer
+ *                             upcomingTasks:
+ *                               type: integer
+ *                         statusDistribution:
+ *                           type: object
+ *                         priorityDistribution:
+ *                           type: object
+ *                         weeklyProgress:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               date:
+ *                                 type: string
+ *                                 example: '2024-04-02'
+ *                               label:
+ *                                 type: string
+ *                                 example: 'Tue'
+ *                               created:
+ *                                 type: integer
+ *                               completed:
+ *                                 type: integer
+ *                         velocityTrend:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               week:
+ *                                 type: integer
+ *                               year:
+ *                                 type: integer
+ *                               completed:
+ *                                 type: integer
+ *                         cycleTime:
+ *                           type: object
+ *                           properties:
+ *                             averageDays:
+ *                               type: number
+ *                               example: 2.5
+ *                             fastestDays:
+ *                               type: number
+ *                               example: 0.5
+ *                             slowestDays:
+ *                               type: number
+ *                               example: 6
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
  * /tasks/overdue:
  *   get:
  *     summary: Get overdue tasks for the authenticated user

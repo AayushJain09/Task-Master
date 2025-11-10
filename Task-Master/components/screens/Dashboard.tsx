@@ -1,55 +1,65 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
-import { 
-  CheckSquare, 
+import {
+  CheckSquare,
   TrendingUp,
   Calendar,
   Clock,
   Target,
   BarChart3,
   AlertTriangle,
+  ListChecks,
+  MapPin,
+  Activity as ActivityIcon,
 } from 'lucide-react-native';
 import Card from '../ui/Card';
-import { TaskStatistics } from '@/types/task.types';
+import { DashboardMetricsResponse, ActivityLogEntry } from '@/types/dashboard.types';
 
 interface DashboardProps {
-  statistics?: TaskStatistics | null;
-  statisticsLoading?: boolean;
-  onRefreshStatistics?: () => Promise<void> | void;
+  metrics?: DashboardMetricsResponse['metrics'] | null;
+  activityFeed?: ActivityLogEntry[];
+  loading?: boolean;
+  onRefresh?: () => Promise<void> | void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
-  statistics,
-  statisticsLoading = false,
-  onRefreshStatistics,
+  metrics,
+  activityFeed = [],
+  loading = false,
+  onRefresh,
 }) => {
   const { isDark } = useTheme();
-  const activeTasks = (statistics?.todo || 0) + (statistics?.in_progress || 0);
-  const completionRate = statistics?.completionRate ?? 0;
-  const overdueActive = statistics?.overdueBreakdown.active.total ?? 0;
-  const onTrack = statistics?.normalBreakdown.total ?? 0;
+  const activeTasks = (metrics?.tasks.todo || 0) + (metrics?.tasks.in_progress || 0);
+  const completionRate =
+    metrics?.tasks.total ? Math.round((metrics.tasks.done / metrics.tasks.total) * 100) : 0;
+  const overdueActive = metrics?.overdue.active ?? 0;
+  const onTrack = metrics ? metrics.tasks.total - overdueActive : 0;
 
   const handleRefresh = () => {
-    if (onRefreshStatistics) {
-      onRefreshStatistics();
+    if (onRefresh) {
+      onRefresh();
     }
   };
 
   return (
-    <ScrollView className="flex-1 px-4 py-6" showsVerticalScrollIndicator={false}>
+    <ScrollView
+      className="flex-1 px-4 py-6"
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 32 }}
+    >
       <View className="flex-row items-center justify-between mb-6">
         <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
           Dashboard Overview
         </Text>
         <TouchableOpacity
           onPress={handleRefresh}
-          disabled={statisticsLoading}
+          disabled={loading}
           className={`px-3 py-1.5 rounded-full border ${
             isDark ? 'border-gray-700' : 'border-gray-200'
           }`}
         >
-          {statisticsLoading ? (
+          {loading ? (
             <ActivityIndicator size="small" color={isDark ? '#93C5FD' : '#2563EB'} />
           ) : (
             <Text className={isDark ? 'text-gray-300 text-sm' : 'text-gray-700 text-sm'}>
@@ -68,7 +78,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             </View>
             <View>
               <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {statisticsLoading ? '—' : activeTasks}
+                {loading ? '—' : activeTasks}
               </Text>
               <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                 Active Tasks
@@ -84,7 +94,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             </View>
             <View>
               <Text className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {statisticsLoading ? '—' : `${completionRate}%`}
+                {loading ? '—' : `${completionRate}%`}
               </Text>
               <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
                 Completion Rate
@@ -100,11 +110,9 @@ const Dashboard: React.FC<DashboardProps> = ({
           <Text className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
             Task Health
           </Text>
-          {statistics && (
-            <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              {statistics.total} tracked tasks
-            </Text>
-          )}
+          <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+            {metrics?.tasks.total ?? '—'} tracked tasks
+          </Text>
         </View>
 
         <View className="flex-row flex-wrap gap-4">
@@ -120,19 +128,17 @@ const Dashboard: React.FC<DashboardProps> = ({
               <AlertTriangle size={16} color={isDark ? '#F87171' : '#DC2626'} />
             </View>
             <Text className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {statisticsLoading ? '—' : overdueActive}
+              {loading ? '—' : overdueActive}
             </Text>
             <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              {statisticsLoading
+              {loading
                 ? 'Updating...'
-                : `${statistics?.overdueBreakdown.active.todo ?? 0} todo · ${
-                    statistics?.overdueBreakdown.active.in_progress ?? 0
-                  } in progress`}
+                : `${metrics?.tasks.todo ?? 0} todo · ${metrics?.tasks.in_progress ?? 0} in progress`}
             </Text>
             <Text className={`text-xs mt-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              {statisticsLoading
+              {loading
                 ? '—'
-                : `${statistics?.overdueBreakdown.resolved.done ?? 0} finished after deadline`}
+                : `${metrics?.tasks.done ?? 0} finished after deadline`}
             </Text>
           </View>
 
@@ -145,19 +151,17 @@ const Dashboard: React.FC<DashboardProps> = ({
               On track
             </Text>
             <Text className={`text-3xl font-bold mt-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {statisticsLoading ? '—' : onTrack}
+              {loading ? '—' : onTrack}
             </Text>
             <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-              {statisticsLoading
+              {loading
                 ? 'Updating...'
-                : `${statistics?.normalBreakdown.todo ?? 0} todo · ${
-                    statistics?.normalBreakdown.in_progress ?? 0
-                  } in progress`}
+                : `${metrics?.tasks.todo ?? 0} todo · ${metrics?.tasks.in_progress ?? 0} in progress`}
             </Text>
             <Text className={`text-xs mt-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-              {statisticsLoading
+              {loading
                 ? '—'
-                : `${statistics?.normalBreakdown.done ?? 0} completed on time`}
+                : `${metrics?.tasks.done ?? 0} completed on time`}
             </Text>
           </View>
         </View>
@@ -179,7 +183,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 Tasks Completed
               </Text>
               <Text className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                {statisticsLoading ? '—' : `${statistics?.done ?? 0}/${statistics?.total ?? 0}`}
+                {loading ? '—' : `${metrics?.tasks.done ?? 0}/${metrics?.tasks.total ?? 0}`}
               </Text>
             </View>
             <View className={`h-2 rounded-full ${isDark ? 'bg-gray-700' : 'bg-gray-200'}`}>
@@ -221,45 +225,46 @@ const Dashboard: React.FC<DashboardProps> = ({
       </Card>
 
       {/* Recent Activity */}
-      <Card variant="elevated" className="mb-4 p-4">
+      {/* Recent Activity Feed */}
+      <Card variant="elevated" className="mb-6 p-4">
         <Text className={`text-lg font-semibold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>
           Recent Activity
         </Text>
-        <View className="gap-y-3">
-          {[
-            { title: 'Completed "Review project proposal"', time: '2 hours ago', type: 'task' },
-            { title: 'Set reminder for team meeting', time: '4 hours ago', type: 'reminder' },
-            { title: 'Updated project documentation', time: '1 day ago', type: 'task' },
-            { title: 'Achieved weekly productivity goal', time: '2 days ago', type: 'goal' },
-          ].map((activity, index) => (
-            <View key={index} className="flex-row items-center">
-              <View className={`w-8 h-8 rounded-full items-center justify-center mr-3 ${
-                activity.type === 'task' ? 'bg-blue-500' :
-                activity.type === 'reminder' ? 'bg-green-500' : 'bg-purple-500'
-              }`}>
-                {activity.type === 'task' ? (
-                  <CheckSquare size={16} color="#FFFFFF" />
-                ) : activity.type === 'reminder' ? (
-                  <Clock size={16} color="#FFFFFF" />
-                ) : (
-                  <Target size={16} color="#FFFFFF" />
-                )}
-              </View>
-              <View className="flex-1">
-                <Text className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {activity.title}
-                </Text>
-                <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-                  {activity.time}
-                </Text>
-              </View>
-            </View>
-          ))}
+        <View className="gap-y-4">
+          {loading && activityFeed.length === 0 ? (
+            <Text className={isDark ? 'text-gray-400' : 'text-gray-600'}>Loading activity...</Text>
+          ) : activityFeed.length === 0 ? (
+            <Text className={isDark ? 'text-gray-400' : 'text-gray-600'}>
+              No recent activity yet.
+            </Text>
+          ) : (
+            activityFeed.map(entry => {
+              const palette = getActivityPalette(entry.action, isDark);
+              return (
+                <View key={entry._id} className="flex-row items-center">
+                  <View
+                    className="w-10 h-10 rounded-full items-center justify-center mr-3"
+                    style={{ backgroundColor: palette.bg }}
+                  >
+                    {palette.icon}
+                  </View>
+                  <View className="flex-1">
+                    <Text className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                      {entry.description}
+                    </Text>
+                    <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                      {new Date(entry.createdAt).toLocaleString()}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })
+          )}
         </View>
       </Card>
 
       {/* Today's Summary */}
-      <Card variant="elevated" className="mb-4 p-4">
+      <Card variant="elevated" className="mb-10 p-4">
         <View className="flex-row items-center mb-4">
           <Calendar size={24} color="#F59E0B" />
           <Text className={`text-lg font-semibold ml-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -269,25 +274,25 @@ const Dashboard: React.FC<DashboardProps> = ({
         
         <View className="flex-row justify-between">
           <View className="items-center">
-            <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {statisticsLoading ? '—' : statistics?.todo ?? 0}
-            </Text>
+              <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {loading ? '—' : metrics?.tasks.todo ?? 0}
+              </Text>
             <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               To Do
             </Text>
           </View>
           <View className="items-center">
-            <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {statisticsLoading ? '—' : statistics?.in_progress ?? 0}
-            </Text>
+              <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {loading ? '—' : metrics?.tasks.in_progress ?? 0}
+              </Text>
             <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               In Progress
             </Text>
           </View>
           <View className="items-center">
-            <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-              {statisticsLoading ? '—' : statistics?.done ?? 0}
-            </Text>
+              <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {loading ? '—' : metrics?.tasks.done ?? 0}
+              </Text>
             <Text className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               Done
             </Text>
@@ -296,6 +301,19 @@ const Dashboard: React.FC<DashboardProps> = ({
       </Card>
     </ScrollView>
   );
+};
+
+const getActivityPalette = (action: string, isDark: boolean) => {
+  if (action.includes('created')) {
+    return { bg: isDark ? '#1D4ED8' : '#DBEAFE', icon: <ListChecks size={16} color="#FFFFFF" /> };
+  }
+  if (action.includes('completed')) {
+    return { bg: isDark ? '#065F46' : '#D1FAE5', icon: <CheckSquare size={16} color="#FFFFFF" /> };
+  }
+  if (action.includes('status')) {
+    return { bg: isDark ? '#92400E' : '#FEF3C7', icon: <ActivityIcon size={16} color="#FFFFFF" /> };
+  }
+  return { bg: isDark ? '#4C1D95' : '#EDE9FE', icon: <MapPin size={16} color="#FFFFFF" /> };
 };
 
 export default Dashboard;

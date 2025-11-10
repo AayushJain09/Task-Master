@@ -531,7 +531,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             ? InputSanitizer.sanitizeText(sanitizedFormData.assignedTo, { maxLength: 100 })
             : currentUser?.id // Default to current user if no assignment specified
         };
-        console.log("api Data ", apiData)
+        // console.log("api Data ", apiData)
         
         // Submit form
         await onSubmit(apiData as any);
