@@ -42,7 +42,8 @@ import {
   FileText,
   Star,
   Hash,
-  Podcast
+  Podcast,
+  AlertTriangle
 } from 'lucide-react-native';
 import { Task } from './TaskCard';
 
@@ -151,6 +152,53 @@ const getStatusConfig = (status: string) => {
 };
 
 /**
+ * Overdue Severity Helper
+ *
+ * Keeps overdue styling consistent across the modal by mapping severity
+ * levels to background/border/text colors.
+ */
+const getOverdueTheme = (severity: string) => {
+  const map: Record<string, { bg: string; border: string; text: string }> = {
+    critical: { bg: '#FEE2E2', border: '#F87171', text: '#B91C1C' },
+    high: { bg: '#FEF3C7', border: '#FBBF24', text: '#92400E' },
+    medium: { bg: '#FFFBEB', border: '#FCD34D', text: '#92400E' },
+    low: { bg: '#ECFCCB', border: '#A3E635', text: '#3F6212' },
+  };
+  return map[severity] || map.medium;
+};
+
+const buildOverdueDetails = (task: Task) => {
+  if (!(task.overdueMetadata?.isOverdue || task.isOverdue)) return null;
+
+  const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const computedDaysPast = dueDate
+    ? Math.max(
+        1,
+        Math.round(
+          (today.getTime() - new Date(dueDate.setHours(0, 0, 0, 0)).getTime()) /
+            (24 * 60 * 60 * 1000)
+        )
+      )
+    : 1;
+
+  const daysPastDue = task.overdueMetadata?.daysPastDue ?? computedDaysPast;
+  const severity = task.overdueMetadata?.severity ?? (daysPastDue >= 7
+    ? 'critical'
+    : daysPastDue >= 3
+      ? 'high'
+      : 'medium');
+
+  return {
+    daysPastDue,
+    severity,
+    theme: getOverdueTheme(severity),
+  };
+};
+
+/**
  * TaskDetailsModal Component
  */
 export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
@@ -226,6 +274,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
   const statusConfig = getStatusConfig(task.status);
   const PriorityIcon = priorityConfig.iconComponent;
   const StatusIcon = statusConfig.iconComponent;
+  const overdueDetails = buildOverdueDetails(task);
 
   const formatDate = (dateString: string) => {
     try {
@@ -491,6 +540,39 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                   </Text>
                 </View>
               </View>
+
+              {/* Overdue Insight */}
+              {overdueDetails && (
+                <View
+                  className="p-4 rounded-xl mb-4 border"
+                  style={{
+                    backgroundColor: overdueDetails.theme.bg,
+                    borderColor: overdueDetails.theme.border,
+                  }}
+                >
+                  <View className="flex-row items-center mb-2">
+                    <AlertTriangle size={18} color={overdueDetails.theme.text} />
+                    <Text
+                      className="text-sm font-semibold ml-2 uppercase"
+                      style={{ color: overdueDetails.theme.text }}
+                    >
+                      {overdueDetails.severity} overdue
+                    </Text>
+                  </View>
+                  <Text
+                    className="text-lg font-bold"
+                    style={{ color: overdueDetails.theme.text }}
+                  >
+                    {overdueDetails.daysPastDue} day{overdueDetails.daysPastDue !== 1 ? 's' : ''} past due
+                  </Text>
+                  <Text
+                    className="text-sm mt-1"
+                    style={{ color: overdueDetails.theme.text }}
+                  >
+                    Resolve this task to get back on schedule.
+                  </Text>
+                </View>
+              )}
 
               {/* Row 3: Assigned By and Assigned To */}
               <View className="flex-row gap-3 mb-4">

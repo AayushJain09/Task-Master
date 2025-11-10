@@ -20,6 +20,7 @@ const {
   updateTaskStatus,
   getTaskStatistics,
   getOverdueTasks,
+  getOverdueTasksByStatus,
 } = require('../controllers/taskController');
 
 const {
@@ -29,6 +30,7 @@ const {
   validateTaskId,
   validateTaskQuery,
   validateTaskStatusQuery,
+  validateOverdueTasksByStatusQuery,
 } = require('../validators/taskValidator');
 
 const { authenticate } = require('../middleware/auth');
@@ -47,6 +49,9 @@ router.get('/statistics', authenticate, rateLimitModerate, getTaskStatistics);
 
 // GET /api/tasks/overdue - Get overdue tasks (documented in swaggerDocs.js)
 router.get('/overdue', authenticate, rateLimitModerate, getOverdueTasks);
+
+// GET /api/tasks/overdue/status - Get overdue tasks by specific status with comprehensive filtering (documented in swaggerDocs.js)
+router.get('/overdue/status', authenticate, rateLimitModerate, validateOverdueTasksByStatusQuery, getOverdueTasksByStatus);
 
 // GET /api/tasks/:taskId - Get specific task (documented in swaggerDocs.js)
 router.get('/:taskId', authenticate, rateLimitModerate, validateTaskId, getTaskById);

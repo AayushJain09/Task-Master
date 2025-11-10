@@ -1910,4 +1910,361 @@
  *         $ref: '#/components/responses/InternalServerError'
  */
 
+/**
+ * @swagger
+ * /api/tasks/overdue/status:
+ *   get:
+ *     summary: Get overdue tasks filtered by specific status
+ *     description: |
+ *       Retrieves overdue tasks filtered by a specific status (todo or in_progress) with comprehensive 
+ *       filtering, sorting, and pagination support. This endpoint is specifically designed for 
+ *       status-specific overdue task management and Kanban board overdue indicators.
+ *       
+ *       **Key Features:**
+ *       - Status-specific overdue task retrieval (todo, in_progress only)
+ *       - Overdue severity categorization (critical, high, medium, low)
+ *       - Days past due filtering for escalation management
+ *       - Enhanced filtering by priority, category, tags, and search
+ *       - Role-based filtering (assignee, assignor, both)
+ *       - Flexible sorting with overdue-specific options
+ *       - Independent pagination for status-based overdue management
+ *       - Detailed overdue metadata including severity analysis
+ *       
+ *       **Overdue Severity Categories:**
+ *       - **Critical**: 7+ days overdue OR high priority tasks 3+ days overdue
+ *       - **High**: 3-6 days overdue OR medium/high priority tasks 1-2 days overdue
+ *       - **Medium**: 1-2 days overdue for low priority tasks
+ *       - **Low**: Just overdue (same day)
+ *       
+ *       **Use Cases:**
+ *       - Kanban board overdue task indicators
+ *       - Status-specific overdue task management
+ *       - Overdue task severity analysis
+ *       - Deadline management and escalation
+ *     tags: [Tasks - Overdue Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         required: true
+ *         schema:
+ *           type: string
+ *           enum: [todo, in_progress]
+ *         description: Task status (done tasks cannot be overdue)
+ *         example: todo
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *           enum: [low, medium, high]
+ *         description: Filter by task priority
+ *         example: high
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *           enum: [assignee, assignor, both]
+ *           default: both
+ *         description: Filter by user role in relation to the task
+ *         example: assignee
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *           maxLength: 50
+ *         description: Filter by category (case-insensitive partial match)
+ *         example: Development
+ *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *           maxLength: 200
+ *         description: Comma-separated list of tags to filter by
+ *         example: urgent,bug,frontend
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *           minLength: 1
+ *           maxLength: 100
+ *         description: Search term for title, description, and tags
+ *         example: login issue
+ *       - in: query
+ *         name: daysPast
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           maximum: 365
+ *         description: Filter tasks overdue by X days or more
+ *         example: 3
+ *       - in: query
+ *         name: severity
+ *         schema:
+ *           type: string
+ *           enum: [critical, high, medium, low]
+ *         description: Filter by overdue severity level
+ *         example: critical
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number for pagination
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Number of tasks per page
+ *         example: 20
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [dueDate, daysPastDue, priority, title, createdAt, updatedAt]
+ *           default: dueDate
+ *         description: Field to sort by
+ *         example: daysPastDue
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: asc
+ *         description: Sort order (asc = most overdue first for dueDate)
+ *         example: desc
+ *     responses:
+ *       200:
+ *         description: Overdue tasks retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Overdue todo tasks retrieved successfully"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     tasks:
+ *                       type: array
+ *                       items:
+ *                         allOf:
+ *                           - $ref: '#/components/schemas/Task'
+ *                           - type: object
+ *                             properties:
+ *                               overdueMetadata:
+ *                                 type: object
+ *                                 properties:
+ *                                   daysPastDue:
+ *                                     type: integer
+ *                                     description: Number of days past the due date
+ *                                     example: 5
+ *                                   severity:
+ *                                     type: string
+ *                                     enum: [critical, high, medium, low]
+ *                                     description: Calculated overdue severity
+ *                                     example: high
+ *                                   isOverdue:
+ *                                     type: boolean
+ *                                     example: true
+ *                     pagination:
+ *                       $ref: '#/components/schemas/PaginationInfo'
+ *                     filters:
+ *                       type: object
+ *                       description: Applied filters for debugging
+ *                       properties:
+ *                         status:
+ *                           type: string
+ *                           example: todo
+ *                         priority:
+ *                           type: string
+ *                           example: high
+ *                         role:
+ *                           type: string
+ *                           example: assignee
+ *                         category:
+ *                           type: string
+ *                           example: Development
+ *                         tags:
+ *                           type: string
+ *                           example: urgent,bug
+ *                         search:
+ *                           type: string
+ *                           example: login
+ *                         daysPast:
+ *                           type: integer
+ *                           example: 3
+ *                         severity:
+ *                           type: string
+ *                           example: critical
+ *                         sortBy:
+ *                           type: string
+ *                           example: daysPastDue
+ *                         sortOrder:
+ *                           type: string
+ *                           example: desc
+ *                     overdueMetadata:
+ *                       type: object
+ *                       description: Comprehensive overdue analysis for the current page and status
+ *                       properties:
+ *                         status:
+ *                           type: string
+ *                           description: The queried task status
+ *                           example: todo
+ *                         totalOverdueInStatus:
+ *                           type: integer
+ *                           description: Total number of overdue tasks in this status
+ *                           example: 15
+ *                         currentPageCount:
+ *                           type: integer
+ *                           description: Number of tasks in current page
+ *                           example: 10
+ *                         severityBreakdown:
+ *                           type: object
+ *                           description: Count of tasks by severity level
+ *                           properties:
+ *                             critical:
+ *                               type: integer
+ *                               example: 2
+ *                             high:
+ *                               type: integer
+ *                               example: 5
+ *                             medium:
+ *                               type: integer
+ *                               example: 6
+ *                             low:
+ *                               type: integer
+ *                               example: 2
+ *                         averageDaysPastDue:
+ *                           type: integer
+ *                           description: Average number of days past due for all overdue tasks
+ *                           example: 4
+ *                         criticalTasksCount:
+ *                           type: integer
+ *                           description: Number of critical severity tasks
+ *                           example: 2
+ *                         oldestOverdueTask:
+ *                           type: integer
+ *                           description: Days past due for the oldest overdue task
+ *                           example: 14
+ *             examples:
+ *               critical_overdue_todos:
+ *                 summary: Critical overdue todo tasks
+ *                 description: Get all critical overdue todo tasks sorted by days past due
+ *                 value:
+ *                   success: true
+ *                   message: "Overdue todo tasks retrieved successfully"
+ *                   data:
+ *                     tasks:
+ *                       - id: "507f1f77bcf86cd799439011"
+ *                         title: "Fix critical login bug"
+ *                         description: "Users cannot login after password reset"
+ *                         status: "todo"
+ *                         priority: "high"
+ *                         dueDate: "2024-11-01T23:59:59.999Z"
+ *                         overdueMetadata:
+ *                           daysPastDue: 6
+ *                           severity: "critical"
+ *                           isOverdue: true
+ *                         assignedTo:
+ *                           id: "507f1f77bcf86cd799439012"
+ *                           firstName: "John"
+ *                           lastName: "Doe"
+ *                           email: "john@example.com"
+ *                         assignedBy:
+ *                           id: "507f1f77bcf86cd799439013"
+ *                           firstName: "Jane"
+ *                           lastName: "Smith"
+ *                           email: "jane@example.com"
+ *                     pagination:
+ *                       currentPage: 1
+ *                       totalPages: 2
+ *                       totalTasks: 15
+ *                       tasksPerPage: 10
+ *                       hasNextPage: true
+ *                       hasPrevPage: false
+ *                       startIndex: 1
+ *                       endIndex: 10
+ *                     overdueMetadata:
+ *                       status: "todo"
+ *                       totalOverdueInStatus: 15
+ *                       currentPageCount: 10
+ *                       severityBreakdown:
+ *                         critical: 3
+ *                         high: 5
+ *                         medium: 4
+ *                         low: 3
+ *                       averageDaysPastDue: 5
+ *                       criticalTasksCount: 3
+ *                       oldestOverdueTask: 12
+ *       400:
+ *         description: Validation failed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             examples:
+ *               invalid_status:
+ *                 summary: Invalid status parameter
+ *                 value:
+ *                   success: false
+ *                   message: "Validation failed"
+ *                   errors:
+ *                     - field: "status"
+ *                       message: "Status must be todo or in_progress (done tasks cannot be overdue)"
+ *               missing_status:
+ *                 summary: Missing required status parameter
+ *                 value:
+ *                   success: false
+ *                   message: "Validation failed"
+ *                   errors:
+ *                     - field: "status"
+ *                       message: "Status parameter is required for overdue tasks"
+ *               invalid_severity:
+ *                 summary: Invalid severity filter
+ *                 value:
+ *                   success: false
+ *                   message: "Validation failed"
+ *                   errors:
+ *                     - field: "severity"
+ *                       message: "Severity must be one of: critical, high, medium, low"
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       429:
+ *         $ref: '#/components/responses/RateLimitError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *     examples:
+ *       get_critical_overdue_todos:
+ *         summary: Get critical overdue todo tasks
+ *         value:
+ *           url: "/api/tasks/overdue/status?status=todo&severity=critical&sortBy=daysPastDue&sortOrder=desc"
+ *           description: "Get critical overdue todo tasks, sorted by days past due (oldest first)"
+ *       get_overdue_high_priority_in_progress:
+ *         summary: Get overdue high priority in-progress tasks
+ *         value:
+ *           url: "/api/tasks/overdue/status?status=in_progress&priority=high&daysPast=2"
+ *           description: "Get high priority in-progress tasks that are 2+ days overdue"
+ *       search_overdue_dev_tasks:
+ *         summary: Search overdue development tasks
+ *         value:
+ *           url: "/api/tasks/overdue/status?status=todo&category=Development&search=bug&sortBy=dueDate"
+ *           description: "Search for overdue development tasks containing 'bug', sorted by due date"
+ *       escalated_overdue_tasks:
+ *         summary: Get tasks requiring escalation
+ *         value:
+ *           url: "/api/tasks/overdue/status?status=todo&daysPast=7&sortBy=daysPastDue&sortOrder=desc"
+ *           description: "Get todo tasks that are 7+ days overdue for escalation"
+ */
+
 module.exports = {};

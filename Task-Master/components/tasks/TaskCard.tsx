@@ -44,7 +44,7 @@
  * @requires lucide-react-native - Icon library for consistent UI elements
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -68,8 +68,10 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  AlertTriangle
 } from 'lucide-react-native';
+import { OverdueMetadata, OverdueSeverity } from '@/types/task.types';
 
 /**
  * Task Interface Definition
@@ -93,7 +95,7 @@ export interface Task {
   description?: string;
   priority: 'high' | 'medium' | 'low';
   status: 'todo' | 'in_progress' | 'done';
-  dueDate: string;
+  dueDate?: string;
   category: string;
   createdAt: string;
   tags?: string[];
@@ -111,6 +113,8 @@ export interface Task {
     email: string;
     fullName?: string;
   };
+  isOverdue?: boolean;
+  overdueMetadata?: OverdueMetadata;
 }
 
 /**
@@ -205,6 +209,57 @@ const getPriorityColors = (priority: string) => {
         icon: '#6B7280'          // Gray icon color
       };
   }
+};
+
+/**
+ * Overdue Severity Theme
+ *
+ * Defines color tokens for each overdue severity band so we can keep
+ * the visual language consistent anywhere we surface overdue data.
+ */
+const OVERDUE_SEVERITY_THEME: Record<OverdueSeverity, {
+  bg: string;
+  border: string;
+  text: string;
+  badgeBg: string;
+}> = {
+  critical: {
+    bg: '#FEE2E2',
+    border: '#F87171',
+    text: '#B91C1C',
+    badgeBg: '#B91C1C',
+  },
+  high: {
+    bg: '#FEF3C7',
+    border: '#FBBF24',
+    text: '#92400E',
+    badgeBg: '#B45309',
+  },
+  medium: {
+    bg: '#FFFBEB',
+    border: '#FCD34D',
+    text: '#92400E',
+    badgeBg: '#D97706',
+  },
+  low: {
+    bg: '#ECFCCB',
+    border: '#A3E635',
+    text: '#3F6212',
+    badgeBg: '#4D7C0F',
+  },
+};
+
+/**
+ * Helper utilities for calculating overdue severity when the backend
+ * does not send explicit metadata (for example, regular status queries).
+ */
+const MS_IN_DAY = 24 * 60 * 60 * 1000;
+
+const inferSeverityFromDelta = (daysPastDue: number): OverdueSeverity => {
+  if (daysPastDue >= 7) return 'critical';
+  if (daysPastDue >= 3) return 'high';
+  if (daysPastDue >= 1) return 'medium';
+  return 'low';
 };
 
 /**
@@ -357,6 +412,123 @@ const analyzeSwipe = (deltaX: number, currentStatus: ColumnStatus) => {
 };
 
 /**
+ * Due Date Insights Builder
+ *
+ * Normalizes all the different due-date related states (no due date,
+ * upcoming, due today, overdue with severity) into a single object
+ * so the JSX can stay declarative and easy to read.
+ */
+const buildDueDateInsights = (task: Task, isDark: boolean) => {
+  const baseColors = {
+    backgroundColor: isDark ? '#1F2937' : '#F9FAFB',
+    borderColor: isDark ? '#374151' : '#E5E7EB',
+    textColor: isDark ? '#E5E7EB' : '#111827',
+    helperColor: isDark ? '#9CA3AF' : '#6B7280',
+    badgeLabel: undefined as string | undefined,
+    badgeColor: undefined as string | undefined,
+    badgeText: '#FFFFFF',
+    iconColor: isDark ? '#E5E7EB' : '#4B5563',
+  };
+
+  if (!task.dueDate) {
+    return {
+      ...baseColors,
+      label: 'No due date',
+      helper: 'Add a deadline to keep work on track',
+    };
+  }
+
+  const dueDate = new Date(task.dueDate);
+  if (Number.isNaN(dueDate.getTime())) {
+    return {
+      ...baseColors,
+      label: 'Invalid due date',
+      helper: 'Please update the deadline',
+    };
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dueDay = new Date(dueDate);
+  dueDay.setHours(0, 0, 0, 0);
+  const formattedDate = dueDate.toLocaleDateString();
+
+  const diffInDays = Math.round(
+    (dueDay.getTime() - today.getTime()) / MS_IN_DAY
+  );
+  const isOverdue = task.overdueMetadata?.isOverdue ?? task.isOverdue ?? diffInDays < 0;
+
+  if (isOverdue) {
+    const daysPastDue = task.overdueMetadata?.daysPastDue ?? Math.abs(diffInDays);
+    const severity = task.overdueMetadata?.severity ?? inferSeverityFromDelta(daysPastDue);
+    const severityTheme = OVERDUE_SEVERITY_THEME[severity];
+
+    return {
+      label: `${daysPastDue} day${daysPastDue !== 1 ? 's' : ''} overdue`,
+      helper: `Original deadline: ${formattedDate}`,
+      backgroundColor: severityTheme.bg,
+      borderColor: severityTheme.border,
+      textColor: severityTheme.text,
+      helperColor: severityTheme.text,
+      badgeLabel: severity.toUpperCase(),
+      badgeColor: severityTheme.badgeBg,
+      badgeText: '#FFFFFF',
+      iconColor: severityTheme.text,
+    };
+  }
+
+  if (diffInDays === 0) {
+    return {
+      ...baseColors,
+      backgroundColor: isDark ? '#78350F' : '#FEF3C7',
+      borderColor: isDark ? '#B45309' : '#FACC15',
+      textColor: isDark ? '#FEF3C7' : '#92400E',
+      helperColor: isDark ? '#FDE68A' : '#B45309',
+      label: 'Due today',
+      helper: `Deadline: ${formattedDate}`,
+      iconColor: isDark ? '#FDE68A' : '#B45309',
+    };
+  }
+
+  if (diffInDays === 1) {
+    return {
+      ...baseColors,
+      label: 'Due tomorrow',
+      helper: `Deadline: ${formattedDate}`,
+      backgroundColor: isDark ? '#1E3A8A' : '#DBEAFE',
+      borderColor: isDark ? '#3B82F6' : '#93C5FD',
+      textColor: isDark ? '#BFDBFE' : '#1E3A8A',
+      helperColor: isDark ? '#BFDBFE' : '#1E3A8A',
+      iconColor: isDark ? '#93C5FD' : '#2563EB',
+    };
+  }
+
+  if (diffInDays < 0) {
+    // Safety fallback in case backend metadata is missing
+    const severity = inferSeverityFromDelta(Math.abs(diffInDays));
+    const severityTheme = OVERDUE_SEVERITY_THEME[severity];
+    return {
+      label: `${Math.abs(diffInDays)} day${Math.abs(diffInDays) !== 1 ? 's' : ''} overdue`,
+      helper: `Original deadline: ${formattedDate}`,
+      backgroundColor: severityTheme.bg,
+      borderColor: severityTheme.border,
+      textColor: severityTheme.text,
+      helperColor: severityTheme.text,
+      badgeLabel: severity.toUpperCase(),
+      badgeColor: severityTheme.badgeBg,
+      badgeText: '#FFFFFF',
+      iconColor: severityTheme.text,
+    };
+  }
+
+  return {
+    ...baseColors,
+    label: `Due in ${diffInDays} day${diffInDays !== 1 ? 's' : ''}`,
+    helper: `Deadline: ${formattedDate}`,
+  };
+};
+
+/**
  * TaskCard Component
  * 
  * The main task card component that renders a beautiful, interactive card
@@ -427,6 +599,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
   // Get available transitions for current task status
   const transitions = getStatusTransitions(task.status);
+  const dueDateInsights = useMemo(() => buildDueDateInsights(task, isDark), [task, isDark]);
 
   // Debug logging without returning void in JSX
   useEffect(() => {
@@ -738,6 +911,56 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                 </View>
               </View>
 
+              {/* Due Date Insight */}
+              <View className="mb-2">
+                <View
+                  className="flex-row items-center px-3 py-2 rounded-xl border"
+                  style={{
+                    backgroundColor: dueDateInsights.backgroundColor,
+                    borderColor: dueDateInsights.borderColor,
+                  }}
+                >
+                  {dueDateInsights.badgeLabel ? (
+                    <AlertTriangle
+                      size={16}
+                      color={dueDateInsights.iconColor}
+                    />
+                  ) : (
+                    <Calendar
+                      size={16}
+                      color={dueDateInsights.iconColor}
+                    />
+                  )}
+                  <View className="ml-3 flex-1">
+                    <Text
+                      className="text-sm font-semibold"
+                      style={{ color: dueDateInsights.textColor }}
+                    >
+                      {dueDateInsights.label}
+                    </Text>
+                    <Text
+                      className="text-xs mt-0.5"
+                      style={{ color: dueDateInsights.helperColor }}
+                    >
+                      {dueDateInsights.helper}
+                    </Text>
+                  </View>
+                  {dueDateInsights.badgeLabel && dueDateInsights.badgeColor && (
+                    <View
+                      className="px-2 py-0.5 rounded-full"
+                      style={{ backgroundColor: dueDateInsights.badgeColor }}
+                    >
+                      <Text
+                        className="text-xs font-bold"
+                        style={{ color: dueDateInsights.badgeText }}
+                      >
+                        {dueDateInsights.badgeLabel}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+
               {/* Metadata Row */}
               <View className="flex-row items-center justify-between">
                 {/* Category */}
@@ -746,15 +969,6 @@ export const TaskCard: React.FC<TaskCardProps> = ({
                   <Text className={`text-sm font-medium ml-2 ${isDark ? 'text-gray-400' : 'text-gray-500'
                     }`}>
                     {task.category}
-                  </Text>
-                </View>
-
-                {/* Due Date */}
-                <View className="flex-row items-center">
-                  <Calendar size={14} color={isDark ? '#9CA3AF' : '#6B7280'} />
-                  <Text className={`text-sm font-medium ml-2 ${isDark ? 'text-gray-400' : 'text-gray-500'
-                    }`}>
-                    Due Date - {task.dueDate}
                   </Text>
                 </View>
               </View>

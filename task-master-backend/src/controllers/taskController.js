@@ -968,6 +968,301 @@ const getOverdueTasks = async (req, res) => {
   }
 };
 
+/**
+ * Get Overdue Tasks by Status
+ *
+ * Retrieves overdue tasks filtered by a specific status with comprehensive filtering,
+ * sorting, and pagination support. This endpoint is specifically designed for
+ * status-specific overdue task management and Kanban board overdue indicators.
+ *
+ * Features:
+ * - Status-specific overdue task retrieval (todo, in_progress only)
+ * - Overdue severity categorization (critical, high, medium, low)
+ * - Days past due filtering for escalation management
+ * - Enhanced filtering by priority, category, tags, and search
+ * - Role-based filtering (assignee, assignor, both)
+ * - Flexible sorting with overdue-specific options
+ * - Independent pagination for status-based overdue management
+ * - Detailed overdue metadata including severity analysis
+ *
+ * Overdue Severity Categories:
+ * - Critical: 7+ days overdue OR high priority tasks 3+ days overdue
+ * - High: 3-6 days overdue OR medium/high priority tasks 1-2 days overdue
+ * - Medium: 1-2 days overdue for low priority tasks
+ * - Low: Just overdue (same day)
+ *
+ * Query Parameters:
+ * @param {string} status - Task status (todo, in_progress) - REQUIRED
+ * @param {string} [priority] - Filter by priority (low, medium, high)
+ * @param {string} [role=both] - User role filter ('assignee', 'assignor', 'both')
+ * @param {string} [category] - Filter by category (case-insensitive partial match)
+ * @param {string} [tags] - Comma-separated list of tags to filter by
+ * @param {string} [search] - Search term for title, description, and tags
+ * @param {number} [daysPast] - Filter tasks overdue by X days or more
+ * @param {string} [severity] - Filter by overdue severity (critical, high, medium, low)
+ * @param {number} [page=1] - Page number for pagination
+ * @param {number} [limit=10] - Number of tasks per page (max 100)
+ * @param {string} [sortBy=dueDate] - Sort field (dueDate, daysPastDue, priority, title, etc.)
+ * @param {string} [sortOrder=asc] - Sort order (asc, desc)
+ *
+ * Response Format:
+ * - tasks: Array of overdue task objects with populated user data and overdue metadata
+ * - pagination: Complete pagination metadata
+ * - overdueMetadata: Status-specific overdue analysis and severity breakdown
+ * - filters: Applied filter summary
+ *
+ * @async
+ * @function getOverdueTasksByStatus
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Promise<void>}
+ */
+const getOverdueTasksByStatus = async (req, res) => {
+  try {
+    // Check for validation errors
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array(),
+      });
+    }
+
+    const userId = req.user.userId;
+    const {
+      status, // Required parameter
+      priority,
+      role = 'both', // 'assignee', 'assignor', or 'both'
+      category,
+      tags,
+      search,
+      daysPast,
+      severity,
+      page = 1,
+      limit = 10, // Smaller default for overdue-specific pagination
+      sortBy = 'dueDate', // Default to due date for overdue tasks
+      sortOrder = 'asc', // Ascending to show most overdue first
+    } = req.query;
+
+    // Build query options for Task.findByUser
+    const options = {
+      role,
+      status, // Ensure we only get tasks of the specified status
+      activeOnly: true,
+    };
+
+    // Additional filters for overdue-specific logic
+    let additionalFilters = {
+      // Base overdue filter: due date in the past and not done
+      dueDate: { $lt: new Date() },
+      status: { $ne: 'done' }, // Redundant but explicit
+    };
+
+    // Priority filter
+    if (priority) {
+      additionalFilters.priority = priority;
+    }
+
+    // Category filter (case-insensitive partial match)
+    if (category) {
+      additionalFilters.category = new RegExp(category, 'i');
+    }
+
+    // Tags filter (comma-separated string to array)
+    if (tags) {
+      const tagArray = tags.split(',').map(tag => tag.trim().toLowerCase());
+      additionalFilters.tags = { $in: tagArray };
+    }
+
+    // Days past due filter
+    if (daysPast) {
+      const daysPastNum = parseInt(daysPast);
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysPastNum);
+      additionalFilters.dueDate = { $lt: cutoffDate };
+    }
+
+    // Get base tasks for the specified status using the model method
+    let tasks = await Task.findByUser(userId, options);
+
+    // Apply additional filters
+    if (Object.keys(additionalFilters).length > 0) {
+      tasks = tasks.filter(task => {
+        return Object.entries(additionalFilters).every(([key, value]) => {
+          if (key === 'category' && value instanceof RegExp) {
+            return value.test(task.category);
+          }
+          if (key === 'tags' && value.$in) {
+            return task.tags.some(tag => value.$in.includes(tag));
+          }
+          if (key === 'dueDate' && typeof value === 'object') {
+            if (value.$lt) return new Date(task.dueDate) < value.$lt;
+          }
+          if (key === 'status') {
+            if (value.$ne) return task.status !== value.$ne;
+          }
+          return task[key] === value;
+        });
+      });
+    }
+
+    // Calculate overdue metadata for each task
+    const now = new Date();
+    tasks = tasks.map(task => {
+      const taskObj = task.toObject();
+      if (taskObj.dueDate) {
+        const daysPastDue = Math.ceil((now - new Date(taskObj.dueDate)) / (1000 * 60 * 60 * 24));
+        
+        // Calculate overdue severity
+        let calculatedSeverity = 'low';
+        if (daysPastDue >= 7 || (taskObj.priority === 'high' && daysPastDue >= 3)) {
+          calculatedSeverity = 'critical';
+        } else if (daysPastDue >= 3 || ((taskObj.priority === 'medium' || taskObj.priority === 'high') && daysPastDue >= 1)) {
+          calculatedSeverity = 'high';
+        } else if (daysPastDue >= 1) {
+          calculatedSeverity = 'medium';
+        }
+
+        taskObj.overdueMetadata = {
+          daysPastDue,
+          severity: calculatedSeverity,
+          isOverdue: true,
+        };
+      }
+      return taskObj;
+    });
+
+    // Apply severity filter if specified
+    if (severity) {
+      tasks = tasks.filter(task => task.overdueMetadata?.severity === severity);
+    }
+
+    // Apply search filter (title, description, tags)
+    if (search) {
+      const searchLower = search.toLowerCase();
+      tasks = tasks.filter(task => {
+        return (
+          task.title.toLowerCase().includes(searchLower) ||
+          (task.description && task.description.toLowerCase().includes(searchLower)) ||
+          task.tags.some(tag => tag.toLowerCase().includes(searchLower))
+        );
+      });
+    }
+
+    // Sort tasks
+    const sortOrderNum = sortOrder === 'desc' ? -1 : 1;
+    tasks.sort((a, b) => {
+      let aVal, bVal;
+      
+      switch (sortBy) {
+        case 'daysPastDue':
+          aVal = a.overdueMetadata?.daysPastDue || 0;
+          bVal = b.overdueMetadata?.daysPastDue || 0;
+          break;
+        case 'dueDate':
+          aVal = new Date(a.dueDate);
+          bVal = new Date(b.dueDate);
+          break;
+        case 'priority':
+          const priorityOrder = { low: 1, medium: 2, high: 3 };
+          aVal = priorityOrder[a.priority] || 0;
+          bVal = priorityOrder[b.priority] || 0;
+          break;
+        case 'title':
+          aVal = a.title.toLowerCase();
+          bVal = b.title.toLowerCase();
+          break;
+        case 'createdAt':
+          aVal = new Date(a.createdAt);
+          bVal = new Date(b.createdAt);
+          break;
+        case 'updatedAt':
+          aVal = new Date(a.updatedAt);
+          bVal = new Date(b.updatedAt);
+          break;
+        default:
+          aVal = new Date(a.dueDate);
+          bVal = new Date(b.dueDate);
+      }
+      
+      if (aVal < bVal) return -1 * sortOrderNum;
+      if (aVal > bVal) return 1 * sortOrderNum;
+      return 0;
+    });
+
+    // Calculate overdue severity breakdown
+    const severityBreakdown = tasks.reduce((acc, task) => {
+      const sev = task.overdueMetadata?.severity || 'low';
+      acc[sev] = (acc[sev] || 0) + 1;
+      return acc;
+    }, { critical: 0, high: 0, medium: 0, low: 0 });
+
+    // Pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const totalTasks = tasks.length;
+    const totalPages = Math.ceil(totalTasks / limitNum);
+    const startIndex = (pageNum - 1) * limitNum;
+    const endIndex = startIndex + limitNum;
+    const paginatedTasks = tasks.slice(startIndex, endIndex);
+
+    // Overdue-specific metadata
+    const overdueMetadata = {
+      status,
+      totalOverdueInStatus: totalTasks,
+      currentPageCount: paginatedTasks.length,
+      severityBreakdown,
+      averageDaysPastDue: totalTasks > 0 
+        ? Math.round(tasks.reduce((sum, task) => sum + (task.overdueMetadata?.daysPastDue || 0), 0) / totalTasks)
+        : 0,
+      criticalTasksCount: severityBreakdown.critical,
+      oldestOverdueTask: totalTasks > 0 
+        ? Math.max(...tasks.map(task => task.overdueMetadata?.daysPastDue || 0))
+        : 0,
+    };
+
+    // Enhanced response with comprehensive overdue metadata
+    res.status(200).json({
+      success: true,
+      message: `Overdue ${status.replace('_', ' ')} tasks retrieved successfully`,
+      data: {
+        tasks: paginatedTasks,
+        pagination: {
+          currentPage: pageNum,
+          totalPages,
+          totalTasks,
+          tasksPerPage: limitNum,
+          hasNextPage: endIndex < totalTasks,
+          hasPrevPage: pageNum > 1,
+          startIndex: startIndex + 1, // 1-based index for display
+          endIndex: Math.min(endIndex, totalTasks), // 1-based index for display
+        },
+        filters: {
+          status,
+          priority,
+          role,
+          category,
+          tags,
+          search,
+          daysPast,
+          severity,
+          sortBy,
+          sortOrder,
+        },
+        overdueMetadata,
+      },
+    });
+  } catch (error) {
+    console.error(`Get overdue tasks by status (${req.query.status}) error:`, error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve overdue tasks by status',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+    });
+  }
+};
+
 module.exports = {
   getAllTasks,
   getTasksByStatus,
@@ -978,4 +1273,5 @@ module.exports = {
   updateTaskStatus,
   getTaskStatistics,
   getOverdueTasks,
+  getOverdueTasksByStatus,
 };

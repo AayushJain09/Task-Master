@@ -514,6 +514,86 @@ class TasksService {
     }
   }
 
+  /**
+   * Get Overdue Tasks by Status
+   * 
+   * Retrieves overdue tasks filtered by a specific status with comprehensive filtering,
+   * sorting, and pagination support. This endpoint provides advanced overdue task management
+   * capabilities including severity categorization and detailed metadata.
+   * 
+   * @param status - Task status to filter by (todo or in_progress)
+   * @param params - Additional query parameters for filtering and pagination
+   * @returns Promise resolving to status-specific overdue tasks with enhanced metadata
+   * @throws TaskError on failure
+   * 
+   * @example
+   * ```typescript
+   * // Get critical overdue todo tasks
+   * const criticalOverdue = await tasksService.getOverdueTasksByStatus('todo', {
+   *   severity: 'critical',
+   *   sortBy: 'daysPastDue',
+   *   sortOrder: 'desc'
+   * });
+   * 
+   * console.log(`${criticalOverdue.data.overdueMetadata.criticalTasksCount} critical tasks found`);
+   * console.log(`Severity breakdown:`, criticalOverdue.data.overdueMetadata.severityBreakdown);
+   * 
+   * // Get overdue high priority in-progress tasks
+   * const urgentOverdue = await tasksService.getOverdueTasksByStatus('in_progress', {
+   *   priority: 'high',
+   *   daysPast: 2
+   * });
+   * 
+   * // Search overdue development tasks
+   * const devOverdue = await tasksService.getOverdueTasksByStatus('todo', {
+   *   category: 'Development',
+   *   search: 'bug',
+   *   sortBy: 'dueDate'
+   * });
+   * ```
+   */
+  async getOverdueTasksByStatus(
+    status: 'todo' | 'in_progress',
+    params: Omit<TaskQueryParams, 'status'> & {
+      daysPast?: number;
+      severity?: 'critical' | 'high' | 'medium' | 'low';
+    } = {}
+  ): Promise<TasksListResponse> {
+    try {
+      // Validate status parameter (only todo and in_progress allowed for overdue)
+      const validStatuses: ('todo' | 'in_progress')[] = ['todo', 'in_progress'];
+      if (!validStatuses.includes(status)) {
+        throw {
+          message: 'Invalid status for overdue tasks. Only todo and in_progress tasks can be overdue.',
+          code: 'INVALID_TASK_STATUS' as TaskErrorCode,
+          field: 'status',
+        } as TaskError;
+      }
+
+      // Build query parameters with required status
+      const queryParams: TaskQueryParams & { daysPast?: number; severity?: string } = {
+        ...params,
+        status, // Always include the required status parameter
+      };
+
+      // Build query string
+      const queryString = this.buildQueryString(queryParams);
+      const url = `${this.baseEndpoint}/overdue/status?${queryString}`;
+      
+      const response = await apiService.get<TasksListResponse>(url);
+      
+      // The response includes enhanced overdue metadata:
+      // - overdueMetadata: Status-specific overdue analysis including severity breakdown
+      // - tasks: Each task includes overdueMetadata with daysPastDue, severity, and isOverdue
+      // - pagination: Standard pagination with enhanced indices
+      // - filters: Applied filter summary for debugging
+      
+      return response;
+    } catch (error) {
+      throw this.transformError(error as ApiError);
+    }
+  }
+
   // ========================================
   // UTILITY METHODS
   // ========================================

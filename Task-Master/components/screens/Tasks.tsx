@@ -42,7 +42,7 @@
  * @requires ../tasks/TaskFormModal - Advanced form modal component
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -56,7 +56,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
-import { Plus, AlertCircle } from 'lucide-react-native';
+import { Plus, AlertCircle, Clock, Filter } from 'lucide-react-native';
 
 // Import focused task management components
 import KanbanColumn from '../tasks/KanbanColumn';
@@ -65,7 +65,7 @@ import TaskDetailsModal from '../tasks/TaskDetailsModal';
 import { Task as TaskCardType, ColumnStatus } from '../tasks/TaskCard';
 
 // Import API types and service
-import { Task, TasksListResponse, TaskError, TaskQueryParams } from '@/types/task.types';
+import { Task, TasksListResponse, TaskError, TaskQueryParams, EnhancedOverdueMetadata, StatusMetadata } from '@/types/task.types';
 import { tasksService } from '@/services/tasks.service';
 import { formatDateForAPI } from '@/utils/dateUtils';
 
@@ -74,6 +74,13 @@ import { InputSanitizer, ErrorRecovery } from '@/utils/validation';
 
 // Get device dimensions for responsive layout
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+const severitySummaryTheme: Record<string, { bg: string; text: string }> = {
+  critical: { bg: '#FEE2E2', text: '#B91C1C' },
+  high: { bg: '#FEF3C7', text: '#92400E' },
+  medium: { bg: '#FFFBEB', text: '#92400E' },
+  low: { bg: '#ECFCCB', text: '#3F6212' },
+};
 
 /**
  * Form Data Interface for Task Creation/Editing
@@ -126,12 +133,8 @@ interface ColumnState {
     hasPrevPage: boolean;
     limit: number;
   };
-  statusMetadata: {
-    status: string;
-    totalInStatus: number;
-    currentPageCount: number;
-    hasOverdue: boolean;
-  } | null;
+  statusMetadata: StatusMetadata | null;
+  overdueMetadata: EnhancedOverdueMetadata | null;
 }
 
 /**
@@ -215,6 +218,7 @@ export default function Tasks() {
       limit: 10, // Smaller page size for mobile optimization
     },
     statusMetadata: null,
+    overdueMetadata: null,
   });
 
   const [columnStates, setColumnStates] = useState<Record<KanbanColumnStatus, ColumnState>>({
@@ -253,6 +257,28 @@ export default function Tasks() {
   // Details modal state
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<TaskCardType | null>(null);
+  
+  /**
+   * Overdue Filter State Management
+   * 
+   * Manages the overdue filter toggle and overdue task counts
+   * for enhanced task prioritization and deadline management.
+   */
+  const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+  const [overdueCounts, setOverdueCounts] = useState<{ todo: number; in_progress: number }>({ todo: 0, in_progress: 0 });
+  const overdueSummary = useMemo(() => {
+    const total = overdueCounts.todo + overdueCounts.in_progress;
+    const severities = { critical: 0, high: 0, medium: 0, low: 0 };
+    (['todo', 'in_progress'] as KanbanColumnStatus[]).forEach(status => {
+      const breakdown = columnStates[status].overdueMetadata?.severityBreakdown;
+      if (breakdown) {
+        (Object.keys(severities) as Array<keyof typeof severities>).forEach(key => {
+          severities[key] += breakdown[key] || 0;
+        });
+      }
+    });
+    return { total, severities };
+  }, [overdueCounts, columnStates]);
 
   /**
    * Column-Specific API Integration Functions
@@ -289,13 +315,28 @@ export default function Tasks() {
         }
       }));
 
-      // Use the optimized status-specific API
-      const response = await tasksService.getTasksByStatusOptimized(status, {
-        sortBy: 'updatedAt',
-        sortOrder: 'desc',
-        limit: 10, // Smaller page size for mobile optimization
-        ...params,
-      });
+      let response;
+      
+      // Use overdue endpoint if showing overdue only, regular endpoint otherwise
+      if (showOverdueOnly && (status === 'todo' || status === 'in_progress')) {
+        response = await tasksService.getOverdueTasksByStatus(status, {
+          sortBy: 'daysPastDue',
+          sortOrder: 'desc',
+          limit: 10,
+          ...params,
+        });
+      } else {
+        // Use the optimized status-specific API
+        response = await tasksService.getTasksByStatusOptimized(status, {
+          sortBy: 'updatedAt',
+          sortOrder: 'desc',
+          limit: 10, // Smaller page size for mobile optimization
+          ...params,
+        });
+      }
+
+      const statusMetadata = response.statusMetadata || null;
+      const overdueMetadata = response.overdueMetadata || null;
 
       setColumnStates(prev => ({
         ...prev,
@@ -305,7 +346,8 @@ export default function Tasks() {
             ? response.tasks 
             : [...prev[status].tasks, ...response.tasks],
           pagination: response.pagination,
-          statusMetadata: response.data?.statusMetadata || null,
+          statusMetadata,
+          overdueMetadata,
           loading: false,
           refreshing: false,
           error: null,
@@ -323,8 +365,34 @@ export default function Tasks() {
           loading: false,
           refreshing: false,
           error: taskError.message || `Failed to load ${status.replace('_', ' ')} tasks. Please try again.`,
+          // Preserve the last known metadata so the UI doesn't flicker
+          statusMetadata: prev[status].statusMetadata,
+          overdueMetadata: prev[status].overdueMetadata,
         }
       }));
+    }
+  }, [showOverdueOnly]);
+
+  /**
+   * Fetch Overdue Counts
+   * 
+   * Gets the total count of overdue tasks for todo and in_progress columns
+   * Used to display overdue indicators in the header toggle.
+   */
+  const fetchOverdueCounts = useCallback(async () => {
+    try {
+      const [todoResponse, inProgressResponse] = await Promise.all([
+        tasksService.getOverdueTasksByStatus('todo', { limit: 1 }),
+        tasksService.getOverdueTasksByStatus('in_progress', { limit: 1 })
+      ]);
+
+      setOverdueCounts({
+        todo: todoResponse.pagination.totalTasks,
+        in_progress: inProgressResponse.pagination.totalTasks,
+      });
+    } catch (error) {
+      console.error('Error fetching overdue counts:', error);
+      // Don't show error to user for overdue counts, just log it
     }
   }, []);
 
@@ -370,11 +438,33 @@ export default function Tasks() {
   /**
    * Initial Data Load
    * 
-   * Load tasks for all columns when component mounts
+   * Load tasks for all columns and overdue counts when component mounts
    */
   useEffect(() => {
     fetchAllColumns();
-  }, [fetchAllColumns]);
+    fetchOverdueCounts();
+  }, [fetchAllColumns, fetchOverdueCounts]);
+
+  /**
+   * Handle Overdue Filter Toggle
+   * 
+   * Reload all columns when overdue filter is toggled
+   */
+  useEffect(() => {
+    if (showOverdueOnly) {
+      // When switching to overdue mode, refresh all columns
+      fetchAllColumns(true);
+    } else {
+      // When switching back to normal mode, refresh all columns
+      fetchAllColumns(true);
+    }
+  }, [showOverdueOnly, fetchAllColumns]);
+  
+  useEffect(() => {
+    if (showOverdueOnly) {
+      fetchOverdueCounts();
+    }
+  }, [showOverdueOnly, fetchOverdueCounts]);
   
   /**
    * Auto-refresh tasks periodically
@@ -429,12 +519,14 @@ export default function Tasks() {
       description: apiTask.description || '',
       priority: apiTask.priority,
       status: apiTask.status,
-      dueDate: apiTask.dueDate ? new Date(apiTask.dueDate).toLocaleDateString() : 'No due date',
+      dueDate: apiTask.dueDate || '',
       category: apiTask.category,
       createdAt: new Date(apiTask.createdAt).toLocaleDateString(),
       tags: apiTask.tags || [],
       assignedTo: extractUserDetails(apiTask.assignedTo),
       assignedBy: extractUserDetails(apiTask.assignedBy),
+      isOverdue: apiTask.overdueMetadata?.isOverdue ?? apiTask.isOverdue ?? false,
+      overdueMetadata: apiTask.overdueMetadata,
     };
   }, []);
   
@@ -589,6 +681,7 @@ export default function Tasks() {
               
               // Remove from column states
               removeTaskFromColumnState(taskId);
+              await fetchOverdueCounts();
               
               // Optional: Show success message
               // Alert.alert('Success', 'Task deleted successfully');
@@ -606,7 +699,7 @@ export default function Tasks() {
         }
       ]
     );
-  }, [removeTaskFromColumnState]);
+  }, [removeTaskFromColumnState, fetchOverdueCounts]);
 
   const handleMoveTask = useCallback(async (taskId: string, newStatus: ColumnStatus) => {
     try {
@@ -618,6 +711,7 @@ export default function Tasks() {
       
       // Update column states with the updated task
       updateTaskInColumnState(response.task);
+      await fetchOverdueCounts();
       
     } catch (error) {
       const taskError = error as TaskError;
@@ -629,7 +723,7 @@ export default function Tasks() {
     } finally {
       setGlobalLoading(prev => ({ ...prev, updating: false }));
     }
-  }, [updateTaskInColumnState]);
+  }, [updateTaskInColumnState, fetchOverdueCounts]);
 
   const handleTaskPress = useCallback((task: TaskCardType) => {
     setSelectedTask(task);
@@ -665,6 +759,7 @@ export default function Tasks() {
         
         // Update column states with the updated task
         updateTaskInColumnState(response.task);
+        await fetchOverdueCounts();
         
         Alert.alert('Success', 'Task updated successfully!');
       } else {
@@ -688,6 +783,7 @@ export default function Tasks() {
         
         // Add to column states
         addTaskToColumnState(response.task);
+        await fetchOverdueCounts();
         
         Alert.alert('Success', 'Task created successfully!');
       }
@@ -706,7 +802,7 @@ export default function Tasks() {
       const loadingKey = editingTask ? 'updating' : 'creating';
       setGlobalLoading(prev => ({ ...prev, [loadingKey]: false }));
     }
-  }, [editingTask, updateTaskInColumnState, addTaskToColumnState]);
+  }, [editingTask, updateTaskInColumnState, addTaskToColumnState, fetchOverdueCounts]);
 
   const handleCloseModal = useCallback(() => {
     setShowTaskModal(false);
@@ -789,8 +885,38 @@ export default function Tasks() {
             Tasks
           </Text>
           
-          {/* Task Statistics */}
+          {/* Overdue Filter Toggle & Task Statistics */}
           <View className="flex-row items-center gap-x-4">
+            {/* Overdue Toggle */}
+            <TouchableOpacity
+              onPress={() => setShowOverdueOnly(!showOverdueOnly)}
+              className={`flex-row items-center px-3 py-1.5 rounded-full ${
+                showOverdueOnly
+                  ? isDark ? 'bg-red-600/20 border border-red-600/40' : 'bg-red-100 border border-red-300'
+                  : isDark ? 'bg-gray-700/50 border border-gray-600/40' : 'bg-gray-100 border border-gray-300'
+              }`}
+              accessibilityLabel={showOverdueOnly ? "Show all tasks" : "Show overdue tasks only"}
+            >
+              <Clock 
+                size={14} 
+                color={
+                  showOverdueOnly
+                    ? isDark ? '#F87171' : '#DC2626'
+                    : isDark ? '#9CA3AF' : '#6B7280'
+                } 
+              />
+              {(overdueCounts.todo + overdueCounts.in_progress > 0) && (
+                <View className={`ml-1.5 px-1.5 py-0.5 rounded-full min-w-[18px] ${
+                  showOverdueOnly
+                    ? isDark ? 'bg-red-600' : 'bg-red-500'
+                    : isDark ? 'bg-orange-600' : 'bg-orange-500'
+                }`}>
+                  <Text className="text-white text-xs font-semibold text-center leading-none">
+                    {overdueCounts.todo + overdueCounts.in_progress}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
             {(Object.values(columnStates).some(col => col.loading || col.refreshing) || 
               globalLoading.creating || globalLoading.updating || globalLoading.deleting) && (
               <ActivityIndicator 
@@ -820,6 +946,60 @@ export default function Tasks() {
           </View>
         </View>
       </View>
+
+      {overdueSummary.total > 0 && (
+        <View className="px-4 py-3">
+          <View className={`rounded-2xl p-4 border ${
+            isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-sm'
+          }`}>
+            <View className="flex-row items-center justify-between">
+              <View>
+                <Text className={`text-sm font-semibold ${
+                  isDark ? 'text-gray-200' : 'text-gray-700'
+                }`}>
+                  Overdue overview
+                </Text>
+                <Text className={`text-base font-bold ${
+                  isDark ? 'text-white' : 'text-gray-900'
+                }`}>
+                  {overdueSummary.total} task{overdueSummary.total !== 1 ? 's' : ''} behind schedule
+                </Text>
+              </View>
+              {!showOverdueOnly && (
+                <TouchableOpacity
+                  onPress={() => setShowOverdueOnly(true)}
+                  className="px-3 py-1.5 rounded-full bg-red-600"
+                >
+                  <Text className="text-xs font-semibold text-white">
+                    Review overdue
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <View className="flex-row flex-wrap gap-2 mt-3">
+              {(Object.keys(overdueSummary.severities) as Array<keyof typeof overdueSummary.severities>).map((severity) => {
+                const count = overdueSummary.severities[severity];
+                if (!count) return null;
+                const palette = severitySummaryTheme[severity];
+                return (
+                  <View
+                    key={`summary-${severity}`}
+                    className="px-2 py-1 rounded-full"
+                    style={{ backgroundColor: palette.bg }}
+                  >
+                    <Text
+                      className="text-xs font-semibold uppercase"
+                      style={{ color: palette.text }}
+                    >
+                      {severity} · {count}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      )}
 
       {/* Error Display */}
       {(() => {
@@ -931,14 +1111,14 @@ export default function Tasks() {
               style={{ 
                 gap: SCREEN_WIDTH >= 768 ? 20 : 16, // Larger gaps on tablets/desktop
                 minWidth: SCREEN_WIDTH - (SCREEN_WIDTH >= 768 ? 48 : 32),
-                width: getColumnWidth() * 3 + (SCREEN_WIDTH >= 768 ? 40 : 32) // 3 columns + responsive gaps
+                width: getColumnWidth() * (showOverdueOnly ? 2 : 3) + (SCREEN_WIDTH >= 768 ? (showOverdueOnly ? 20 : 40) : (showOverdueOnly ? 16 : 32)) // Adjust for 2 or 3 columns
               }}
             >
               {/* To Do Column */}
               <View style={{ width: getColumnWidth() }}>
                 <KanbanColumn 
                   status="todo" 
-                  title="To Do" 
+                  title={showOverdueOnly ? "Overdue To Do" : "To Do"}
                   color="#EF4444"
                   tasks={getColumnTasks('todo')}
                   onEditTask={handleEditTask}
@@ -947,6 +1127,9 @@ export default function Tasks() {
                   onPressTask={handleTaskPress}
                   onRefresh={handleColumnRefresh('todo')}
                   refreshing={columnStates.todo.refreshing}
+                  statusMetadata={columnStates.todo.statusMetadata}
+                  overdueMetadata={columnStates.todo.overdueMetadata}
+                  showOverdueDetails={showOverdueOnly}
                 />
               </View>
               
@@ -954,7 +1137,7 @@ export default function Tasks() {
               <View style={{ width: getColumnWidth() }}>
                 <KanbanColumn 
                   status="in_progress" 
-                  title="In Progress" 
+                  title={showOverdueOnly ? "Overdue In Progress" : "In Progress"}
                   color="#F59E0B"
                   tasks={getColumnTasks('in_progress')}
                   onEditTask={handleEditTask}
@@ -963,24 +1146,31 @@ export default function Tasks() {
                   onPressTask={handleTaskPress}
                   onRefresh={handleColumnRefresh('in_progress')}
                   refreshing={columnStates.in_progress.refreshing}
+                  statusMetadata={columnStates.in_progress.statusMetadata}
+                  overdueMetadata={columnStates.in_progress.overdueMetadata}
+                  showOverdueDetails={showOverdueOnly}
                 />
               </View>
               
-              {/* Done Column */}
-              <View style={{ width: getColumnWidth() }}>
-                <KanbanColumn 
-                  status="done" 
-                  title="Done" 
-                  color="#10B981"
-                  tasks={getColumnTasks('done')}
+              {/* Done Column - Hidden when showing overdue only */}
+              {!showOverdueOnly && (
+                <View style={{ width: getColumnWidth() }}>
+                  <KanbanColumn 
+                    status="done" 
+                    title="Done" 
+                    color="#10B981"
+                    tasks={getColumnTasks('done')}
                   onEditTask={handleEditTask}
                   onDeleteTask={handleDeleteTask}
                   onMoveTask={handleMoveTask}
                   onPressTask={handleTaskPress}
                   onRefresh={handleColumnRefresh('done')}
                   refreshing={columnStates.done.refreshing}
+                  statusMetadata={columnStates.done.statusMetadata}
+                  overdueMetadata={columnStates.done.overdueMetadata}
                 />
               </View>
+              )}
             </View>
           </ScrollView>
         )}
@@ -1033,5 +1223,3 @@ export default function Tasks() {
     </View>
   );
 }
-
-

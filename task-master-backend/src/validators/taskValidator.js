@@ -519,6 +519,117 @@ const validateTaskAssignment = [
     .escape(),
 ];
 
+/**
+ * Overdue Tasks by Status Query Validation Rules
+ *
+ * Validates query parameters specifically for the getOverdueTasksByStatus endpoint
+ * where status is a required parameter for retrieving overdue tasks within a specific status.
+ * 
+ * This validator is optimized for status-specific overdue task queries with comprehensive
+ * filtering options, useful for Kanban board overdue indicators and status-specific
+ * overdue task management.
+ *
+ * Required Parameters:
+ * @param {string} status - Task status (todo, in_progress) - REQUIRED (done tasks cannot be overdue)
+ *
+ * Optional Parameters:
+ * @param {string} [priority] - Filter by priority (low, medium, high)
+ * @param {string} [role] - User role filter ('assignee', 'assignor', 'both')
+ * @param {string} [category] - Category filter (case-insensitive partial match)
+ * @param {string} [tags] - Comma-separated tags for filtering
+ * @param {string} [search] - Search term for multiple fields
+ * @param {number} [page] - Page number for pagination (min: 1)
+ * @param {number} [limit] - Items per page (min: 1, max: 100)
+ * @param {string} [sortBy] - Sort field
+ * @param {string} [sortOrder] - Sort direction (asc, desc)
+ * @param {number} [daysPast] - Only include tasks overdue by X days or more
+ * @param {string} [severity] - Filter by overdue severity (critical, high, medium, low)
+ *
+ * Use Cases:
+ * - Kanban board overdue task indicators
+ * - Status-specific overdue task management
+ * - Overdue task severity analysis
+ * - Deadline management and escalation
+ */
+const validateOverdueTasksByStatusQuery = [
+  // Status validation - REQUIRED for this endpoint (done tasks cannot be overdue)
+  query('status')
+    .notEmpty()
+    .withMessage('Status parameter is required for overdue tasks')
+    .isIn(['todo', 'in_progress'])
+    .withMessage('Status must be todo or in_progress (done tasks cannot be overdue)'),
+
+  // Priority filter validation
+  query('priority')
+    .optional()
+    .isIn(['low', 'medium', 'high'])
+    .withMessage('Priority must be one of: low, medium, high'),
+
+  // Role filter validation
+  query('role')
+    .optional()
+    .isIn(['assignee', 'assignor', 'both'])
+    .withMessage('Role must be one of: assignee, assignor, both'),
+
+  // Category filter validation
+  query('category')
+    .optional()
+    .isLength({ min: 1, max: 50 })
+    .withMessage('Category must be between 1 and 50 characters')
+    .trim()
+    .escape(),
+
+  // Tags filter validation (comma-separated string)
+  query('tags')
+    .optional()
+    .isString()
+    .withMessage('Tags must be a comma-separated string')
+    .isLength({ max: 200 })
+    .withMessage('Tags string cannot exceed 200 characters'),
+
+  // Search functionality validation
+  query('search')
+    .optional()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Search query must be between 1 and 100 characters')
+    .trim()
+    .escape(),
+
+  // Days past validation - filter tasks overdue by specific number of days
+  query('daysPast')
+    .optional()
+    .isInt({ min: 0, max: 365 })
+    .withMessage('Days past must be an integer between 0 and 365'),
+
+  // Severity filter validation - categorizes overdue tasks by severity
+  query('severity')
+    .optional()
+    .isIn(['critical', 'high', 'medium', 'low'])
+    .withMessage('Severity must be one of: critical, high, medium, low'),
+
+  // Pagination validation - optimized for overdue task management
+  query('page')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('Page must be a positive integer'),
+
+  query('limit')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Limit must be an integer between 1 and 100'),
+
+  // Enhanced sorting validation for overdue-specific queries
+  query('sortBy')
+    .optional()
+    .isIn(['dueDate', 'createdAt', 'updatedAt', 'priority', 'title', 'daysPastDue'])
+    .withMessage('Sort by must be one of: dueDate, createdAt, updatedAt, priority, title, daysPastDue'),
+
+  query('sortOrder')
+    .optional()
+    .isIn(['asc', 'desc'])
+    .withMessage('Sort order must be either asc or desc'),
+];
+
 module.exports = {
   validateTaskCreation,
   validateTaskUpdate,
@@ -529,4 +640,5 @@ module.exports = {
   validateTaskSearch,
   validateBulkTaskOperation,
   validateTaskAssignment,
+  validateOverdueTasksByStatusQuery,
 };

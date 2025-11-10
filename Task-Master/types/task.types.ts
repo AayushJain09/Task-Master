@@ -33,6 +33,22 @@ export type TaskSortField = 'createdAt' | 'updatedAt' | 'dueDate' | 'priority' |
 export type SortOrder = 'asc' | 'desc';
 
 /**
+ * Overdue Severity Levels
+ */
+export type OverdueSeverity = 'critical' | 'high' | 'medium' | 'low';
+
+/**
+ * Overdue Task Metadata
+ * 
+ * Additional metadata for overdue tasks including severity analysis
+ */
+export interface OverdueMetadata {
+  daysPastDue: number;
+  severity: OverdueSeverity;
+  isOverdue: boolean;
+}
+
+/**
  * User Reference - Can be populated or just ID
  */
 export interface UserReference {
@@ -71,6 +87,9 @@ export interface Task {
   isOverdue?: boolean;
   daysUntilDue?: number | null;
   timeVariance?: number | null;
+  
+  // Overdue-specific metadata (from overdue endpoints)
+  overdueMetadata?: OverdueMetadata;
 }
 
 /**
@@ -179,6 +198,20 @@ export interface TaskFilters {
 }
 
 /**
+ * Status Metadata
+ *
+ * Additional metadata returned with status-specific queries to help
+ * the UI understand how many tasks exist within a status and whether
+ * that slice currently contains overdue work.
+ */
+export interface StatusMetadata {
+  status: TaskStatus;
+  totalInStatus: number;
+  currentPageCount: number;
+  hasOverdue: boolean;
+}
+
+/**
  * Tasks List Response
  * 
  * Response structure for getting multiple tasks
@@ -187,6 +220,10 @@ export interface TasksListResponse {
   tasks: Task[];
   pagination: TaskPagination;
   filters: TaskFilters;
+  // Optional status metadata returned by status-specific endpoints
+  statusMetadata?: StatusMetadata;
+  // Enhanced metadata for overdue-specific queries
+  overdueMetadata?: EnhancedOverdueMetadata;
 }
 
 /**
@@ -215,6 +252,33 @@ export interface TaskStatisticsResponse {
 export interface OverdueTasksResponse {
   tasks: Task[];
   count: number;
+}
+
+/**
+ * Overdue Severity Breakdown
+ * 
+ * Count of tasks by severity level for overdue analysis
+ */
+export interface OverdueSeverityBreakdown {
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+}
+
+/**
+ * Enhanced Overdue Metadata
+ * 
+ * Comprehensive overdue analysis for status-specific queries
+ */
+export interface EnhancedOverdueMetadata {
+  status: TaskStatus;
+  totalOverdueInStatus: number;
+  currentPageCount: number;
+  severityBreakdown: OverdueSeverityBreakdown;
+  averageDaysPastDue: number;
+  criticalTasksCount: number;
+  oldestOverdueTask: number;
 }
 
 /**

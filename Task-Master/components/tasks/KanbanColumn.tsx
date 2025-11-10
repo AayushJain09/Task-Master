@@ -48,7 +48,9 @@ import {
   RefreshControl
 } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
+import { AlertTriangle } from 'lucide-react-native';
 import { TaskCard, Task, ColumnStatus } from './TaskCard';
+import { EnhancedOverdueMetadata, StatusMetadata } from '@/types/task.types';
 
 /**
  * Screen Dimensions
@@ -84,6 +86,9 @@ interface KanbanColumnProps {
   onPressTask?: (task: Task) => void;
   onRefresh?: () => void;
   refreshing?: boolean;
+  statusMetadata?: StatusMetadata | null;
+  overdueMetadata?: EnhancedOverdueMetadata | null;
+  showOverdueDetails?: boolean;
 }
 
 /**
@@ -170,6 +175,13 @@ const getEmptyStateConfig = (status: ColumnStatus) => {
   return configs[status];
 };
 
+const severityPillTheme: Record<string, { bg: string; text: string }> = {
+  critical: { bg: '#FEE2E2', text: '#B91C1C' },
+  high: { bg: '#FEF3C7', text: '#92400E' },
+  medium: { bg: '#FFFBEB', text: '#92400E' },
+  low: { bg: '#ECFCCB', text: '#3F6212' },
+};
+
 /**
  * KanbanColumn Component
  * 
@@ -215,7 +227,10 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
   onMoveTask,
   onPressTask,
   onRefresh,
-  refreshing = false
+  refreshing = false,
+  statusMetadata = null,
+  overdueMetadata = null,
+  showOverdueDetails = false
 }) => {
   const { isDark } = useTheme();
   const theme = getColumnTheme(status, color);
@@ -362,6 +377,56 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
             {status === 'in_progress' && 'Currently active tasks'}
             {status === 'done' && 'Completed tasks'}
           </Text>
+
+          {/* Overdue Awareness */}
+          {showOverdueDetails && overdueMetadata ? (
+            <View className="mt-3">
+              <Text
+                className={`text-xs font-semibold ${
+                  isDark ? 'text-gray-200' : 'text-gray-700'
+                }`}
+              >
+                Avg {overdueMetadata.averageDaysPastDue.toFixed(1)} days overdue ·{' '}
+                {overdueMetadata.totalOverdueInStatus} open tasks
+              </Text>
+              <View className="flex-row flex-wrap gap-2 mt-2">
+                {Object.entries(overdueMetadata.severityBreakdown).map(([severity, count]) => {
+                  if (!count) return null;
+                  const pill = severityPillTheme[severity] || severityPillTheme.low;
+                  return (
+                    <View
+                      key={`${status}-${severity}`}
+                      className="px-2 py-0.5 rounded-full"
+                      style={{
+                        backgroundColor: pill.bg,
+                        borderWidth: 1,
+                        borderColor: pill.text,
+                      }}
+                    >
+                      <Text
+                        className="text-xs font-semibold"
+                        style={{ color: pill.text }}
+                      >
+                        {severity}: {count}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          ) : (
+            statusMetadata?.hasOverdue && (
+              <View className="flex-row items-center mt-3">
+                <AlertTriangle size={16} color={isDark ? '#FCA5A5' : '#B91C1C'} />
+                <Text
+                  className="text-xs ml-2 font-medium"
+                  style={{ color: isDark ? '#FCA5A5' : '#B91C1C' }}
+                >
+                  Overdue tasks waiting in this column
+                </Text>
+              </View>
+            )
+          )}
         </View>
       </View>
 
