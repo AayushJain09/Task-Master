@@ -1,34 +1,71 @@
+import React from 'react';
 import { Tabs } from 'expo-router';
+import { View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Chrome as Home, User, Settings } from 'lucide-react-native';
 import { useTheme } from '@/context/ThemeContext';
 
+const TabIcon = ({
+  icon: Icon,
+  color,
+  focused,
+}: {
+  icon: typeof Home;
+  color: string;
+  focused: boolean;
+}) => (
+  <View
+    style={{
+      padding: focused ? 10 : 8,
+      borderRadius: 18,
+      backgroundColor: focused ? '#acd9ff' : 'transparent',
+    }}
+  >
+    <Icon size={20} color={focused ? '#FFFFFF' : color} />
+  </View>
+);
+
 export default function TabLayout() {
   const { isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const bottomInset = insets.bottom || 0;
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#3B82F6',
-        tabBarInactiveTintColor: isDark ? '#9CA3AF' : '#6B7280',
-        tabBarStyle: {
-          backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
-          borderTopColor: isDark ? '#374151' : '#E5E7EB',
-          borderTopWidth: 1,
-          paddingTop: 0,
-          paddingBottom: 8,
-          height: 60,
-          elevation: 8,
-          shadowColor: isDark ? '#fffff' : '#000000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: isDark ? 0.3 : 0.1,
-          shadowRadius: 4,
-          
-        },
+        tabBarActiveTintColor: isDark ? '#E0E7FF' : '#1D4ED8',
+        tabBarInactiveTintColor: isDark ? '#6B7280' : '#94A3B8',
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '600',
-          marginTop: 4,
+          marginTop: 2,
+        },
+        tabBarStyle: {
+          height: 30 ,
+          borderTopWidth: 0,
+          backgroundColor: 'transparent',
+          // paddingHorizontal: 10,
+          paddingBottom: Math.max(bottomInset, 12),
+          paddingTop: 1,
+        },
+        tabBarBackground: () => (
+          <LinearGradient
+            colors={isDark ? ['#0F172A', '#111827'] : ['#FFFFFF', '#E0E7FF']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{
+              flex: 1,
+              borderTopLeftRadius: 24,
+              borderTopRightRadius: 24,
+              borderWidth: 1,
+              borderColor: isDark ? '#1F2937' : '#D1D5DB',
+            }}
+          />
+        ),
+        tabBarItemStyle: {
+          paddingVertical: 4,
         },
       }}
     >
@@ -36,22 +73,26 @@ export default function TabLayout() {
         name="home"
         options={{
           title: 'Home',
-          tabBarIcon: ({ size, color }) => <Home size={size} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon={Home} color={color} focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
-          tabBarIcon: ({ size, color }) => <User size={size} color={color} />,
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon={User} color={color} focused={focused} />
+          ),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: 'Settings',
-          tabBarIcon: ({ size, color }) => (
-            <Settings size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon icon={Settings} color={color} focused={focused} />
           ),
         }}
       />

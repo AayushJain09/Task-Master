@@ -2,6 +2,8 @@ import { useEffect, memo } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -16,8 +18,7 @@ SplashScreen.preventAutoHideAsync();
 // Theme-aware wrapper component
 const ThemedSafeAreaView = memo(({ children }: { children: React.ReactNode }) => {
   const { isDark, isLoading: themeLoading } = useTheme();
-  
-  // Show loading state while theme is initializing
+
   if (themeLoading) {
     return (
       <SafeAreaView className="flex-1 bg-gray-900 justify-center items-center">
@@ -25,11 +26,15 @@ const ThemedSafeAreaView = memo(({ children }: { children: React.ReactNode }) =>
       </SafeAreaView>
     );
   }
-  
+
+  const gradientColors = isDark ? ['#020617', '#0B1120', '#111827'] : ['#F8FAFC', '#EEF2FF', '#FFFFFF'];
+
   return (
-    <SafeAreaView className={`flex-1 border ${isDark ? 'bg-gray-900' : 'bg-white'}`}>
-      {children}
-    </SafeAreaView>
+    <LinearGradient colors={gradientColors} style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1 }}>
+        <View style={{ flex: 1, paddingHorizontal: 4 }}>{children}</View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 });
 
