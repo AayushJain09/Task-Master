@@ -60,6 +60,43 @@ export interface ActivityLogEntry {
   createdAt: string;
 }
 
+/**
+ * Deep analytics payload powering graphs/insights.
+ */
+export interface DashboardAnalyticsResponse {
+  userContext: {
+    userId: string;
+    role: string;
+  };
+  analytics: {
+    summary: {
+      totalTasks: number;
+      openTasks: number;
+      completedTasks: number;
+      overdueTasks: number;
+      upcomingTasks: number;
+    };
+    statusDistribution: Record<string, number>;
+    priorityDistribution: Record<string, number>;
+    weeklyProgress: Array<{
+      date: string;
+      label: string;
+      created: number;
+      completed: number;
+    }>;
+    velocityTrend: Array<{
+      week: number;
+      year: number;
+      completed: number;
+    }>;
+    cycleTime: {
+      averageDays: number;
+      fastestDays: number;
+      slowestDays: number;
+    };
+  };
+}
+
 export interface DashboardActivityResponse {
   userContext: {
     userId: string;

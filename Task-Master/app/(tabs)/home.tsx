@@ -9,7 +9,11 @@ import { useTheme } from '@/context/ThemeContext';
 import SideDrawer, { DrawerToggle } from '@/components/ui/SideDrawer';
 import DrawerContent from '@/components/ui/DrawerContent';
 import { dashboardService } from '@/services/dashboard.service';
-import { DashboardMetricsResponse, DashboardActivityResponse } from '@/types/dashboard.types';
+import {
+  DashboardMetricsResponse,
+  DashboardActivityResponse,
+  DashboardAnalyticsResponse,
+} from '@/types/dashboard.types';
 
 export default function HomeScreen() {
   const { user } = useAuth();
@@ -19,6 +23,7 @@ export default function HomeScreen() {
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [metrics, setMetrics] = useState<DashboardMetricsResponse['metrics'] | null>(null);
   const [activityFeed, setActivityFeed] = useState<DashboardActivityResponse['activities']>([]);
+  const [analytics, setAnalytics] = useState<DashboardAnalyticsResponse['analytics'] | null>(null);
 
   const handleDrawerToggle = () => {
     setIsDrawerOpen(!isDrawerOpen);
@@ -34,12 +39,14 @@ export default function HomeScreen() {
   const fetchDashboardData = useCallback(async () => {
     try {
       setMetricsLoading(true);
-      const [metricsResponse, activityResponse] = await Promise.all([
+      const [metricsResponse, activityResponse, analyticsResponse] = await Promise.all([
         dashboardService.getMetrics(),
         dashboardService.getRecentActivity({ limit: 10 }),
+        dashboardService.getAnalytics(),
       ]);
       setMetrics(metricsResponse.metrics);
       setActivityFeed(activityResponse.activities);
+      setAnalytics(analyticsResponse.analytics);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
@@ -80,6 +87,7 @@ export default function HomeScreen() {
       <DrawerContent
         activeOption={activeDrawerOption}
         dashboardMetrics={metrics}
+        analytics={analytics}
         activityFeed={activityFeed}
         metricsLoading={metricsLoading}
         onRefreshDashboard={fetchDashboardData}

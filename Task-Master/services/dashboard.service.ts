@@ -1,5 +1,9 @@
 import { apiService } from './api.service';
-import { DashboardMetricsResponse, DashboardActivityResponse } from '@/types/dashboard.types';
+import {
+  DashboardMetricsResponse,
+  DashboardActivityResponse,
+  DashboardAnalyticsResponse,
+} from '@/types/dashboard.types';
 
 class DashboardService {
   private baseEndpoint = '/dashboard';
@@ -9,6 +13,14 @@ class DashboardService {
    */
   async getMetrics(): Promise<DashboardMetricsResponse> {
     const response = await apiService.get<DashboardMetricsResponse>(`${this.baseEndpoint}/metrics`);
+    return response;
+  }
+
+  /**
+   * Deeper analytics feed (weekly progress, cycle time, velocity trend) used for charts.
+   */
+  async getAnalytics(): Promise<DashboardAnalyticsResponse> {
+    const response = await apiService.get<DashboardAnalyticsResponse>(`${this.baseEndpoint}/analytics`);
     return response;
   }
 

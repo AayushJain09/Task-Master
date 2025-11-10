@@ -2,7 +2,11 @@ import React from 'react';
 import Dashboard from '../screens/Dashboard';
 import Tasks from '../screens/Tasks';
 import Reminders from '../screens/Reminders';
-import { DashboardMetricsResponse, DashboardActivityResponse } from '@/types/dashboard.types';
+import {
+  DashboardMetricsResponse,
+  DashboardActivityResponse,
+  DashboardAnalyticsResponse,
+} from '@/types/dashboard.types';
 
 /**
  * DrawerContent ties the drawer selection to the correct screen/component.
@@ -13,6 +17,7 @@ interface DrawerContentProps {
   activeOption: string;
   dashboardMetrics?: DashboardMetricsResponse['metrics'] | null;
   activityFeed?: DashboardActivityResponse['activities'];
+  analytics?: DashboardAnalyticsResponse['analytics'] | null;
   metricsLoading?: boolean;
   onRefreshDashboard?: () => Promise<void> | void;
 }
@@ -20,6 +25,7 @@ interface DrawerContentProps {
 export default function DrawerContent({
   activeOption,
   dashboardMetrics,
+  analytics,
   activityFeed = [],
   metricsLoading = false,
   onRefreshDashboard,
@@ -29,6 +35,7 @@ export default function DrawerContent({
       return (
         <Dashboard
           metrics={dashboardMetrics}
+          analytics={analytics}
           activityFeed={activityFeed}
           loading={metricsLoading}
           onRefresh={onRefreshDashboard}
