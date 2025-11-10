@@ -113,6 +113,9 @@ activityLogSchema.statics.logTaskActivity = async function ({
     throw new Error('Task reference is required to log activity');
   }
 
+  /**
+   * Normalizes mongoose docs/ObjectIds/string ids into plain string ids.
+   */
   const normalizeId = (value) => {
     if (!value) return null;
     if (typeof value === 'string') return value;

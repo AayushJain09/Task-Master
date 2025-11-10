@@ -407,6 +407,7 @@ const getDashboardAnalytics = async (req, res) => {
       {}
     );
 
+    // Align raw aggregates with the last 7 calendar days (ensures zero-fill).
     const weeklyProgress = lastSevenDays.map(day => ({
       date: day.key,
       label: day.label,
@@ -414,12 +415,14 @@ const getDashboardAnalytics = async (req, res) => {
       completed: completedMap[day.key] || 0,
     }));
 
+    // Weekly completion trend (8-week lookback) fuels burndown style charts.
     const velocityTrend = velocityRaw.map(entry => ({
       week: entry._id.week,
       year: entry._id.year,
       completed: entry.completed,
     }));
 
+    // Cycle-time stats provide insight into delivery speed.
     const cycleSummary = cycleStats.length
       ? {
           averageDays: parseFloat(cycleStats[0].avgCycleDays.toFixed(2)),

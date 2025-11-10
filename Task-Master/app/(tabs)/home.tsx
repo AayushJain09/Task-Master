@@ -28,6 +28,9 @@ export default function HomeScreen() {
     setActiveDrawerOption(optionId);
   };
 
+  /**
+   * Aggregated fetch used by dashboard + tasks screen so we keep network calls centralized.
+   */
   const fetchDashboardData = useCallback(async () => {
     try {
       setMetricsLoading(true);

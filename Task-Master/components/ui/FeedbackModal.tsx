@@ -21,6 +21,10 @@ export interface FeedbackModalProps {
   accentColor?: string;
 }
 
+/**
+ * Lightweight modal for success/error states. Accepts optional actions so screens
+ * can drive custom flows without duplicating UI.
+ */
 const FeedbackModal: React.FC<FeedbackModalProps> = ({
   visible,
   variant = 'success',

@@ -4,6 +4,11 @@ import Tasks from '../screens/Tasks';
 import Reminders from '../screens/Reminders';
 import { DashboardMetricsResponse, DashboardActivityResponse } from '@/types/dashboard.types';
 
+/**
+ * DrawerContent ties the drawer selection to the correct screen/component.
+ * It keeps the dashboard state (metrics + activity feed) centralized in Home
+ * and simply passes the already-fetched data down.
+ */
 interface DrawerContentProps {
   activeOption: string;
   dashboardMetrics?: DashboardMetricsResponse['metrics'] | null;

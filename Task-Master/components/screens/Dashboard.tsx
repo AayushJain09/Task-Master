@@ -16,6 +16,10 @@ import {
 import Card from '../ui/Card';
 import { DashboardMetricsResponse, ActivityLogEntry } from '@/types/dashboard.types';
 
+/**
+ * Props consumed by the dashboard screen. All heavy data lifting happens upstream
+ * so this component can stay purely presentational.
+ */
 interface DashboardProps {
   metrics?: DashboardMetricsResponse['metrics'] | null;
   activityFeed?: ActivityLogEntry[];
@@ -303,6 +307,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   );
 };
 
+/**
+ * Maps activity verbs to colors/icons so the feed looks cohesive.
+ */
 const getActivityPalette = (action: string, isDark: boolean) => {
   if (action.includes('created')) {
     return { bg: isDark ? '#1D4ED8' : '#DBEAFE', icon: <ListChecks size={16} color="#FFFFFF" /> };

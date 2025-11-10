@@ -1,5 +1,7 @@
-import { OverdueBreakdown, NormalStatusBreakdown } from './task.types';
-
+/**
+ * Response payload for /dashboard/metrics endpoint.
+ * Mirrors the backend structure so UI components can rely on typed data.
+ */
 export interface DashboardMetricsResponse {
   userContext: {
     userId: string;
@@ -39,6 +41,9 @@ export interface DashboardMetricsResponse {
   };
 }
 
+/**
+ * Individual entry in the recent activity feed.
+ */
 export interface ActivityLogEntry {
   _id: string;
   action: string;
