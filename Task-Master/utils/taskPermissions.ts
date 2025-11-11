@@ -53,8 +53,8 @@ export const canUpdateTaskStatus = (task: Task, currentUser: User | null): boole
     return false;
   }
   
-  const isCreator = task.assignedBy?._id === currentUser.id;
-  const isAssignee = task.assignedTo?._id === currentUser.id;
+  const isCreator = task.assignedBy && task.assignedBy._id === currentUser.id;
+  const isAssignee = task.assignedTo && task.assignedTo._id === currentUser.id;
   
   return isCreator || isAssignee;
 };
@@ -72,8 +72,8 @@ export const canViewTask = (task: Task, currentUser: User | null): boolean => {
     return false;
   }
   
-  const isCreator = task.assignedBy?._id === currentUser.id;
-  const isAssignee = task.assignedTo?._id === currentUser.id;
+  const isCreator = task.assignedBy && task.assignedBy._id === currentUser.id;
+  const isAssignee = task.assignedTo && task.assignedTo._id === currentUser.id;
   
   return isCreator || isAssignee;
 };
@@ -90,8 +90,8 @@ export const getUserTaskRole = (task: Task, currentUser: User | null): 'creator'
     return 'none';
   }
   
-  const isCreator = task.assignedBy?._id === currentUser.id;
-  const isAssignee = task.assignedTo?._id === currentUser.id;
+  const isCreator = task.assignedBy && task.assignedBy._id === currentUser.id;
+  const isAssignee = task.assignedTo && task.assignedTo._id === currentUser.id;
   
   if (isCreator) return 'creator';
   if (isAssignee) return 'assignee';
