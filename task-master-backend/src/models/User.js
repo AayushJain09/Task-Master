@@ -377,14 +377,18 @@ userSchema.statics.findByCredentials = async function (email, password) {
   const user = await this.findOne({ email: normalizedEmail, isActive: true }).select('+password +refreshTokens');
 
   if (!user) {
-    throw new Error('Invalid login credentials');
+    const error = new Error('Invalid login credentials');
+    error.name = 'InvalidCredentialsError';
+    throw error;
   }
 
   // Compare provided password with stored hash
   const isPasswordMatch = await user.comparePassword(password);
 
   if (!isPasswordMatch) {
-    throw new Error('Invalid login credentials');
+    const error = new Error('Invalid login credentials');
+    error.name = 'InvalidCredentialsError';
+    throw error;
   }
 
   // Update last login timestamp

@@ -120,7 +120,15 @@ const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
   // Find user by credentials (static method handles validation)
-  const user = await User.findByCredentials(email, password);
+  let user;
+  try {
+    user = await User.findByCredentials(email, password);
+  } catch (error) {
+    if (error.name === 'InvalidCredentialsError') {
+      throw new ApiError(401, 'Invalid email or password');
+    }
+    throw error;
+  }
 
   // Generate authentication tokens
   const accessToken = user.generateAccessToken();
