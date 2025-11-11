@@ -125,13 +125,20 @@ const initializeServer = async () => {
 };
 
 /**
- * Start Server
+ * Start Server (only when run directly)
  *
- * Initialize and start the server.
+ * Initialize the server when this file is executed via `node src/server.js`.
+ * When imported (e.g., by a serverless handler), the caller controls if/when
+ * the server boots.
  */
-initializeServer();
+if (require.main === module) {
+  initializeServer();
+}
 
 /**
- * Export server for testing purposes
+ * Export server + initializer for testing and external bootstrapping
  */
-module.exports = app;
+module.exports = {
+  app,
+  initializeServer,
+};
