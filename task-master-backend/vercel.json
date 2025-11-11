@@ -1,0 +1,20 @@
+{
+  "version": 2,
+  "name": "task-master-backend",
+  "builds": [
+    { "src": "src/app.js", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/api/(.*)", "dest": "src/app.js" },
+    { "src": "/api-docs", "dest": "src/app.js" },
+    { "src": "/api-docs/(.*)", "dest": "src/app.js" },
+    { "src": "/api/api-docs", "dest": "src/app.js" },
+    { "src": "/api/api-docs/(.*)", "dest": "src/app.js" },
+    { "src": "/api-docs.json", "dest": "src/app.js" },
+    { "src": "/api/api-docs.json", "dest": "src/app.js" },
+    { "src": "/health", "dest": "src/app.js" },
+    { "src": "/api/v1/health", "dest": "src/app.js" },
+    { "src": "/(.*)", "dest": "src/app.js" }
+  ]
+}
+
