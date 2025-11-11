@@ -44,6 +44,7 @@ const {
  * Initialize Express Application
  */
 const app = express();
+app.set('trust proxy', 1); // trust Vercel/Proxy headers for accurate client IPs
 
 /**
  * Security Middleware - Helmet
