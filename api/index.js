@@ -5,7 +5,12 @@
  * Imports the Express app from task-master-backend.
  */
 
-require('dotenv').config({ path: require('path').join(__dirname, '..', 'task-master-backend', '.env') });
+const path = require('path');
+const fs = require('fs');
+const envPath = path.join(__dirname, '..', 'task-master-backend', '.env');
+if (fs.existsSync(envPath)) {
+  require('dotenv').config({ path: envPath });
+}
 
 const serverless = require('serverless-http');
 const app = require('../task-master-backend/src/app');
