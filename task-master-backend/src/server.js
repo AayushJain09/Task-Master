@@ -125,26 +125,12 @@ const initializeServer = async () => {
 };
 
 /**
- * Start Server (only when executed directly)
- *
- * Allows this module to be imported (e.g., in serverless environments)
- * without immediately binding to a port.
+ *  Start Server
+ * Initialize and start the server.
  */
-if (require.main === module) {
-  initializeServer();
-}
-if (require.main === module) {
-  initializeServer();
-}
+initializeServer();
 
 /**
- * Export app and initializer for testing or custom bootstrapping
+ * Export server for testing purposes
  */
-module.exports = {
-  app,
-  initializeServer,
-};
-module.exports = {
-  app,
-  initializeServer,
-};
+module.exports = app;
