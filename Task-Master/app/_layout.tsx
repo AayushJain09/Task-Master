@@ -3,7 +3,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { View } from 'react-native';
+import { View, type ColorValue } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -27,7 +27,9 @@ const ThemedSafeAreaView = memo(({ children }: { children: React.ReactNode }) =>
     );
   }
 
-  const gradientColors = isDark ? ['#020617', '#0B1120', '#111827'] : ['#F8FAFC', '#EEF2FF', '#FFFFFF'];
+  const gradientColors: readonly [ColorValue, ColorValue, ...ColorValue[]] = isDark
+    ? ['#020617', '#0B1120', '#111827'] as const
+    : ['#F8FAFC', '#EEF2FF', '#FFFFFF'] as const;
 
   return (
     <LinearGradient colors={gradientColors} style={{ flex: 1 }}>

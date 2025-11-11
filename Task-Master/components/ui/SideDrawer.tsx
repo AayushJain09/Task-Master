@@ -8,6 +8,7 @@ import {
   TouchableWithoutFeedback,
   Easing,
   ScrollView,
+  type ColorValue,
 } from 'react-native';
 import {
   Home,
@@ -72,7 +73,9 @@ export default function SideDrawer({
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [isAnimating, setIsAnimating] = useState(false);
-  const drawerGradient = isDark ? ['#020617', '#0F172A', '#111827'] : ['#F8FAFC', '#FFFFFF'];
+  const drawerGradient: readonly [ColorValue, ColorValue, ...ColorValue[]] = isDark
+    ? (['#020617', '#0F172A', '#111827'] as const)
+    : (['#F8FAFC', '#FFFFFF'] as const);
   const userAccents = isDark ? ['#312E81', '#1E3A8A'] : ['#DBEAFE', '#BFDBFE'];
 
   const initials =
@@ -496,7 +499,7 @@ export function DrawerToggle({ onToggle, isOpen }: DrawerToggleProps) {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={{
-            padding: 14,
+            padding: 8,
             borderRadius: 999,
             borderWidth: 1,
             borderColor: isDark ? '#1F2937' : '#E0E7FF',

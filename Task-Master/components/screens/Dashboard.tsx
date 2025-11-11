@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Animated, Easing } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Animated, Easing, type ColorValue } from 'react-native';
 import { useTheme } from '@/context/ThemeContext';
 import {
   CheckSquare,
@@ -118,10 +118,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <AccentBlob color={isDark ? '#0EA5E9' : '#60A5FA'} size={120} style={{ left: -50, bottom: -50 }} />
         <View className="flex-row items-start justify-between">
           <View className="flex-1 pr-6">
-            <Text className={`text-xs uppercase tracking-[0.25em] ${isDark ? 'text-indigo-200' : 'text-indigo-600'}`}>
-              Mission Control
-            </Text>
-            <Text className={`text-3xl font-black mt-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            <Text className={`text-2xl font-black mt-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
               Productivity Overview
             </Text>
             <Text className={`text-sm mt-3 leading-5 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
@@ -161,31 +158,32 @@ const Dashboard: React.FC<DashboardProps> = ({
             end={{ x: 1, y: 1 }}
             style={{
               flex: 1,
-              minWidth: 150,
+              width: 60,
               borderRadius: 22,
-              padding: 18,
+              padding: 12,
+              paddingBottom: 4,
               borderWidth: 1,
               borderColor: chip.borderColor,
               overflow: 'hidden',
             }}
           >
             <AccentBlob color={chip.accentBlob} size={120} style={{ right: -30, top: -40 }} />
-            <View className="flex-row items-center mb-4">
+            <View className="flex-row items-center mb-3">
               <View
-                className="w-9 h-9 rounded-full items-center justify-center"
+                className="w-5 h-5 rounded-full items-center justify-center"
                 style={{ backgroundColor: chip.iconBg }}
               >
                 {chip.icon}
               </View>
-              <Text className="ml-3 text-xs font-semibold uppercase tracking-widest" style={{ color: chip.labelColor }}>
+              <Text className="ml-1 h-8 align-middle text-xs font-semibold uppercase tracking-widest" style={{ color: chip.labelColor }}>
                 {chip.label}
               </Text>
             </View>
-            <Text className="text-3xl font-black" style={{ color: chip.valueColor }}>
+            <Text numberOfLines={1} className="text-3xl font-black overflow-x-clip" style={{ color: chip.valueColor }}>
               {chip.value}
             </Text>
             {chip.subLabel && (
-              <Text className="text-xs mt-2" style={{ color: chip.helperColor }}>
+              <Text className="text-xs mt-1 overflow-x-clip" numberOfLines={2} style={{ color: chip.helperColor }}>
                 {chip.subLabel}
               </Text>
             )}
@@ -277,7 +275,8 @@ const Dashboard: React.FC<DashboardProps> = ({
         end={{ x: 1, y: 1 }}
         style={{
           borderRadius: 24,
-          padding: 20,
+          paddingVertical: 14,
+          paddingHorizontal: 22,
           marginBottom: 18,
           borderWidth: 1,
           borderColor: isDark ? '#1F2937' : '#FED7AA',
@@ -287,7 +286,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <AccentBlob color={isDark ? '#9A3412' : '#FDBA74'} size={160} style={{ right: -60, top: -50 }} />
         <View className="flex-row items-center mb-6">
           <View className="w-12 h-12 rounded-2xl items-center justify-center" style={{ backgroundColor: isDark ? '#78350F' : '#FDE68A' }}>
-            <Calendar size={26} color={isDark ? '#FCD34D' : '#B45309'} />
+            <Calendar size={24} color={isDark ? '#FCD34D' : '#B45309'} />
           </View>
           <View className="ml-4">
             <Text className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -537,11 +536,25 @@ const getActivityPalette = (action: string, isDark: boolean) => {
   return { bg: isDark ? '#4C1D95' : '#EDE9FE', icon: <MapPin size={16} color="#FFFFFF" /> };
 };
 
+type SummaryChip = {
+  label: string;
+  value: string | number;
+  subLabel?: string;
+  gradient: readonly [ColorValue, ColorValue, ...ColorValue[]];
+  borderColor: string;
+  labelColor: string;
+  helperColor: string;
+  valueColor: string;
+  iconBg: string;
+  accentBlob: string;
+  icon: React.ReactNode;
+};
+
 const buildSummaryChips = (
   analytics: DashboardAnalyticsResponse['analytics'] | null | undefined,
   metrics: DashboardMetricsResponse['metrics'] | null | undefined,
   isDark: boolean
-) => {
+): SummaryChip[] => {
   const summary = analytics?.summary;
   const baseValueColor = isDark ? '#F9FAFB' : '#0F172A';
 
@@ -550,7 +563,7 @@ const buildSummaryChips = (
       label: 'Open orbit',
       value: summary ? summary.openTasks : metrics?.tasks.total ?? '—',
       subLabel: 'Active workload in flight',
-      gradient: isDark ? ['#1E1B4B', '#0F172A'] : ['#DBEAFE', '#FFFFFF'],
+      gradient: (isDark ? ['#1E1B4B', '#0F172A'] : ['#DBEAFE', '#FFFFFF']) as readonly [ColorValue, ColorValue],
       borderColor: isDark ? '#312E81' : '#BFDBFE',
       labelColor: isDark ? '#C7D2FE' : '#1D4ED8',
       helperColor: isDark ? '#E0E7FF' : '#475569',
@@ -563,7 +576,7 @@ const buildSummaryChips = (
       label: 'Completion',
       value: summary ? summary.completedTasks : metrics?.tasks.done ?? '—',
       subLabel: `${completionRate(metrics)}% completion rate`,
-      gradient: isDark ? ['#064E3B', '#052E16'] : ['#D1FAE5', '#FFFFFF'],
+      gradient: (isDark ? ['#064E3B', '#052E16'] : ['#D1FAE5', '#FFFFFF']) as readonly [ColorValue, ColorValue],
       borderColor: isDark ? '#065F46' : '#A7F3D0',
       labelColor: isDark ? '#6EE7B7' : '#047857',
       helperColor: isDark ? '#D1FAE5' : '#047857',
@@ -576,7 +589,7 @@ const buildSummaryChips = (
       label: 'Overdue watch',
       value: summary ? summary.overdueTasks : metrics?.overdue.active ?? '—',
       subLabel: summary ? `${summary.upcomingTasks} deadlines approaching` : 'Monitor approaching work',
-      gradient: isDark ? ['#7F1D1D', '#450A0A'] : ['#FEE2E2', '#FFFFFF'],
+      gradient: (isDark ? ['#7F1D1D', '#450A0A'] : ['#FEE2E2', '#FFFFFF']) as readonly [ColorValue, ColorValue],
       borderColor: isDark ? '#991B1B' : '#FCA5A5',
       labelColor: isDark ? '#FCA5A5' : '#B91C1C',
       helperColor: isDark ? '#FECACA' : '#7F1D1D',

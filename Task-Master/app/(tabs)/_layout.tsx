@@ -3,7 +3,7 @@ import { Tabs } from 'expo-router';
 import { View, Text, TouchableOpacity, Animated, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Chrome as Home, User, Settings } from 'lucide-react-native';
+import { House as Home, User, Settings } from 'lucide-react-native';
 import { useTheme } from '@/context/ThemeContext';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
@@ -19,10 +19,9 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      screenOptions={{ headerShown: false,
-        tabBarActiveBackgroundColor: 'transparent',
-  tabBarInactiveBackgroundColor: 'transparent',
-       }}
+      screenOptions={{
+        headerShown: false,
+      }}
       tabBar={props => (
         <GradientTabBar {...props} isDark={isDark} bottomInset={insets.bottom || 0} />
       )}
@@ -78,13 +77,19 @@ const GradientTabBar: React.FC<GradientTabBarProps> = ({
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={{
+        position: 'absolute',
+        bottom: 0,
+        right: 0,
+        left: 0,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         borderWidth: 1,
         borderColor: isDark ? '#111827' : '#E2E8F0',
+        backgroundColor: 'transparent',
         paddingHorizontal: horizontalPadding,
         paddingTop: 6,
-        }}
+        paddingBottom: 3,
+      }}
     >
       <Animated.View
         style={{
@@ -154,8 +159,8 @@ const GradientTabBar: React.FC<GradientTabBarProps> = ({
                         ? '#E0E7FF'
                         : '#1D4ED8'
                       : isDark
-                      ? '#94A3B8'
-                      : '#94A3B8'
+                        ? '#94A3B8'
+                        : '#94A3B8'
                   }
                 />
               </View>
@@ -168,11 +173,11 @@ const GradientTabBar: React.FC<GradientTabBarProps> = ({
                       ? '#E0E7FF'
                       : '#1E3A8A'
                     : isDark
-                    ? '#6B7280'
-                    : '#94A3B8',
+                      ? '#6B7280'
+                      : '#94A3B8',
                 }}
               >
-                {label}
+                {label as string}
               </Text>
             </TouchableOpacity>
           );

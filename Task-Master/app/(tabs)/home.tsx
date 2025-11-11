@@ -88,7 +88,7 @@ export default function HomeScreen() {
   }, [fetchDashboardData]);
 
   return (
-    <View className={`flex-1 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
+    <View className={`flex-1 pb-12 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Side Drawer */}
       <SideDrawer
         isOpen={isDrawerOpen}
@@ -96,87 +96,95 @@ export default function HomeScreen() {
         activeOption={activeDrawerOption}
         onOptionSelect={handleDrawerOptionSelect}
       />
-    
+
       {/* Header */}
-      <View className="px-4 pt-4">
-        {activeDrawerOption === 'dashboard' ? (
-          <LinearGradient
-            colors={isDark ? ['#0F172A', '#111827'] : ['#EFF6FF', '#FFFFFF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{
-              borderRadius: 28,
-              padding: 20,
-              borderWidth: 1,
-              borderColor: isDark ? '#1E3A8A' : '#C7D2FE',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
-            <AccentBlob color={isDark ? '#1D4ED8' : '#A5B4FC'} size={220} style={{ right: -70, top: -80 }} />
-            <AccentBlob color={isDark ? '#0EA5E9' : '#93C5FD'} size={140} style={{ left: -60, bottom: -90 }} />
+      <View className='px-4 pt-4'>
+      {activeDrawerOption === 'dashboard' ? (
+        <LinearGradient
+          colors={isDark ? ['#0F172A', '#111827'] : ['#EFF6FF', '#FFFFFF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            borderRadius: 28,
+            padding: 20,
+            borderWidth: 1,
+            borderColor: isDark ? '#1E3A8A' : '#C7D2FE',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <AccentBlob color={isDark ? '#1D4ED8' : '#A5B4FC'} size={220} style={{ right: -70, top: -80 }} />
+          <AccentBlob color={isDark ? '#0EA5E9' : '#93C5FD'} size={200} style={{ left: -60, bottom: -90 }} />
 
-            <View className="flex-row items-start justify-between">
+          <View className="flex-row items-start justify-between">
+            <View className='flex-row gap-2 items-center'>
               <DrawerToggle onToggle={handleDrawerToggle} isOpen={isDrawerOpen} />
-              <View className="items-end">
-                <Text className={`text-xs uppercase tracking-[0.4em] ${isDark ? 'text-indigo-200' : 'text-indigo-500'}`}>
-                  Weekly pulse
+              <Text className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'
+                }`}>
+                Dashboard
+              </Text>
+            </View>
+            <View className="items-end">
+              <Text className={`text-xs uppercase tracking-[0.4em] ${isDark ? 'text-indigo-200' : 'text-indigo-500'}`}>
+                Weekly pulse
+              </Text>
+              <Text className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {weeklySnapshot.completed} done · {weeklySnapshot.created} created
+              </Text>
+            </View>
+          </View>
+
+          <View className="mt-6">
+            <View className="flex-row items-center">
+              <Sparkles size={16} color={isDark ? '#FDE68A' : '#D97706'} />
+              <View className="flex-row items-baseline">
+                <Text className={`text-sm uppercase tracking-[0.3em] ml-2 ${isDark ? 'text-amber-200' : 'text-amber-600'}`}>
+                  Welcome back,{" "}
                 </Text>
-                <Text className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  {weeklySnapshot.completed} done · {weeklySnapshot.created} created
+                <Text className={`text-2xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  {user?.firstName || 'User'}! 👋
                 </Text>
               </View>
             </View>
+            <Text className={`text-sm mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              Here&apos;s the latest signal on your workload. Triage, focus, and keep momentum.
+            </Text>
+          </View>
 
-            <View className="mt-6">
-              <View className="flex-row items-center">
-                <Sparkles size={16} color={isDark ? '#FDE68A' : '#D97706'} />
-                <Text className={`text-xs uppercase tracking-[0.3em] ml-2 ${isDark ? 'text-amber-200' : 'text-amber-600'}`}>
-                  Mission control
-                </Text>
-              </View>
-              <Text className={`text-3xl font-black mt-2 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                Welcome back, {user?.firstName || 'User'}! 👋
-              </Text>
-              <Text className={`text-base mt-2 ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
-                Here&apos;s the latest signal on your workload. Triage, focus, and keep momentum.
-              </Text>
-            </View>
-
-            <View className="flex-row flex-wrap gap-3 mt-6">
-              {quickStats.map(stat => (
-                <View
-                  key={stat.label}
+          <View className="flex-row flex-wrap gap-3 mt-6">
+            {quickStats.map(stat => (
+              <View
+                key={stat.label}
+                style={{
+                  flex: 1,
+                  width: 60,
+                  borderRadius: 18,
+                  paddingVertical: 12,
+                  paddingHorizontal: 14,
+                  backgroundColor: isDark ? 'rgba(15,23,42,0.7)' : 'rgba(255,255,255,0.85)',
+                  borderWidth: 1,
+                  borderColor: `${stat.accent}33`,
+                }}
+              >
+                <Text
                   style={{
-                    flex: 1,
-                    minWidth: 110,
-                    borderRadius: 18,
-                    paddingVertical: 12,
-                    paddingHorizontal: 14,
-                    backgroundColor: isDark ? 'rgba(15,23,42,0.7)' : 'rgba(255,255,255,0.85)',
-                    borderWidth: 1,
-                    borderColor: `${stat.accent}33`,
+                    fontSize: 10,
+                    textTransform: 'uppercase',
+                    letterSpacing: 1.0,
+                    color: stat.accent,
                   }}
                 >
-                  <Text
-                    style={{
-                      fontSize: 11,
-                      textTransform: 'uppercase',
-                      letterSpacing: 1.5,
-                      color: stat.accent,
-                    }}
-                  >
-                    {stat.label}
-                  </Text>
-                  <Text className={`text-2xl font-bold mt-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                    {stat.value}
-                  </Text>
-                  <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{stat.helper}</Text>
-                </View>
-              ))}
-            </View>
-          </LinearGradient>
-        ) : (
+                  {stat.label}
+                </Text>
+                <Text className={`text-2xl font-bold mt-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  {stat.value}
+                </Text>
+                <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{stat.helper}</Text>
+              </View>
+            ))}
+          </View>
+        </LinearGradient>
+      ) : (
           <LinearGradient
             colors={isDark ? ['#111827', '#0F172A'] : ['#FFFFFF', '#EEF2FF']}
             start={{ x: 0, y: 0 }}
