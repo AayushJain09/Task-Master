@@ -460,17 +460,21 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Delivery velocity */}
       <LinearGradient
-        colors={isDark ? ['#2E1065', '#1E1B4B', '#111827'] : ['#F5F3FF', '#EEF2FF', '#FFFFFF']}
+        colors={isDark ? ['#031628', '#0B2239', '#111C2F'] : ['#F0F9FF', '#EEF2FF', '#FFFFFF']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={{
           borderRadius: 28,
           padding: 24,
           borderWidth: 1,
-          borderColor: isDark ? '#7C3AED' : '#DDD6FE',
+          borderColor: isDark ? '#0EA5E9' : '#C7D2FE',
           marginBottom: 16,
+          position: 'relative',
+          overflow: 'hidden',
         }}
       >
+        <AccentBlob color={isDark ? 'rgba(59,130,246,0.35)' : 'rgba(79,70,229,0.18)'} size={220} style={{ right: -60, top: -80 }} />
+        <AccentBlob color={isDark ? 'rgba(16,185,129,0.25)' : 'rgba(129,140,248,0.2)'} size={160} style={{ left: -40, bottom: -100 }} />
         <View className="flex-row items-center justify-between mb-4">
           <View className="flex-row items-center">
             <TrendingUp size={20} color={isDark ? '#F0ABFC' : '#7C3AED'} />
@@ -488,28 +492,28 @@ const Dashboard: React.FC<DashboardProps> = ({
           </Text>
         </View>
         {velocityLineData.length ? (
-          <LineChart
-            data={velocityLineData}
-            curved
-            isAnimated
-            color1={isDark ? '#F0ABFC' : '#7C3AED'}
-            startFillColor1={isDark ? '#7C3AED' : '#DDD6FE'}
-            endFillColor1={isDark ? '#111827' : '#FFFFFF'}
-            startOpacity={0.6}
-            endOpacity={0.05}
-            thickness={4}
-            hideDataPoints={false}
-            dataPointsColor={isDark ? '#FDE68A' : '#7C3AED'}
-            dataPointsWidth={10}
-            yAxisThickness={0}
-            xAxisThickness={0}
-            height={200}
-            areaChart
-            hideRules={true}
-            yAxisColor="#0BA5A4"
-            backgroundColor="transparent"
-            rulesColor={chartGridColor}
-          />
+      <LineChart
+        data={velocityLineData}
+        curved
+        isAnimated
+        color1={isDark ? '#7DD3FC' : '#7C3AED'}
+        startFillColor1={isDark ? '#0EA5E9' : '#DDD6FE'}
+        endFillColor1={isDark ? '#0B1120' : '#FFFFFF'}
+        startOpacity={0.55}
+        endOpacity={isDark ? 0.08 : 0.05}
+        thickness={4}
+        hideDataPoints={false}
+        dataPointsColor={isDark ? '#FDE68A' : '#7C3AED'}
+        dataPointsWidth={10}
+        yAxisThickness={0}
+        xAxisThickness={0}
+        height={200}
+        areaChart
+        hideRules={true}
+        yAxisColor={isDark ? '#22D3EE' : '#0BA5A4'}
+        backgroundColor="transparent"
+        rulesColor={chartGridColor}
+      />
         ) : (
           <Text className={isDark ? 'text-gray-500' : 'text-gray-500'}>
             Ship a few tasks to start tracking velocity.

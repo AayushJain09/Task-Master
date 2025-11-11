@@ -297,7 +297,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View className={`flex-1 ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
+    <View className={`flex-1 pb-8 ${isDark ? 'bg-gray-950' : 'bg-gray-50'}`}>
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
