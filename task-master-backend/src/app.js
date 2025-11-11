@@ -47,6 +47,34 @@ const app = express();
 app.set('trust proxy', 1); // trust Vercel/Proxy headers for accurate client IPs
 
 /**
+ * Determine client IP address across different proxy setups. Needed because
+ * some serverless platforms may not populate req.ip before middleware runs.
+ */
+const getClientIp = (req) => {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (forwarded) {
+    return forwarded.split(',')[0].trim();
+  }
+
+  return (
+    req.headers['x-real-ip'] ||
+    req.ip ||
+    req.connection?.remoteAddress ||
+    req.socket?.remoteAddress ||
+    req.connection?.socket?.remoteAddress ||
+    'unknown'
+  );
+};
+
+// Ensure req.ip is populated even if upstream proxies strip it
+app.use((req, _res, next) => {
+  if (!req.ip) {
+    req.ip = getClientIp(req);
+  }
+  next();
+});
+
+/**
  * Security Middleware - Helmet
  *
  * Helmet helps secure Express apps by setting various HTTP headers.
@@ -204,6 +232,7 @@ const limiter = rateLimit({
   statusCode: appConfig.rateLimit.statusCode,
   standardHeaders: true, // Return rate limit info in `RateLimit-*` headers
   legacyHeaders: false, // Disable `X-RateLimit-*` headers
+  keyGenerator: (req) => getClientIp(req),
   skip: (req) => {
     // Skip rate limiting for Swagger UI and health check
     const isSwagger = swaggerPaths.some((path) => req.path.startsWith(path));
