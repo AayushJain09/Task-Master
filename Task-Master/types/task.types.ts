@@ -372,6 +372,7 @@ export interface TaskError {
 export interface TaskFormValidation {
   title?: string;
   description?: string;
+  priority?: string;
   dueDate?: string;
   estimatedHours?: string;
   tags?: string;
