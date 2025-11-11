@@ -194,6 +194,8 @@ app.use(removeEmptyFields);
  * Applies to all routes by default.
  * Swagger UI and health check endpoints are excluded from rate limiting.
  */
+const swaggerPaths = ['/api-docs', '/api/api-docs'];
+
 const limiter = rateLimit({
   windowMs: appConfig.rateLimit.windowMs,
   max: appConfig.rateLimit.max,
@@ -203,7 +205,8 @@ const limiter = rateLimit({
   legacyHeaders: false, // Disable `X-RateLimit-*` headers
   skip: (req) => {
     // Skip rate limiting for Swagger UI and health check
-    return req.path.startsWith('/api-docs') || req.path === '/health' || req.path === '/api/v1/health';
+    const isSwagger = swaggerPaths.some((path) => req.path.startsWith(path));
+    return isSwagger || req.path === '/health' || req.path === '/api/v1/health';
   },
 });
 
@@ -217,7 +220,7 @@ app.use(limiter);
  * Access at: /api-docs
  */
 app.use(
-  '/api-docs',
+  swaggerPaths,
   swaggerUi.serve,
   swaggerUi.setup(swaggerSpec, {
     explorer: true,
@@ -227,7 +230,7 @@ app.use(
 );
 
 // Swagger JSON endpoint
-app.get('/api-docs.json', (req, res) => {
+app.get(['/api-docs.json', '/api/api-docs.json'], (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
 });
@@ -252,7 +255,7 @@ app.get('/', (req, res) => {
     message: 'Welcome to Task Master API',
     version: '1.0.0',
     documentation: {
-      swagger: '/api-docs',
+      swagger: swaggerPaths,
       api: `${appConfig.server.apiPrefix}`,
     },
   });
