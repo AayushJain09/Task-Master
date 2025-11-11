@@ -1,25 +1,19 @@
 /**
- * Vercel Serverless Handler
+ * Root-level Vercel handler
  *
- * Wraps the Express application with serverless-http so the API
- * can run on Vercel's serverless platform. Ensures the MongoDB
- * connection is reused across invocations where possible.
+ * Allows Vercel to discover the API by placing the entrypoint in /api.
+ * Imports the Express app from task-master-backend.
  */
 
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '..', 'task-master-backend', '.env') });
+
 const serverless = require('serverless-http');
-const app = require('../src/app');
-const connectDB = require('../src/config/database');
+const app = require('../task-master-backend/src/app');
+const connectDB = require('../task-master-backend/src/config/database');
 
 let cachedHandler;
 let dbConnectionPromise;
 
-/**
- * Main handler exported for Vercel.
- *
- * @param {import('http').IncomingMessage} req
- * @param {import('http').ServerResponse} res
- */
 module.exports = async (req, res) => {
   try {
     dbConnectionPromise ||= connectDB();
