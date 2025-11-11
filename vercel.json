@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/index.js", "use": "@vercel/node" }
+  ],
+  "redirects": [
+    { "source": "/api-docs", "destination": "/api/api-docs", "permanent": false },
+    { "source": "/api-docs/:path*", "destination": "/api/api-docs/:path*", "permanent": false },
+    { "source": "/api-docs.json", "destination": "/api/api-docs.json", "permanent": false }
+  ]
+}

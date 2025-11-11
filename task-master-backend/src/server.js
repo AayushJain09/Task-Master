@@ -133,10 +133,17 @@ const initializeServer = async () => {
 if (require.main === module) {
   initializeServer();
 }
+if (require.main === module) {
+  initializeServer();
+}
 
 /**
  * Export app and initializer for testing or custom bootstrapping
  */
+module.exports = {
+  app,
+  initializeServer,
+};
 module.exports = {
   app,
   initializeServer,

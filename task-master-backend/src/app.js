@@ -219,7 +219,9 @@ app.use(limiter);
  * Interactive API documentation using Swagger UI.
  * Access at: /api-docs
  */
+const swaggerPaths = ['/api-docs', '/api/api-docs'];
 app.use(
+  swaggerPaths,
   swaggerPaths,
   swaggerUi.serve,
   swaggerUi.setup(swaggerSpec, {
@@ -230,6 +232,7 @@ app.use(
 );
 
 // Swagger JSON endpoint
+app.get(['/api-docs.json', '/api/api-docs.json'], (req, res) => {
 app.get(['/api-docs.json', '/api/api-docs.json'], (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
