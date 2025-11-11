@@ -43,7 +43,7 @@ export default function TabLayout() {
           marginTop: 2,
         },
         tabBarStyle: {
-          height: 30 ,
+          height: 50 ,
           borderTopWidth: 0,
           backgroundColor: 'transparent',
           // paddingHorizontal: 10,

@@ -7,6 +7,7 @@ import {
   Dimensions,
   TouchableWithoutFeedback,
   Easing,
+  ScrollView,
 } from 'react-native';
 import {
   Home,
@@ -16,6 +17,8 @@ import {
   X,
 } from 'lucide-react-native';
 import { useTheme } from '@/context/ThemeContext';
+import { useAuth } from '@/context/AuthContext';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.75; // 75% of screen width
@@ -64,10 +67,19 @@ export default function SideDrawer({
   options = defaultOptions,
 }: SideDrawerProps) {
   const { isDark } = useTheme();
+  const { user } = useAuth();
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const [isAnimating, setIsAnimating] = useState(false);
+  const drawerGradient = isDark ? ['#020617', '#0F172A', '#111827'] : ['#F8FAFC', '#FFFFFF'];
+  const userAccents = isDark ? ['#312E81', '#1E3A8A'] : ['#DBEAFE', '#BFDBFE'];
+
+  const initials =
+    user?.firstName?.[0]?.toUpperCase() ||
+    user?.fullName?.[0]?.toUpperCase() ||
+    user?.email?.[0]?.toUpperCase() ||
+    'U';
 
   useEffect(() => {
     if (isOpen) {
@@ -176,209 +188,250 @@ export default function SideDrawer({
           left: 0,
           bottom: 0,
           width: DRAWER_WIDTH,
-          backgroundColor: isDark ? '#1F2937' : '#FFFFFF',
+          backgroundColor: 'transparent',
           transform: [{ translateX: slideAnim }],
-          shadowColor: isDark ? '#000000' : '#000000',
+          shadowColor: '#000',
           shadowOffset: { width: 4, height: 0 },
-          shadowOpacity: isDark ? 0.5 : 0.3,
-          shadowRadius: 20,
-          elevation: 16,
+          shadowOpacity: 0.4,
+          shadowRadius: 24,
+          elevation: 18,
         }}
       >
-        {/* Header */}
-        <Animated.View
-          className={`flex-row items-center justify-between px-6 py-6 border-b ${
-            isDark ? 'border-gray-700' : 'border-gray-200'
-          }`}
-          style={{ 
-            paddingTop: 60, // Account for status bar
-            opacity: fadeAnim,
-            transform: [{
-              translateY: fadeAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [-20, 0],
-              })
-            }]
-          }}
-        >
-          <Animated.Text 
-            className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}
+        <LinearGradient colors={drawerGradient} style={{ flex: 1, paddingTop: 48 }}>
+          <DrawerAccent color={isDark ? '#1D4ED8' : '#BFDBFE'} size={220} style={{ right: -60, top: -80 }} />
+          <DrawerAccent color={isDark ? '#0EA5E9' : '#A5F3FC'} size={160} style={{ left: -40, bottom: -120 }} />
+
+          {/* Header */}
+          <Animated.View
             style={{
+              paddingHorizontal: 24,
+              paddingBottom: 20,
+              borderBottomWidth: 1,
+              borderColor: isDark ? 'rgba(148,163,184,0.2)' : 'rgba(148,163,184,0.4)',
               opacity: fadeAnim,
-              transform: [{
-                translateX: fadeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [-30, 0], // EXACT SAME as opening
-                })
-              }]
+              transform: [
+                {
+                  translateY: fadeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-20, 0],
+                  }),
+                },
+              ],
             }}
           >
-            Menu
-          </Animated.Text>
-          <TouchableOpacity
-            onPress={onClose}
-            className={`p-2 rounded-full ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}
-            style={{ opacity: 0.9 }}
-          >
-            <Animated.View
-              style={{
-                transform: [{
-                  rotate: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ['45deg', '0deg'], // EXACT SAME as opening
-                  })
-                }, {
-                  scale: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.8, 1], // EXACT SAME as opening
-                  })
-                }]
-              }}
-            >
-              <X size={20} color={isDark ? '#FFFFFF' : '#374151'} />
-            </Animated.View>
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* Options */}
-        <Animated.View 
-          className="flex-1 px-2 py-4"
-          style={{
-            opacity: fadeAnim,
-            transform: [{
-              translateY: fadeAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [20, 0],
-              })
-            }]
-          }}
-        >
-          {options.map((option, index) => {
-            const IconComponent = option.icon;
-            const isActive = activeOption === option.id;
-            
-            // Create staggered animation delay for each option
-            const staggerDelay = index * 50; // 50ms between each item
-            
-            return (
-              <Animated.View
-                key={option.id}
+            <View className="flex-row items-center justify-between mb-4">
+              <View className="flex-row items-center">
+                <View
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 999,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: userAccents[0],
+                    borderWidth: 1,
+                    borderColor: userAccents[1],
+                  }}
+                >
+                  <Text className="text-white text-2xl font-bold">{initials}</Text>
+                </View>
+                <View className="ml-3">
+                  <Text className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                    {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.fullName || 'User'}
+                  </Text>
+                  <Text className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                    {user?.email || 'No email available'}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={onClose}
                 style={{
-                  opacity: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 1],
-                  }),
-                  transform: [
-                    {
-                      translateX: fadeAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [-50, 0], // EXACT SAME as opening: starts at -50, goes to 0
-                      })
-                    },
-                    {
-                      scale: fadeAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.9, 1], // EXACT SAME as opening
-                      })
-                    }
-                  ]
+                  padding: 10,
+                  borderRadius: 999,
+                  backgroundColor: isDark ? 'rgba(15,23,42,0.6)' : 'rgba(255,255,255,0.9)',
                 }}
               >
-                <TouchableOpacity
-                  onPress={() => handleOptionPress(option.id)}
-                  className={`flex-row items-center px-4 py-4 mx-2 rounded-xl mb-2 ${
-                    isActive
-                      ? isDark
-                        ? 'bg-blue-600/20 border border-blue-500/30'
-                        : 'bg-blue-50 border border-blue-200'
-                      : ''
-                  }`}
-                  activeOpacity={0.7}
-                >
-                  <Animated.View
-                    className={`w-10 h-10 rounded-full items-center justify-center mr-4 ${
-                      isActive
-                        ? 'bg-blue-600'
-                        : isDark
-                        ? 'bg-gray-700'
-                        : 'bg-gray-100'
-                    }`}
-                    style={{
-                      transform: [{
+                <Animated.View
+                  style={{
+                    transform: [
+                      {
                         rotate: fadeAnim.interpolate({
                           inputRange: [0, 1],
-                          outputRange: ['-10deg', '0deg'], // EXACT SAME as opening
-                        })
-                      }]
-                    }}
-                  >
-                    <IconComponent
-                      size={20}
-                      color={
-                        isActive
-                          ? '#FFFFFF'
-                          : option.color || (isDark ? '#9CA3AF' : '#6B7280')
-                      }
-                    />
-                  </Animated.View>
-                  <Text
-                    className={`text-base font-medium ${
-                      isActive
-                        ? isDark
-                          ? 'text-blue-400'
-                          : 'text-blue-600'
-                        : isDark
-                        ? 'text-gray-300'
-                        : 'text-gray-700'
-                    }`}
-                  >
-                    {option.title}
+                          outputRange: ['45deg', '0deg'],
+                        }),
+                      },
+                      {
+                        scale: fadeAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.8, 1],
+                        }),
+                      },
+                    ],
+                  }}
+                >
+                  <X size={20} color={isDark ? '#FFFFFF' : '#1F2937'} />
+                </Animated.View>
+              </TouchableOpacity>
+            </View>
+            <View className="flex-row flex-wrap gap-2">
+              {[
+                { label: 'Role', value: user?.role ?? 'Member' },
+                { label: 'Status', value: user?.isActive ? 'Active' : 'Inactive' },
+              ].map(meta => (
+                <View
+                  key={meta.label}
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
+                    borderRadius: 999,
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.05)',
+                    borderWidth: 1,
+                    borderColor: isDark ? 'rgba(148,163,184,0.2)' : 'rgba(148,163,184,0.4)',
+                  }}
+                >
+                  <Text className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                    {meta.label}: <Text style={{ fontWeight: '700' }}>{meta.value}</Text>
                   </Text>
-                  {isActive && (
-                    <Animated.View 
-                      className="ml-auto w-2 h-2 bg-blue-600 rounded-full"
-                      style={{
-                        opacity: fadeAnim,
-                        transform: [{
-                          scale: fadeAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: [0, 1],
-                          })
-                        }]
-                      }}
-                    />
-                  )}
-                </TouchableOpacity>
-              </Animated.View>
-            );
-          })}
-        </Animated.View>
+                </View>
+              ))}
+            </View>
+          </Animated.View>
 
-        {/* Footer */}
-        <Animated.View
-          className={`px-6 py-4 border-t ${isDark ? 'border-gray-700' : 'border-gray-200'}`}
-          style={{
-            opacity: fadeAnim,
-            transform: [{
-              translateY: fadeAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [20, 0],
-              })
-            }]
-          }}
-        >
-          <Animated.Text
-            className={`text-sm text-center ${isDark ? 'text-gray-500' : 'text-gray-400'}`}
+          {/* Options */}
+          <Animated.View
             style={{
-              opacity: fadeAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 0.7],
-              })
+              flex: 1,
+              paddingHorizontal: 16,
+              paddingTop: 12,
+              opacity: fadeAnim,
+              transform: [
+                {
+                  translateY: fadeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
             }}
           >
-            Task Master v1.0
-          </Animated.Text>
-        </Animated.View>
+            <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
+              {options.map(option => {
+                const IconComponent = option.icon;
+                const isActive = activeOption === option.id;
+
+                return (
+                  <TouchableOpacity
+                    key={option.id}
+                    onPress={() => handleOptionPress(option.id)}
+                    activeOpacity={0.8}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      marginBottom: 14,
+                      padding: 16,
+                      borderRadius: 20,
+                      borderWidth: 1,
+                      borderColor: isActive
+                        ? option.color
+                          ? `${option.color}66`
+                          : 'rgba(59,130,246,0.4)'
+                        : isDark
+                        ? 'rgba(148,163,184,0.2)'
+                        : 'rgba(148,163,184,0.4)',
+                      backgroundColor: isActive
+                        ? option.color
+                          ? `${option.color}33`
+                          : 'rgba(59,130,246,0.15)'
+                        : isDark
+                        ? 'rgba(15,23,42,0.7)'
+                        : 'rgba(248,250,252,0.9)',
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 14,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginRight: 16,
+                        backgroundColor: isActive
+                          ? option.color || '#3B82F6'
+                          : isDark
+                          ? 'rgba(15,23,42,0.9)'
+                          : 'rgba(226,232,240,0.9)',
+                      }}
+                    >
+                      <IconComponent
+                        size={20}
+                        color={
+                          isActive
+                            ? '#FFFFFF'
+                            : option.color || (isDark ? '#E2E8F0' : '#475569')
+                        }
+                      />
+                    </View>
+                    <View className="flex-1">
+                      <Text
+                        className={`text-base font-semibold ${
+                          isDark ? 'text-white' : 'text-gray-900'
+                        }`}
+                      >
+                        {option.title}
+                      </Text>
+                      <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                        {isActive ? 'Currently viewing' : 'Jump to section'}
+                      </Text>
+                    </View>
+                    {isActive && (
+                      <Animated.View
+                        style={{
+                          width: 6,
+                          height: 6,
+                          borderRadius: 999,
+                          backgroundColor: '#3B82F6',
+                          marginLeft: 8,
+                          transform: [
+                            {
+                              scale: fadeAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, 1],
+                              }),
+                            },
+                          ],
+                        }}
+                      />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </Animated.View>
+
+          {/* Footer */}
+          <Animated.View
+            style={{
+              paddingHorizontal: 24,
+              paddingVertical: 16,
+              borderTopWidth: 1,
+              borderColor: isDark ? 'rgba(148,163,184,0.2)' : 'rgba(148,163,184,0.4)',
+              opacity: fadeAnim,
+              transform: [
+                {
+                  translateY: fadeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
+            }}
+          >
+            <Text className={`text-xs text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              Task Master v1.0 · Stay in flow
+            </Text>
+          </Animated.View>
+        </LinearGradient>
       </Animated.View>
     </View>
   );
@@ -428,21 +481,57 @@ export function DrawerToggle({ onToggle, isOpen }: DrawerToggleProps) {
   };
 
   return (
-    <TouchableOpacity
-      onPress={handlePress}
-      className={`p-3 rounded-full ${isDark ? 'bg-gray-800' : 'bg-white'} shadow-lg`}
-      activeOpacity={0.8}
-    >
-      <Animated.View 
-        style={{ 
-          transform: [
-            { rotate: rotation },
-            { scale: scaleAnim }
-          ] 
+    <TouchableOpacity onPress={handlePress} activeOpacity={0.85}>
+      <Animated.View
+        style={{
+          transform: [{ scale: scaleAnim }],
+          shadowColor: '#000',
+          shadowOpacity: 0.25,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 4 },
         }}
       >
-        <Menu size={24} color={isDark ? '#FFFFFF' : '#374151'} />
+        <LinearGradient
+          colors={isDark ? ['#1F2937', '#0F172A'] : ['#FFFFFF', '#E0E7FF']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            padding: 14,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: isDark ? '#1F2937' : '#E0E7FF',
+          }}
+        >
+          <Animated.View style={{ transform: [{ rotate: rotation }] }}>
+            <Menu size={24} color={isDark ? '#E5E7EB' : '#1F2937'} />
+          </Animated.View>
+        </LinearGradient>
       </Animated.View>
     </TouchableOpacity>
   );
 }
+
+const DrawerAccent = ({
+  color,
+  size = 140,
+  style,
+}: {
+  color: string;
+  size?: number;
+  style?: object;
+}) => (
+  <View
+    pointerEvents="none"
+    style={[
+      {
+        position: 'absolute',
+        width: size,
+        height: size,
+        borderRadius: size,
+        backgroundColor: color,
+        opacity: 0.25,
+      },
+      style,
+    ]}
+  />
+);
