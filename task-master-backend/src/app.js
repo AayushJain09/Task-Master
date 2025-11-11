@@ -16,8 +16,6 @@ const mongoSanitize = require('express-mongo-sanitize');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 
-const serverless = require('serverless-http');
-
 // Import configuration
 const appConfig = require('./config/app');
 
@@ -46,7 +44,6 @@ const {
  * Initialize Express Application
  */
 const app = express();
-app = serverless(app);
 app.set('trust proxy', 1); // trust Vercel/Proxy headers for accurate client IPs
 
 /**
