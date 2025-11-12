@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, FlatList } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, FlatList, ColorValue } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Bell,
@@ -85,7 +85,16 @@ const CATEGORY_PALETTE: Record<
   health: { dot: '#6EE7B7', bg: 'rgba(16,185,129,0.15)', text: '#34D399' },
   deadline: { dot: '#FCA5A5', bg: 'rgba(239,68,68,0.12)', text: '#F87171' },
 };
-const QUICK_ACTIONS = [
+type GradientStops = readonly [ColorValue, ColorValue];
+
+const QUICK_ACTIONS: Array<{
+  id: string;
+  title: string;
+  subtitle: string;
+  icon: typeof Sparkles;
+  colorsDark: GradientStops;
+  colorsLight: GradientStops;
+}> = [
   {
     id: 'personal',
     title: 'Personal reminder',
@@ -158,11 +167,15 @@ export default function Reminders() {
     setVisibleMonth(prev => {
       if (direction === 'today') {
         const today = new Date();
+        setSelectedDate(formatDateKey(today));
         return new Date(today.getFullYear(), today.getMonth(), 1);
       }
-      const newMonth = new Date(prev);
-      newMonth.setMonth(prev.getMonth() + (direction === 'next' ? 1 : -1));
-      return newMonth;
+
+      const targetMonth = new Date(prev.getFullYear(), prev.getMonth() + (direction === 'next' ? 1 : -1), 1);
+      const referenceDay = new Date(selectedDate);
+      const day = Math.min(referenceDay.getDate(), getDaysInMonth(targetMonth));
+      setSelectedDate(formatDateKey(new Date(targetMonth.getFullYear(), targetMonth.getMonth(), day)));
+      return targetMonth;
     });
   };
 
@@ -393,11 +406,11 @@ const QuickActionGrid = ({ isDark }: { isDark: boolean }) => (
       <Text className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>Quick actions</Text>
       <Text className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Speed up your flows</Text>
     </View>
-    <View className="flex-row flex-wrap gap-3">
+    <View className="flex-row gap-1 mt-1">
       {QUICK_ACTIONS.map(action => {
         const IconComponent = action.icon;
         return (
-          <TouchableOpacity key={action.id} className="flex-1 min-w-[160px]" activeOpacity={0.9}>
+          <TouchableOpacity key={action.id} style={{ flex: 1, marginHorizontal: 4 }} activeOpacity={0.9}>
             <LinearGradient
               colors={isDark ? action.colorsDark : action.colorsLight}
               start={{ x: 0, y: 0 }}
@@ -405,6 +418,7 @@ const QuickActionGrid = ({ isDark }: { isDark: boolean }) => (
               style={{
                 borderRadius: 24,
                 padding: 16,
+                height: 140,
                 borderWidth: 1,
                 borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
               }}
@@ -413,7 +427,7 @@ const QuickActionGrid = ({ isDark }: { isDark: boolean }) => (
                 <IconComponent size={18} color={isDark ? '#F8FAFC' : '#1F2937'} />
               </View>
               <Text className={`text-base font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{action.title}</Text>
-              <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{action.subtitle}</Text>
+              <Text className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{action.subtitle}</Text>
             </LinearGradient>
           </TouchableOpacity>
         );
@@ -471,23 +485,26 @@ const MasterCalendar = ({
               <NavButton direction="next" onPress={() => onMonthChange('next')} isDark={isDark} />
             </View>
           </View>
-          <View className="flex-row gap-3 mb-4">
+          <View className="flex-row w-full gap-3 mb-4">
             <SummaryChip label="Active days" value={`${monthStats.activeDays}`} accent="#60A5FA" isDark={isDark} />
             <SummaryChip label="Total reminders" value={`${monthStats.totalRems}`} accent="#F472B6" isDark={isDark} />
             <SummaryChip label="Upcoming" value={`${monthStats.upcoming}`} accent="#34D399" isDark={isDark} />
           </View>
         </View>
 
-        <View className="px-5 pb-4">
-          <View className="flex-row justify-between mb-3">
+        <View className="px-3 pb-5">
+          <View className="flex-row justify-between mb-2 px-4">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(label => (
-              <Text key={label} className={`text-xs font-semibold ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              <Text
+                key={label}
+                className={`text-[11px] font-semibold tracking-wide ${isDark ? 'text-gray-500' : 'text-gray-500'}`}
+              >
                 {label}
               </Text>
             ))}
           </View>
 
-          <View className="flex-wrap flex-row">
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', }}>
             {calendarDays.map(day => {
               const dayReminders = remindersByDate[day.key] || [];
               const isSelected = selectedDate === day.key;
@@ -499,10 +516,13 @@ const MasterCalendar = ({
                   key={day.key}
                   onPress={() => onSelect(day.key)}
                   style={{
-                    width: `${100 / 7}%`,
-                    paddingVertical: 8,
+                    flexBasis: '14.2857%',
+                    maxWidth: '14.2857%',
+                    paddingVertical: 6,
                     alignItems: 'center',
                     justifyContent: 'center',
+                    rowGap: 3,
+                    marginHorizontal: 3
                   }}
                   activeOpacity={0.85}
                 >
@@ -625,6 +645,7 @@ const SummaryChip = ({
       borderWidth: 1,
       borderColor: `${accent}33`,
       backgroundColor: isDark ? 'rgba(15,23,42,0.4)' : 'rgba(248,250,252,0.9)',
+      maxWidth:'33.33%'
     }}
   >
     <Text className="text-[11px] uppercase tracking-[0.2em]" style={{ color: accent }}>
@@ -656,7 +677,11 @@ function buildCalendarGrid(anchorDate: Date) {
 }
 
 function formatDateKey(date: Date) {
-  return date.toISOString().split('T')[0];
+  const local = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const year = local.getFullYear();
+  const month = String(local.getMonth() + 1).padStart(2, '0');
+  const day = String(local.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function addDays(date: Date, amount: number) {
@@ -668,4 +693,8 @@ function addDays(date: Date, amount: number) {
 function formatFriendlyDate(dateKey: string) {
   const date = new Date(dateKey);
   return date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+}
+
+function getDaysInMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
 }
