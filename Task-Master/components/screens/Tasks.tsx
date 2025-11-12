@@ -1103,7 +1103,7 @@ const Tasks: React.FC<TasksScreenProps> = ({
         </View>
       </View>
 
-      {overdueSummary.total > 0 && (
+      {/* {overdueSummary.total > 0 && (
         <View className="px-4 py-3">
           <View className={`rounded-2xl p-4 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100 shadow-sm'
             }`}>
@@ -1154,7 +1154,7 @@ const Tasks: React.FC<TasksScreenProps> = ({
             
           </View>
         </View>
-      )}
+      )} */}
 
       {/* Error Display */}
       {errorCards.length > 0 && (
