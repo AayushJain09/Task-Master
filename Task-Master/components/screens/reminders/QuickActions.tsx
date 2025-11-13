@@ -45,7 +45,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({ isDark, actions, onA
   return (
     <View
       style={{
-        marginTop: 16,
+        marginVertical: 12,
         padding: 16,
         borderRadius: 24,
         backgroundColor: containerBackground,

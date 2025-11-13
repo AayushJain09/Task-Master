@@ -1,12 +1,13 @@
 import React from 'react';
 import { Text } from 'react-native';
-import { Calendar, DateObject, MarkedDates } from 'react-native-calendars';
+import { Calendar, DateData } from 'react-native-calendars';
+import type { MarkedDates } from 'react-native-calendars/src/types';
 import { LinearGradient } from 'expo-linear-gradient';
 
 interface CalendarCardProps {
   isDark: boolean;
   markedDates: MarkedDates;
-  onDayPress: (day: DateObject) => void;
+  onDayPress: (day: DateData) => void;
 }
 
 export const CalendarCard: React.FC<CalendarCardProps> = ({ isDark, markedDates, onDayPress }) => (
