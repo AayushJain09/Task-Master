@@ -33,11 +33,13 @@ import React, {
   useState,
   ReactNode,
 } from 'react';
+import { useRouter } from 'expo-router';
 
 // Service layer imports
 import { authService } from '../services/auth.service';
 import { biometricService } from '../services/biometric.service';
 import { secureStorageService } from '../services/secureStorage.service';
+import { asyncStorageService } from '../services/asyncStorage.service';
 
 // Type definitions
 import {
@@ -79,6 +81,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // ================================
   // STATE MANAGEMENT
   // ================================
+  const router = useRouter();
   
   /** Current authenticated user data */
   const [user, setUser] = useState<User | null>(null);
@@ -309,11 +312,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error('Logout error:', error);
       // Still continue with logout even if backend call fails
     } finally {
+      try {
+        await Promise.all([
+          secureStorageService.clearAllAuthData(),
+          asyncStorageService.clearUserData(),
+        ]);
+      } catch (storageError) {
+        console.error('Error clearing auth storage during logout:', storageError);
+      }
+
       // Always clear all authentication state locally
       setUser(null);
       setToken(null);
       setisAuthenticated(false);
+      setBiometricEnabled(false);
       setIsLoading(false);
+
+      // Ensure navigation resets back to the auth stack
+      router.replace('/(auth)/login');
     }
   };
 

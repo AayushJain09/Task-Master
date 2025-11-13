@@ -45,32 +45,28 @@ interface ReminderFormModalProps {
 
 type FieldErrors = Partial<Record<keyof ReminderFormValues, string>>;
 
-const CATEGORY_META: Record<ReminderCategory, { label: string; helper: string }> = {
-  work: { label: 'Work', helper: 'Projects, syncs, deadlines' },
-  personal: { label: 'Personal', helper: 'Life admin, family' },
-  health: { label: 'Health', helper: 'Wellness, meds, routines' },
-  deadline: { label: 'Deadline', helper: 'High-pressure deliverables' },
+const CATEGORY_META: Record<ReminderCategory, { label: string }> = {
+  work: { label: 'Work' },
+  personal: { label: 'Personal' },
+  health: { label: 'Health' },
+  deadline: { label: 'Deadline' },
 };
 
-const PRIORITY_META: Record<ReminderPriority, { title: string; description: string; accent: string }> = {
+const PRIORITY_META: Record<ReminderPriority, { title: string; accent: string }> = {
   low: {
     title: 'Low',
-    description: 'Nice-to-haves and casual nudges',
     accent: '#10B981',
   },
   medium: {
     title: 'Medium',
-    description: 'Keep it on radar this week',
     accent: '#F59E0B',
   },
   high: {
     title: 'High',
-    description: 'Time-sensitive follow-ups',
     accent: '#F97316',
   },
   critical: {
     title: 'Critical',
-    description: 'Blockers, launches, hard deadlines',
     accent: '#EF4444',
   },
 };
@@ -261,9 +257,10 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
               </View>
 
               <ScrollView
-                style={{ marginTop: 4 }}
-                contentContainerStyle={{ paddingBottom: 12 }}
+                style={{ marginTop: 12 }}
+                contentContainerStyle={{ paddingBottom: 24 }}
                 keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
               >
                 {renderInput(
                   'Reminder title',
@@ -307,35 +304,36 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
                 {errors.date ? <Text style={styles.errorText}>{errors.date}</Text> : null}
                 {errors.time ? <Text style={styles.errorText}>{errors.time}</Text> : null}
 
-                <View style={{ marginBottom: 20 }}>
+                <View style={{ marginBottom: 16 }}>
                   <Text style={[styles.fieldLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>
                     Category
                   </Text>
-                  <View style={styles.categoryGrid}>
+                  <View style={styles.pillRow}>
                     {categoryOptions.map(category => {
                       const isActive = formValues.category === category;
-                      const meta = CATEGORY_META[category];
                       return (
                         <Pressable
                           key={category}
                           onPress={() => handleChange('category', category)}
                           style={[
-                            styles.categoryCard,
+                            styles.pill,
                             {
-                              borderColor: isActive ? palette[category] : 'rgba(148,163,184,0.2)',
+                              borderColor: isActive ? palette[category] : 'rgba(148,163,184,0.25)',
                               backgroundColor: isActive
                                 ? `${palette[category]}22`
                                 : isDark
-                                ? 'rgba(15,23,42,0.5)'
+                                ? 'rgba(15,23,42,0.55)'
                                 : '#FFFFFF',
                             },
                           ]}
                         >
-                          <Text style={{ color: isDark ? '#E2E8F0' : '#0F172A', fontWeight: '600' }}>
-                            {meta.label}
-                          </Text>
-                          <Text style={{ color: isDark ? '#94A3B8' : '#64748B', fontSize: 12 }}>
-                            {meta.helper}
+                          <Text
+                            style={{
+                              color: isActive ? palette[category] : isDark ? '#E2E8F0' : '#475569',
+                              fontWeight: '600',
+                            }}
+                          >
+                            {CATEGORY_META[category].label}
                           </Text>
                         </Pressable>
                       );
@@ -343,11 +341,11 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
                   </View>
                 </View>
 
-                <View style={{ marginBottom: 20 }}>
+                <View style={{ marginBottom: 16 }}>
                   <Text style={[styles.fieldLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>
                     Priority
                   </Text>
-                  <View style={{ gap: 12 }}>
+                  <View style={styles.pillRow}>
                     {(Object.keys(PRIORITY_META) as ReminderPriority[]).map(priority => {
                       const isActive = formValues.priority === priority;
                       const meta = PRIORITY_META[priority];
@@ -356,9 +354,9 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
                           key={priority}
                           onPress={() => handleChange('priority', priority)}
                           style={[
-                            styles.priorityCard,
+                            styles.pill,
                             {
-                              borderColor: isActive ? meta.accent : 'rgba(148,163,184,0.2)',
+                              borderColor: isActive ? meta.accent : 'rgba(148,163,184,0.25)',
                               backgroundColor: isActive
                                 ? `${meta.accent}22`
                                 : isDark
@@ -367,22 +365,14 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
                             },
                           ]}
                         >
-                          <View>
-                            <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A', fontWeight: '600' }}>
-                              {meta.title}
-                            </Text>
-                            <Text style={{ color: isDark ? '#94A3B8' : '#475569', marginTop: 4 }}>
-                              {meta.description}
-                            </Text>
-                          </View>
-                          <View
+                          <Text
                             style={{
-                              width: 12,
-                              height: 12,
-                              borderRadius: 6,
-                              backgroundColor: meta.accent,
+                              color: isActive ? meta.accent : isDark ? '#E2E8F0' : '#475569',
+                              fontWeight: '600',
                             }}
-                          />
+                          >
+                            {meta.title}
+                          </Text>
                         </Pressable>
                       );
                     })}
@@ -390,7 +380,9 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
                 </View>
 
                 <View style={{ marginBottom: 20 }}>
-                  <Text style={[styles.fieldLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>Tags</Text>
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>
+                    Tags (optional)
+                  </Text>
                   <View
                     style={[
                       styles.inputShell,
@@ -425,7 +417,9 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
                 </View>
 
                 <View style={{ marginBottom: 20 }}>
-                  <Text style={[styles.fieldLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>Notes</Text>
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>
+                    Notes (optional)
+                  </Text>
                   <TextInput
                     placeholder="Add context, links, or expectations"
                     placeholderTextColor={isDark ? '#4B5563' : '#94A3B8'}
@@ -517,17 +511,19 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheetContent: {
-    borderRadius: 32,
+    borderRadius: 24,
     paddingHorizontal: 20,
+    paddingBottom: 1,
     paddingVertical: 12,
     borderWidth: 1,
+    margin:10
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 1,
-    paddingBottom: 4,
+    paddingBottom: 10,
     borderBottomColor: 'grey'
   },
   closeButton: {
@@ -626,6 +622,17 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 16,
+  },
+  pillRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  pill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
   },
   pickerField: {
     flex: 1,
