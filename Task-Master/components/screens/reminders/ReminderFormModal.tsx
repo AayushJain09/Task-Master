@@ -10,10 +10,13 @@ import {
   ScrollView,
   Animated,
   ActivityIndicator,
+  StyleSheet,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import { Bell, Calendar as CalendarIcon, Clock, Tag as TagIcon, X } from 'lucide-react-native';
 import { palette } from './data';
-import type { ReminderCategory } from '@/types/reminder.types';
+import type { ReminderCategory, ReminderPriority } from '@/types/reminder.types';
 
 export interface ReminderFormValues {
   id?: string;
@@ -21,33 +24,66 @@ export interface ReminderFormValues {
   date: string;
   time: string;
   category: ReminderCategory;
+  priority: ReminderPriority;
+  timezone: string;
   notes?: string;
-  relatedTask?: string;
+  tags: string[];
 }
 
 interface ReminderFormModalProps {
   visible: boolean;
   isDark: boolean;
   initialValues?: Partial<ReminderFormValues>;
+  defaultTimezone: string;
   mode: 'create' | 'edit';
   onClose: () => void;
   onSubmit: (values: ReminderFormValues) => Promise<void> | void;
   submitting?: boolean;
 }
 
+type FieldErrors = Partial<Record<keyof ReminderFormValues, string>>;
+
+const CATEGORY_META: Record<ReminderCategory, { label: string; helper: string }> = {
+  work: { label: 'Work', helper: 'Projects, syncs, deadlines' },
+  personal: { label: 'Personal', helper: 'Life admin, family' },
+  health: { label: 'Health', helper: 'Wellness, meds, routines' },
+  deadline: { label: 'Deadline', helper: 'High-pressure deliverables' },
+};
+
+const PRIORITY_META: Record<ReminderPriority, { title: string; description: string; accent: string }> = {
+  low: {
+    title: 'Low',
+    description: 'Nice-to-haves and casual nudges',
+    accent: '#10B981',
+  },
+  medium: {
+    title: 'Medium',
+    description: 'Keep it on radar this week',
+    accent: '#F59E0B',
+  },
+  high: {
+    title: 'High',
+    description: 'Time-sensitive follow-ups',
+    accent: '#F97316',
+  },
+  critical: {
+    title: 'Critical',
+    description: 'Blockers, launches, hard deadlines',
+    accent: '#EF4444',
+  },
+};
+
 /**
  * ReminderFormModal
  *
- * Glide-in modal used for both creating and editing reminders. The wrapper handles:
- * - Animated entrance/exit (fade + translate)
- * - Keyboard-safe layout via `KeyboardAvoidingView`
- * - Controlled form state for title, date, time, category, and notes
- * - Optional related task field for "Add reminder to task"
+ * Mirrors the Create Task modal experience with blur backdrop, pill selectors,
+ * and inline validation. Handles both create and edit flows.
  */
 export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
   visible,
   isDark,
   initialValues,
+  defaultTimezone,
   mode,
   onClose,
   onSubmit,
@@ -59,9 +95,14 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
     date: '',
     time: '',
     category: 'work',
+    priority: 'medium',
+    timezone: defaultTimezone,
     notes: '',
-    relatedTask: '',
+    tags: [],
   });
+  const [tagDraft, setTagDraft] = useState('');
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [generalError, setGeneralError] = useState<string | null>(null);
   const opacity = React.useRef(new Animated.Value(0)).current;
   const translateY = React.useRef(new Animated.Value(40)).current;
 
@@ -74,9 +115,14 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
         date: payload.date ?? '',
         time: payload.time ?? '',
         category: payload.category ?? 'work',
+        priority: payload.priority ?? 'medium',
+        timezone: payload.timezone ?? defaultTimezone,
         notes: payload.notes ?? '',
-        relatedTask: payload.relatedTask ?? '',
+        tags: payload.tags ?? [],
       });
+      setErrors({});
+      setGeneralError(null);
+      setTagDraft('');
       Animated.parallel([
         Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }),
         Animated.spring(translateY, { toValue: 0, useNativeDriver: true }),
@@ -87,26 +133,94 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
         Animated.spring(translateY, { toValue: 40, useNativeDriver: true }),
       ]).start();
     }
-  }, [visible, initialValues, opacity, translateY]);
-
-  const headerLabel = mode === 'edit' ? 'Edit reminder' : 'Create reminder';
+  }, [visible, initialValues, defaultTimezone, opacity, translateY]);
 
   const categoryOptions = useMemo<ReminderCategory[]>(() => ['work', 'personal', 'health', 'deadline'], []);
 
-  const handleChange = (key: keyof ReminderFormValues, value: string) => {
+  const handleChange = <K extends keyof ReminderFormValues>(key: K, value: ReminderFormValues[K]) => {
     setFormValues(prev => ({ ...prev, [key]: value }));
+    setErrors(prev => ({ ...prev, [key]: undefined }));
+  };
+
+  const handleTagCommit = () => {
+    const trimmed = tagDraft.trim().toLowerCase();
+    if (!trimmed) return;
+    if (formValues.tags.includes(trimmed)) {
+      setTagDraft('');
+      return;
+    }
+    handleChange('tags', [...formValues.tags, trimmed]);
+    setTagDraft('');
+  };
+
+  const handleTagRemove = (tag: string) => {
+    handleChange('tags', formValues.tags.filter(item => item !== tag));
+  };
+
+  const validateForm = (): boolean => {
+    const nextErrors: FieldErrors = {};
+
+    if (!formValues.title.trim()) {
+      nextErrors.title = 'Title is required.';
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(formValues.date)) {
+      nextErrors.date = 'Use YYYY-MM-DD format.';
+    }
+    if (!/^\d{2}:\d{2}$/.test(formValues.time)) {
+      nextErrors.time = 'Use HH:mm format.';
+    }
+
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const handleSubmit = async () => {
-    if (!formValues.title.trim() || !formValues.date || !formValues.time) {
-      return;
-    }
+    if (!validateForm()) return;
     try {
+      setGeneralError(null);
       await onSubmit(formValues);
     } catch (error) {
-      console.error('Reminder form submission failed:', error);
+      const message =
+        (error as { message?: string })?.message || 'Unable to save reminder. Please try again.';
+      setGeneralError(message);
     }
   };
+
+  const renderInput = (
+    label: string,
+    value: string,
+    onChangeText: (text: string) => void,
+    placeholder: string,
+    icon: React.ReactNode,
+    error?: string
+  ) => (
+    <View style={{ marginBottom: 16 }}>
+      <Text style={[styles.fieldLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>{label}</Text>
+      <View
+        style={[
+          styles.inputShell,
+          {
+            borderColor: error
+              ? '#EF4444'
+              : isDark
+              ? 'rgba(148,163,184,0.25)'
+              : 'rgba(15,23,42,0.08)',
+            backgroundColor: isDark ? 'rgba(15,23,42,0.65)' : '#FFFFFF',
+          },
+        ]}
+      >
+        {icon}
+        <TextInput
+          placeholder={placeholder}
+          placeholderTextColor={isDark ? '#4B5563' : '#94A3B8'}
+          value={value}
+          onChangeText={onChangeText}
+          style={[styles.input, { color: isDark ? '#F8FAFC' : '#0F172A' }]}
+        />
+      </View>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+    </View>
+  );
 
   return (
     <Modal transparent animationType="none" visible={visible} onRequestClose={onClose}>
@@ -114,123 +228,100 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <Animated.View
-          style={{
-            flex: 1,
-            backgroundColor: 'rgba(5, 11, 21, 0.65)',
-            opacity,
-            justifyContent: 'flex-end',
-          }}
-        >
-          <Pressable style={{ flex: 1 }} onPress={onClose} />
-          <Animated.View
-            style={{
-              transform: [{ translateY }],
-            }}
-          >
+        <Animated.View style={[styles.backdrop, { opacity }]} >
+          <BlurView tint={isDark ? 'dark' : 'light'} intensity={visible ? 60 : 0} style={StyleSheet.absoluteFill} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+          <Animated.View className="max-h-[70%]" style={[styles.sheet, { transform: [{ translateY }] }]}>
             <LinearGradient
-              colors={isDark ? ['#050B15', '#0B1320'] : ['#FFFFFF', '#F8FBFF']}
+              colors={isDark ? ['#0B1220', '#050B15'] : ['#FFFFFF', '#F6F8FF']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={{
-                borderTopLeftRadius: 30,
-                borderTopRightRadius: 30,
-                padding: 20,
-                borderWidth: 1,
-                borderColor: isDark ? '#1F2937' : '#E2E8F0',
-              }}
+              style={[
+                styles.sheetContent,
+                { borderColor: isDark ? 'rgba(148,163,184,0.25)' : 'rgba(15,23,42,0.06)' },
+              ]}
             >
-              <View style={{ alignItems: 'center', marginBottom: 12 }}>
-                <View style={{ width: 46, height: 4, borderRadius: 999, backgroundColor: isDark ? '#1f2a37' : '#e2e8f0' }} />
-              </View>
-              <Text
-                style={{
-                  fontSize: 18,
-                  fontWeight: '700',
-                  color: isDark ? '#F8FAFC' : '#0F172A',
-                }}
-              >
-                {headerLabel}
-              </Text>
-              <Text style={{ marginTop: 4, color: isDark ? '#94A3B8' : '#475569' }}>
-                {mode === 'edit'
-                  ? 'Update the reminder details below.'
-                  : 'Log a reminder and keep your flow clear.'}
-              </Text>
-              <ScrollView style={{ marginTop: 18 }} contentContainerStyle={{ paddingBottom: 24 }}>
-                <View style={{ marginBottom: 12 }}>
-                  <Text style={{ color: isDark ? '#CBD5F5' : '#475569', marginBottom: 6 }}>Title</Text>
-                  <TextInput
-                    placeholder="e.g. Follow up with design team"
-                    placeholderTextColor={isDark ? '#4B5563' : '#94A3B8'}
-                    value={formValues.title}
-                    onChangeText={text => handleChange('title', text)}
-                    style={{
-                      borderRadius: 16,
-                      borderWidth: 1,
-                      borderColor: isDark ? '#1F2937' : '#E2E8F0',
-                      paddingHorizontal: 14,
-                      paddingVertical: 12,
-                      color: isDark ? '#F8FAFC' : '#0F172A',
-                    }}
-                  />
+              {/* <View style={styles.grabber} /> */}
+              <View style={styles.headerRow}>
+                <View>
+                  <Text style={[styles.title, { color: isDark ? '#F4F7FF' : '#0F172A' }]}>
+                    {mode === 'edit' ? 'Edit reminder' : 'Create reminder'}
+                  </Text>
+                  <Text style={{ color: isDark ? '#94A3B8' : '#64748B' }}>
+                    Keep your nudges aligned with your task system.
+                  </Text>
                 </View>
+                <Pressable onPress={onClose} style={styles.closeButton}>
+                  <X size={18} color={isDark ? '#94A3B8' : '#475569'} />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                style={{ marginTop: 12 }}
+                contentContainerStyle={{ paddingBottom: 12 }}
+                keyboardShouldPersistTaps="handled"
+              >
+                {renderInput(
+                  'Reminder title',
+                  formValues.title,
+                  text => handleChange('title', text),
+                  'Sprint update, call Alex...',
+                  <Bell size={16} color={isDark ? '#CBD5F5' : '#64748B'} />,
+                  errors.title
+                )}
+
                 <View style={{ flexDirection: 'row', gap: 12 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: isDark ? '#CBD5F5' : '#475569', marginBottom: 6 }}>Date</Text>
-                    <TextInput
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor={isDark ? '#4B5563' : '#94A3B8'}
-                      value={formValues.date}
-                      onChangeText={text => handleChange('date', text)}
-                      style={{
-                        borderRadius: 16,
-                        borderWidth: 1,
-                        borderColor: isDark ? '#1F2937' : '#E2E8F0',
-                        paddingHorizontal: 14,
-                        paddingVertical: 12,
-                        color: isDark ? '#F8FAFC' : '#0F172A',
-                      }}
-                    />
+                    {renderInput(
+                      'Date',
+                      formValues.date,
+                      text => handleChange('date', text),
+                      'YYYY-MM-DD',
+                      <CalendarIcon size={16} color={isDark ? '#CBD5F5' : '#64748B'} />,
+                      errors.date
+                    )}
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: isDark ? '#CBD5F5' : '#475569', marginBottom: 6 }}>Time</Text>
-                    <TextInput
-                      placeholder="HH:mm"
-                      placeholderTextColor={isDark ? '#4B5563' : '#94A3B8'}
-                      value={formValues.time}
-                      onChangeText={text => handleChange('time', text)}
-                      style={{
-                        borderRadius: 16,
-                        borderWidth: 1,
-                        borderColor: isDark ? '#1F2937' : '#E2E8F0',
-                        paddingHorizontal: 14,
-                        paddingVertical: 12,
-                        color: isDark ? '#F8FAFC' : '#0F172A',
-                      }}
-                    />
+                    {renderInput(
+                      'Time',
+                      formValues.time,
+                      text => handleChange('time', text),
+                      'HH:mm',
+                      <Clock size={16} color={isDark ? '#CBD5F5' : '#64748B'} />,
+                      errors.time
+                    )}
                   </View>
                 </View>
-                <View style={{ marginTop: 16 }}>
-                  <Text style={{ color: isDark ? '#CBD5F5' : '#475569', marginBottom: 8 }}>Category</Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                    {categoryOptions.map(option => {
-                      const isActive = formValues.category === option;
+
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>
+                    Category
+                  </Text>
+                  <View style={styles.categoryGrid}>
+                    {categoryOptions.map(category => {
+                      const isActive = formValues.category === category;
+                      const meta = CATEGORY_META[category];
                       return (
                         <Pressable
-                          key={option}
-                          onPress={() => handleChange('category', option)}
-                          style={{
-                            paddingHorizontal: 16,
-                            paddingVertical: 10,
-                            borderRadius: 999,
-                            borderWidth: 1,
-                            borderColor: isActive ? palette[option] : isDark ? '#1F2937' : '#E2E8F0',
-                            backgroundColor: isActive ? `${palette[option]}22` : 'transparent',
-                          }}
+                          key={category}
+                          onPress={() => handleChange('category', category)}
+                          style={[
+                            styles.categoryCard,
+                            {
+                              borderColor: isActive ? palette[category] : 'rgba(148,163,184,0.2)',
+                              backgroundColor: isActive
+                                ? `${palette[category]}22`
+                                : isDark
+                                ? 'rgba(15,23,42,0.5)'
+                                : '#FFFFFF',
+                            },
+                          ]}
                         >
-                          <Text style={{ color: isActive ? palette[option] : isDark ? '#E2E8F0' : '#475569' }}>
-                            {option}
+                          <Text style={{ color: isDark ? '#E2E8F0' : '#0F172A', fontWeight: '600' }}>
+                            {meta.label}
+                          </Text>
+                          <Text style={{ color: isDark ? '#94A3B8' : '#64748B', fontSize: 12 }}>
+                            {meta.helper}
                           </Text>
                         </Pressable>
                       );
@@ -238,62 +329,128 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
                   </View>
                 </View>
 
-                <View style={{ marginTop: 16 }}>
-                  <Text style={{ color: isDark ? '#CBD5F5' : '#475569', marginBottom: 6 }}>Notes</Text>
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>
+                    Priority
+                  </Text>
+                  <View style={{ gap: 12 }}>
+                    {(Object.keys(PRIORITY_META) as ReminderPriority[]).map(priority => {
+                      const isActive = formValues.priority === priority;
+                      const meta = PRIORITY_META[priority];
+                      return (
+                        <Pressable
+                          key={priority}
+                          onPress={() => handleChange('priority', priority)}
+                          style={[
+                            styles.priorityCard,
+                            {
+                              borderColor: isActive ? meta.accent : 'rgba(148,163,184,0.2)',
+                              backgroundColor: isActive
+                                ? `${meta.accent}22`
+                                : isDark
+                                ? 'rgba(15,23,42,0.55)'
+                                : '#FFFFFF',
+                            },
+                          ]}
+                        >
+                          <View>
+                            <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A', fontWeight: '600' }}>
+                              {meta.title}
+                            </Text>
+                            <Text style={{ color: isDark ? '#94A3B8' : '#475569', marginTop: 4 }}>
+                              {meta.description}
+                            </Text>
+                          </View>
+                          <View
+                            style={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: 6,
+                              backgroundColor: meta.accent,
+                            }}
+                          />
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>Tags</Text>
+                  <View
+                    style={[
+                      styles.inputShell,
+                      {
+                        borderColor: isDark ? 'rgba(148,163,184,0.25)' : 'rgba(15,23,42,0.08)',
+                        backgroundColor: isDark ? 'rgba(15,23,42,0.65)' : '#FFFFFF',
+                      },
+                    ]}
+                  >
+                    <TagIcon size={16} color={isDark ? '#CBD5F5' : '#64748B'} />
+                    <TextInput
+                      placeholder="Type and press enter to add"
+                      placeholderTextColor={isDark ? '#4B5563' : '#94A3B8'}
+                      value={tagDraft}
+                      onChangeText={setTagDraft}
+                      onSubmitEditing={handleTagCommit}
+                      style={[styles.input, { color: isDark ? '#F8FAFC' : '#0F172A' }]}
+                    />
+                    {tagDraft.length > 0 && (
+                      <Pressable onPress={handleTagCommit}>
+                        <Text style={{ color: '#2563EB', fontWeight: '600' }}>Add</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                  <View style={styles.tagsRow}>
+                    {formValues.tags.map(tag => (
+                      <Pressable key={tag} onPress={() => handleTagRemove(tag)} style={styles.tagPill}>
+                        <Text style={{ color: '#2563EB', fontWeight: '600' }}>{tag}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </View>
+
+                <View style={{ marginBottom: 20 }}>
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>Notes</Text>
                   <TextInput
-                    placeholder="Add context or links..."
+                    placeholder="Add context, links, or expectations"
                     placeholderTextColor={isDark ? '#4B5563' : '#94A3B8'}
                     value={formValues.notes}
                     multiline
                     onChangeText={text => handleChange('notes', text)}
-                    style={{
-                      minHeight: 90,
-                      borderRadius: 16,
-                      borderWidth: 1,
-                      borderColor: isDark ? '#1F2937' : '#E2E8F0',
-                      paddingHorizontal: 14,
-                      paddingVertical: 12,
-                      color: isDark ? '#F8FAFC' : '#0F172A',
-                    }}
+                    style={[
+                      styles.notesInput,
+                      {
+                        borderColor: isDark ? 'rgba(148,163,184,0.25)' : 'rgba(15,23,42,0.08)',
+                        backgroundColor: isDark ? 'rgba(15,23,42,0.65)' : '#FFFFFF',
+                        color: isDark ? '#F8FAFC' : '#0F172A',
+                      },
+                    ]}
                   />
                 </View>
 
-                {mode === 'create' && (
-                  <View style={{ marginTop: 16 }}>
-                    <Text style={{ color: isDark ? '#CBD5F5' : '#475569', marginBottom: 6 }}>Related task (optional)</Text>
-                    <TextInput
-                      placeholder="Task or project name"
-                      placeholderTextColor={isDark ? '#4B5563' : '#94A3B8'}
-                      value={formValues.relatedTask}
-                      onChangeText={text => handleChange('relatedTask', text)}
-                      style={{
-                        borderRadius: 16,
-                        borderWidth: 1,
-                        borderColor: isDark ? '#1F2937' : '#E2E8F0',
-                        paddingHorizontal: 14,
-                        paddingVertical: 12,
-                        color: isDark ? '#F8FAFC' : '#0F172A',
-                      }}
-                    />
-                  </View>
-                )}
+                <View style={styles.timezoneRow}>
+                  <Text style={{ color: isDark ? '#94A3B8' : '#475569' }}>Timezone</Text>
+                  <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A', fontWeight: '600' }}>
+                    {formValues.timezone}
+                  </Text>
+                </View>
+
+                {generalError ? <Text style={styles.generalError}>{generalError}</Text> : null}
 
                 <Pressable
                   onPress={handleSubmit}
                   disabled={submitting}
-                  style={{
-                    marginTop: 24,
-                    borderRadius: 18,
-                    paddingVertical: 14,
-                    backgroundColor: submitting ? '#1D4ED880' : '#2563EB',
-                    alignItems: 'center',
-                  }}
+                  style={[
+                    styles.submitButton,
+                    { backgroundColor: submitting ? '#1D4ED880' : '#2563EB' },
+                  ]}
                 >
                   {submitting ? (
                     <ActivityIndicator color="#FFFFFF" size="small" />
                   ) : (
-                    <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>
-                      {mode === 'edit' ? 'Save changes' : 'Create reminder'}
+                    <Text style={styles.submitText}>
+                      {mode === 'edit' ? 'Save reminder' : 'Create reminder'}
                     </Text>
                   )}
                 </Pressable>
@@ -305,3 +462,122 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
     </Modal>
   );
 };
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(5,11,21,0.65)',
+  },
+  sheet: {
+    justifyContent: 'flex-end',
+  },
+  sheetContent: {
+    borderRadius: 32,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderWidth: 1,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(148,163,184,0.12)',
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  fieldLabel: {
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  inputShell: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  input: {
+    flex: 1,
+    fontSize: 15,
+    paddingVertical: 0,
+  },
+  errorText: {
+    color: '#EF4444',
+    marginTop: 4,
+    fontSize: 12,
+  },
+  categoryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  categoryCard: {
+    flexBasis: '48%',
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 12,
+    gap: 6,
+  },
+  priorityCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  notesInput: {
+    minHeight: 110,
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    textAlignVertical: 'top',
+  },
+  tagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  tagPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(37,99,235,0.1)',
+  },
+  timezoneRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderColor: 'rgba(148,163,184,0.2)',
+  },
+  generalError: {
+    color: '#EF4444',
+    fontSize: 13,
+    marginBottom: 12,
+  },
+  submitButton: {
+    borderRadius: 18,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  submitText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+});

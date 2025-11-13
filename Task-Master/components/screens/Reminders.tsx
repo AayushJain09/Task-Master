@@ -10,7 +10,7 @@
  */
 
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { View, Animated, Text, ActivityIndicator, Alert } from 'react-native';
+import { View, Animated, Text, ActivityIndicator, RefreshControl } from 'react-native';
 import { DateObject, MarkedDates } from 'react-native-calendars';
 import { useTheme } from '@/context/ThemeContext';
 import { CalendarCard } from './reminders/CalendarCard';
@@ -40,9 +40,10 @@ export default function Reminders() {
   const [selectedDate, setSelectedDate] = useState(formatDateKey(new Date()));
   const [sheetOpen, setSheetOpen] = useState<boolean>(false);
   const [activeFilter, setActiveFilter] = useState<'all' | ReminderCategory>('all');
-  const [reminders, setReminders] = useState<ReminderStub[]>([]);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [isLoadingReminders, setIsLoadingReminders] = useState<boolean>(true);
   const [remindersError, setRemindersError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [formVisible, setFormVisible] = useState<boolean>(false);
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const [formInitialValues, setFormInitialValues] = useState<Partial<ReminderFormValues> | undefined>();
@@ -51,29 +52,36 @@ export default function Reminders() {
   const scrollY = useRef(new Animated.Value(0)).current;
   const deviceTimeZone = useMemo(() => getDeviceTimeZone(), []);
 
-  const fetchReminders = useCallback(async () => {
+  const fetchReminders = useCallback(async (options?: { silent?: boolean }) => {
     try {
-      setIsLoadingReminders(true);
+      if (!options?.silent) {
+        setIsLoadingReminders(true);
+      }
       setRemindersError(null);
-      const response = await remindersService.getReminders({ limit: 200 });
-      setReminders(response.items.map(mapReminderToStub));
+      const response = await remindersService.getReminders({ limit: 100 });
+      setReminders(response.items);
     } catch (error) {
       const message = (error as Error)?.message || 'Unable to load reminders.';
       setRemindersError(message);
     } finally {
-      setIsLoadingReminders(false);
+      if (!options?.silent) {
+        setIsLoadingReminders(false);
+      }
+      setIsRefreshing(false);
     }
   }, []);
 
+  const reminderStubs = useMemo(() => reminders.map(mapReminderToStub), [reminders]);
+
   const remindersByDate = useMemo(() => {
-    return reminders.reduce<Record<string, ReminderStub[]>>((acc, reminder) => {
+    return reminderStubs.reduce<Record<string, ReminderStub[]>>((acc, reminder) => {
       if (!acc[reminder.date]) {
         acc[reminder.date] = [];
       }
       acc[reminder.date].push(reminder);
       return acc;
     }, {});
-  }, [reminders]);
+  }, [reminderStubs]);
 
   const markedDates = useMemo<MarkedDates>(() => {
     const marks: MarkedDates = {};
@@ -95,15 +103,15 @@ export default function Reminders() {
   }, [remindersByDate, selectedDate, isDark]);
 
   const remindersForSelected = remindersByDate[selectedDate] || [];
-  const filteredReminders = useMemo(() => {
+  const filteredReminderStubs = useMemo(() => {
     if (activeFilter === 'all') {
-      return reminders;
+      return reminderStubs;
     }
-    return reminders.filter(reminder => reminder.category === activeFilter);
-  }, [activeFilter, reminders]);
+    return reminderStubs.filter(reminder => reminder.category === activeFilter);
+  }, [activeFilter, reminderStubs]);
 
   const upcomingTimeline = useMemo<UpcomingListItem[]>(() => {
-    return sortReminders(filteredReminders)
+    return sortReminders(filteredReminderStubs)
       .slice(0, 4)
       .map(reminder => {
         const date = getReminderDate(reminder);
@@ -113,10 +121,10 @@ export default function Reminders() {
           relativeLabel: formatRelativeLabel(date),
         };
       });
-  }, [filteredReminders]);
+  }, [filteredReminderStubs]);
 
   const heroNextReminder = useMemo(() => {
-    const [next] = sortReminders(reminders);
+    const [next] = sortReminders(reminderStubs);
     if (!next) {
       return undefined;
     }
@@ -127,7 +135,7 @@ export default function Reminders() {
       relativeLabel: formatRelativeLabel(date),
       accentColor: palette[next.category],
     };
-  }, [reminders]);
+  }, [reminderStubs]);
 
   const filterOptions = useMemo<ReminderFilterOption[]>(() => {
     const counts: Record<'all' | ReminderCategory, number> = {
@@ -137,7 +145,7 @@ export default function Reminders() {
       health: 0,
       deadline: 0,
     };
-    reminders.forEach(reminder => {
+    reminderStubs.forEach(reminder => {
       counts.all += 1;
       counts[reminder.category] += 1;
     });
@@ -164,7 +172,7 @@ export default function Reminders() {
       count: counts[id],
       accent: paletteMap[id],
     }));
-  }, [reminders]);
+  }, [reminderStubs]);
 
   useEffect(() => {
     Animated.spring(sheetAnim, {
@@ -179,6 +187,11 @@ export default function Reminders() {
     fetchReminders();
   }, [fetchReminders]);
 
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    fetchReminders({ silent: true });
+  }, [fetchReminders]);
+
   const handleDayPress = (day: DateObject) => {
     setSelectedDate(day.dateString);
     setSheetOpen(true);
@@ -190,11 +203,19 @@ export default function Reminders() {
    * but the branching structure keeps future integrations (modal navigation, API calls)
    * localized.
    */
-  const openFormModal = useCallback((mode: 'create' | 'edit', initial?: Partial<ReminderFormValues>) => {
-    setFormMode(mode);
-    setFormInitialValues(initial);
-    setFormVisible(true);
-  }, []);
+  const openFormModal = useCallback(
+    (mode: 'create' | 'edit', initial?: Partial<ReminderFormValues>) => {
+      setFormMode(mode);
+      setFormInitialValues({
+        timezone: deviceTimeZone,
+        priority: 'medium',
+        tags: [],
+        ...initial,
+      });
+      setFormVisible(true);
+    },
+    [deviceTimeZone]
+  );
 
   const handleQuickActionPress = useCallback(
     (action: QuickActionConfig) => {
@@ -203,6 +224,9 @@ export default function Reminders() {
         date: selectedDate,
         time: '09:00',
         category: derivedCategory,
+        priority: 'medium',
+        timezone: deviceTimeZone,
+        tags: [],
       };
 
       if (action.id === 'create-reminder') {
@@ -211,16 +235,13 @@ export default function Reminders() {
       }
 
       if (action.id === 'task-reminder') {
-        openFormModal('create', {
-          ...baseInitial,
-          relatedTask: '',
-        });
+        openFormModal('create', baseInitial);
         return;
       }
 
       console.log('[Reminders] Unsupported action tapped:', action.id);
     },
-    [openFormModal, selectedDate, activeFilter]
+    [openFormModal, selectedDate, activeFilter, deviceTimeZone]
   );
 
   const handleFilterChange = useCallback((optionId: string) => {
@@ -229,18 +250,21 @@ export default function Reminders() {
 
   const handleReminderPreviewPress = useCallback(
     (reminder: ReminderStub) => {
-      openFormModal('edit', {
-        id: reminder.id,
-        title: reminder.title,
-        date: reminder.date,
-        time: reminder.time,
-        category: reminder.category,
-      });
+      const entity = reminders.find(r => r.id === reminder.id);
+      if (!entity) {
+        return;
+      }
+      openFormModal('edit', mapReminderToFormValues(entity, deviceTimeZone));
     },
-    [openFormModal]
+    [openFormModal, reminders, deviceTimeZone]
   );
 
   const selectedDateLabel = useMemo(() => formatDayLabel(selectedDate), [selectedDate]);
+
+  const handleModalClose = useCallback(() => {
+    setFormVisible(false);
+    setFormInitialValues(undefined);
+  }, []);
 
   const handleReminderSubmit = useCallback(
     async (values: ReminderFormValues) => {
@@ -253,47 +277,43 @@ export default function Reminders() {
           savedReminder = await remindersService.updateReminder(values.id, {
             title: values.title,
             scheduledAt,
-            timezone: deviceTimeZone,
+            timezone: values.timezone || deviceTimeZone,
             category: values.category,
             notes: values.notes,
-            priority: 'medium',
+            priority: values.priority,
+            tags: values.tags,
           });
         } else {
           savedReminder = await remindersService.createReminder({
             title: values.title,
             scheduledAt,
-            timezone: deviceTimeZone,
+            timezone: values.timezone || deviceTimeZone,
             category: values.category,
             notes: values.notes,
-            priority: 'medium',
+            priority: values.priority,
+            tags: values.tags,
           });
         }
 
-        const mapped = mapReminderToStub(savedReminder);
         setReminders(prev =>
           values.id
-            ? prev.map(reminder => (reminder.id === mapped.id ? mapped : reminder))
-            : [...prev, mapped]
+            ? prev.map(reminder => (reminder.id === savedReminder.id ? savedReminder : reminder))
+            : [...prev, savedReminder]
         );
-        setSelectedDate(mapped.date);
+        const targetDate = formatDateKey(new Date(savedReminder.scheduledAt));
+        setSelectedDate(targetDate);
         setSheetOpen(true);
-        setFormVisible(false);
-        setFormInitialValues(undefined);
+        handleModalClose();
       } catch (error) {
-        const message = (error as Error)?.message || 'Unable to save reminder.';
-        Alert.alert('Reminders', message);
-        throw error;
+        const message =
+          (error as { message?: string })?.message || 'Unable to save reminder. Please try again.';
+        throw new Error(message);
       } finally {
         setIsSubmittingReminder(false);
       }
     },
-    [deviceTimeZone]
+    [deviceTimeZone, handleModalClose]
   );
-
-  const handleModalClose = useCallback(() => {
-    setFormVisible(false);
-    setFormInitialValues(undefined);
-  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: isDark ? '#030711' : '#F8FAFF' }}>
@@ -305,7 +325,14 @@ export default function Reminders() {
           useNativeDriver: true,
         })}
         scrollEventThrottle={16}
-      >
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={isDark ? '#FFFFFF' : '#000000'}
+          />
+        }
+        >
         {isLoadingReminders ? (
           <View style={{ paddingVertical: 80, alignItems: 'center' }}>
             <ActivityIndicator size="large" color={isDark ? '#93C5FD' : '#4338CA'} />
@@ -360,6 +387,7 @@ export default function Reminders() {
         isDark={isDark}
         mode={formMode}
         initialValues={formInitialValues}
+        defaultTimezone={deviceTimeZone}
         submitting={isSubmittingReminder}
         onClose={handleModalClose}
         onSubmit={handleReminderSubmit}
@@ -386,7 +414,9 @@ function buildScheduledAtISO(date: string, time: string): string {
 }
 
 function formatTimeForDisplay(date: Date): string {
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
 }
 
 function mapReminderToStub(reminder: Reminder): ReminderStub {
@@ -396,6 +426,24 @@ function mapReminderToStub(reminder: Reminder): ReminderStub {
     title: reminder.title,
     date: formatDateKey(scheduledDate),
     time: formatTimeForDisplay(scheduledDate),
-    category: reminder.category ?? 'personal',
+    category: (reminder.category || 'personal') as ReminderCategory,
+  };
+}
+
+function mapReminderToFormValues(
+  reminder: Reminder,
+  fallbackTimezone: string
+): ReminderFormValues {
+  const scheduledDate = new Date(reminder.scheduledAt);
+  return {
+    id: reminder.id,
+    title: reminder.title,
+    date: formatDateKey(scheduledDate),
+    time: formatTimeForDisplay(scheduledDate),
+    category: (reminder.category || 'personal') as ReminderCategory,
+    priority: reminder.priority || 'medium',
+    timezone: reminder.timezone || fallbackTimezone,
+    notes: reminder.notes || reminder.description || '',
+    tags: reminder.tags || [],
   };
 }
