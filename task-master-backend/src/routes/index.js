@@ -14,6 +14,7 @@ const router = express.Router();
 const authRoutes = require('./authRoutes');
 const userRoutes = require('./userRoutes');
 const taskRoutes = require('./taskRoutes');
+const reminderRoutes = require('./reminderRoutes');
 const dashboardRoutes = require('./dashboardRoutes');
 
 /**
@@ -40,6 +41,15 @@ router.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
   });
+});
+
+/**
+ * Favicon placeholder
+ *
+ * Prevents noisy 404 logs from browsers requesting /favicon.ico.
+ */
+router.get('/favicon.ico', (req, res) => {
+  res.status(204).end();
 });
 
 /**
@@ -74,6 +84,7 @@ router.get('/', (req, res) => {
         auth: '/auth',
         users: '/users',
         tasks: '/tasks',
+        reminders: '/reminders',
         dashboard: '/dashboard',
       },
       documentation: 'See README.md for detailed API documentation',
@@ -96,6 +107,7 @@ router.get('/', (req, res) => {
 router.use('/auth', authRoutes);
 router.use('/users', userRoutes);
 router.use('/tasks', taskRoutes);
+router.use('/reminders', reminderRoutes);
 router.use('/dashboard', dashboardRoutes);
 
 /**

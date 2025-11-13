@@ -65,6 +65,10 @@ const swaggerDefinition = {
       name: 'Tasks',
       description: 'Task management endpoints including CRUD operations, assignment, filtering, and analytics',
     },
+    {
+      name: 'Reminders',
+      description: 'Reminder management endpoints including quick-add parsing, scheduling, snoozing, and offline sync',
+    },
   ],
   components: {
     securitySchemes: {
@@ -769,6 +773,188 @@ const swaggerDefinition = {
                 },
               },
             },
+          },
+        },
+      },
+      ReminderRecurrence: {
+        type: 'object',
+        properties: {
+          cadence: {
+            type: 'string',
+            enum: ['none', 'daily', 'weekly', 'custom'],
+            example: 'weekly',
+          },
+          interval: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 365,
+            example: 1,
+          },
+          daysOfWeek: {
+            type: 'array',
+            items: {
+              type: 'integer',
+              minimum: 0,
+              maximum: 6,
+            },
+            example: [1, 3, 5],
+            description: 'Day indexes (0=Sunday ... 6=Saturday) when cadence=weekly',
+          },
+          customRule: {
+            type: 'string',
+            description: 'Optional cron-like rule for custom cadences',
+            example: '0 9 1 * *',
+          },
+          anchorDate: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Reference date for recurrence calculations',
+            example: '2024-12-01T09:00:00.000Z',
+          },
+        },
+      },
+      Reminder: {
+        type: 'object',
+        properties: {
+          id: {
+            type: 'string',
+            description: 'Reminder identifier',
+            example: '6768f5c0b0409f124d3c1322',
+          },
+          title: {
+            type: 'string',
+            example: 'Send sprint update',
+          },
+          description: {
+            type: 'string',
+            example: 'Share highlights with the leadership channel',
+          },
+          notes: {
+            type: 'string',
+            example: 'Include burndown snapshot',
+          },
+          scheduledAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'UTC timestamp representing when to notify',
+            example: '2024-12-01T09:00:00.000Z',
+          },
+          timezone: {
+            type: 'string',
+            description: 'IANA timezone used when scheduling',
+            example: 'America/Los_Angeles',
+          },
+          category: {
+            type: 'string',
+            description: 'Categorization label',
+            example: 'work',
+          },
+          tags: {
+            type: 'array',
+            items: { type: 'string' },
+            example: ['standup', 'weekly'],
+          },
+          priority: {
+            type: 'string',
+            enum: ['low', 'medium', 'high', 'critical'],
+            example: 'high',
+          },
+          status: {
+            type: 'string',
+            enum: ['pending', 'completed', 'cancelled'],
+            example: 'pending',
+          },
+          recurrence: {
+            $ref: '#/components/schemas/ReminderRecurrence',
+          },
+          quickAddSource: {
+            type: 'string',
+            description: 'Original quick-add text when applicable',
+            example: 'standup update tomorrow 9a',
+          },
+          clientReference: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', example: 'local-temp-id' },
+              device: { type: 'string', example: 'iphone-15' },
+            },
+          },
+          clientUpdatedAt: {
+            type: 'string',
+            format: 'date-time',
+          },
+          syncStatus: {
+            type: 'string',
+            enum: ['pending', 'synced'],
+            example: 'pending',
+          },
+          createdAt: {
+            type: 'string',
+            format: 'date-time',
+          },
+          updatedAt: {
+            type: 'string',
+            format: 'date-time',
+          },
+        },
+      },
+      ReminderSyncChange: {
+        type: 'object',
+        properties: {
+          clientId: {
+            type: 'string',
+            description: 'Client-side reference id for the reminder',
+          },
+          serverId: {
+            type: 'string',
+            description: 'Server id if the reminder already exists remotely',
+          },
+          operation: {
+            type: 'string',
+            enum: ['upsert', 'delete'],
+            description: 'Type of change the client performed offline',
+          },
+          clientUpdatedAt: {
+            type: 'string',
+            format: 'date-time',
+          },
+          data: {
+            $ref: '#/components/schemas/Reminder',
+          },
+        },
+      },
+      ReminderSyncResponse: {
+        type: 'object',
+        properties: {
+          appliedChanges: {
+            type: 'array',
+            description: 'Changes accepted by the server',
+            items: {
+              type: 'object',
+              properties: {
+                clientId: { type: 'string' },
+                serverId: { type: 'string' },
+                operation: { type: 'string' },
+              },
+            },
+          },
+          conflicts: {
+            type: 'array',
+            description: 'Changes rejected due to conflicts',
+            items: {
+              type: 'object',
+              properties: {
+                clientId: { type: 'string' },
+                serverId: { type: 'string' },
+                reason: { type: 'string' },
+                serverState: { $ref: '#/components/schemas/Reminder' },
+              },
+            },
+          },
+          serverChanges: {
+            type: 'array',
+            description: 'Reminders updated on the server since last sync',
+            items: { $ref: '#/components/schemas/Reminder' },
           },
         },
       },

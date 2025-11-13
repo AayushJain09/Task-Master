@@ -1,4 +1,4 @@
-/**
+/** 
  * Swagger API Documentation
  *
  * This file contains all OpenAPI/Swagger annotations for the API endpoints.
@@ -9,6 +9,294 @@
 
 /**
  * @swagger
+ * /reminders:
+ *   get:
+ *     summary: List reminders with advanced filtering
+ *     description: |
+ *       Retrieves reminders for the authenticated user with filters for date range, category,
+ *       priority, and status. Supports tag-based filtering, free-text search, and pagination so the
+ *       client can build grouped day views or analytic widgets.
+ *     tags: [Reminders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Inclusive lower bound for scheduledAt filter
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Inclusive upper bound for scheduledAt filter
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: Filter by category slug (e.g., work, personal)
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, completed, cancelled]
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *           enum: [low, medium, high, critical]
+ *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *         description: Comma-separated list of tags to match (case-insensitive)
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Full-text search across title, description, tags, and notes
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *           maximum: 100
+ *     responses:
+ *       200:
+ *         description: Reminders retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     items:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Reminder'
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         currentPage:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *                         totalItems:
+ *                           type: integer
+ *                         itemsPerPage:
+ *                           type: integer
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *
+ *   post:
+ *     summary: Create a reminder
+ *     description: Creates a reminder with explicit scheduling data. Use this when the user fills a structured form.
+ *     tags: [Reminders]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Reminder'
+ *     responses:
+ *       201:
+ *         description: Reminder created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   $ref: '#/components/schemas/Reminder'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *
+ * /reminders/quick-add:
+ *   post:
+ *     summary: Quick add reminder via natural language input
+ *     description: Parses natural language text (e.g., "call Alex next Tue 3p") and creates a reminder.
+ *     tags: [Reminders]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [input]
+ *             properties:
+ *               input:
+ *                 type: string
+ *                 example: "Send sprint recap next Mon 9a"
+ *               timezone:
+ *                 type: string
+ *                 example: "America/Chicago"
+ *               defaults:
+ *                 type: object
+ *                 properties:
+ *                   category:
+ *                     type: string
+ *                     example: work
+ *                   priority:
+ *                     type: string
+ *                     enum: [low, medium, high, critical]
+ *                   tags:
+ *                     type: array
+ *                     items:
+ *                       type: string
+ *                   clientReference:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                       device:
+ *                         type: string
+ *     responses:
+ *       201:
+ *         description: Reminder created from quick-add text
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Reminder'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *
+ * /reminders/{reminderId}:
+ *   patch:
+ *     summary: Update a reminder
+ *     tags: [Reminders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: reminderId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/Reminder'
+ *     responses:
+ *       200:
+ *         description: Reminder updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Reminder'
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *
+ *   delete:
+ *     summary: Soft delete a reminder
+ *     tags: [Reminders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: reminderId
+ *         schema:
+ *           type: string
+ *         required: true
+ *     responses:
+ *       200:
+ *         description: Reminder deleted
+ *       404:
+ *         $ref: '#/components/responses/NotFoundError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *
+ * /reminders/sync:
+ *   post:
+ *     summary: Synchronize offline reminders
+ *     description: |
+ *       Applies offline changes captured on the client and returns the set of reminders that
+ *       changed server-side since the provided lastSyncAt timestamp. Enables offline-first storage and
+ *       conflict resolution workflows.
+ *     tags: [Reminders]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [clientId]
+ *             properties:
+ *               clientId:
+ *                 type: string
+ *                 description: Device identifier sending the sync request
+ *               lastSyncAt:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Timestamp of the last successful sync
+ *               changes:
+ *                 type: array
+ *                 items:
+ *                   $ref: '#/components/schemas/ReminderSyncChange'
+ *     responses:
+ *       200:
+ *         description: Sync finished
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/ReminderSyncResponse'
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
  * /auth/register:
  *   post:
  *     summary: Register a new user
