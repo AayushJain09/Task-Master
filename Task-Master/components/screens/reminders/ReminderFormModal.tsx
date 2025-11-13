@@ -9,9 +9,11 @@ import {
   Platform,
   ScrollView,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ReminderCategory, palette } from './data';
+import { palette } from './data';
+import type { ReminderCategory } from '@/types/reminder.types';
 
 export interface ReminderFormValues {
   id?: string;
@@ -29,7 +31,8 @@ interface ReminderFormModalProps {
   initialValues?: Partial<ReminderFormValues>;
   mode: 'create' | 'edit';
   onClose: () => void;
-  onSubmit: (values: ReminderFormValues) => void;
+  onSubmit: (values: ReminderFormValues) => Promise<void> | void;
+  submitting?: boolean;
 }
 
 /**
@@ -48,6 +51,7 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
   mode,
   onClose,
   onSubmit,
+  submitting = false,
 }) => {
   const [formValues, setFormValues] = useState<ReminderFormValues>({
     id: undefined,
@@ -93,12 +97,15 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
     setFormValues(prev => ({ ...prev, [key]: value }));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formValues.title.trim() || !formValues.date || !formValues.time) {
       return;
     }
-    onSubmit(formValues);
-    onClose();
+    try {
+      await onSubmit(formValues);
+    } catch (error) {
+      console.error('Reminder form submission failed:', error);
+    }
   };
 
   return (
@@ -273,17 +280,22 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
 
                 <Pressable
                   onPress={handleSubmit}
+                  disabled={submitting}
                   style={{
                     marginTop: 24,
                     borderRadius: 18,
                     paddingVertical: 14,
-                    backgroundColor: '#2563EB',
+                    backgroundColor: submitting ? '#1D4ED880' : '#2563EB',
                     alignItems: 'center',
                   }}
                 >
-                  <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>
-                    {mode === 'edit' ? 'Save changes' : 'Create reminder'}
-                  </Text>
+                  {submitting ? (
+                    <ActivityIndicator color="#FFFFFF" size="small" />
+                  ) : (
+                    <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>
+                      {mode === 'edit' ? 'Save changes' : 'Create reminder'}
+                    </Text>
+                  )}
                 </Pressable>
               </ScrollView>
             </LinearGradient>

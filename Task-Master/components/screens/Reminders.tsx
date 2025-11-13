@@ -10,7 +10,7 @@
  */
 
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { View, Animated } from 'react-native';
+import { View, Animated, Text, ActivityIndicator, Alert } from 'react-native';
 import { DateObject, MarkedDates } from 'react-native-calendars';
 import { useTheme } from '@/context/ThemeContext';
 import { CalendarCard } from './reminders/CalendarCard';
@@ -23,12 +23,7 @@ import { UpcomingList } from './reminders/UpcomingList';
 import type { UpcomingListItem } from './reminders/UpcomingList';
 import type { QuickActionConfig } from './reminders/QuickActions';
 import { ReminderFormModal, ReminderFormValues } from './reminders/ReminderFormModal';
-import {
-  ReminderStub,
-  ReminderCategory,
-  palette,
-  stubReminders,
-} from './reminders/data';
+import { ReminderStub, palette } from './reminders/data';
 import {
   formatDateKey,
   sortReminders,
@@ -37,18 +32,38 @@ import {
   formatDayLabel,
 } from './reminders/utils';
 import { reminderQuickActions } from './reminders/quickActions.data';
+import { remindersService } from '@/services/reminders.service';
+import type { Reminder, ReminderCategory } from '@/types/reminder.types';
 
 export default function Reminders() {
   const { isDark } = useTheme();
   const [selectedDate, setSelectedDate] = useState(formatDateKey(new Date()));
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState<boolean>(false);
   const [activeFilter, setActiveFilter] = useState<'all' | ReminderCategory>('all');
-  const [reminders, setReminders] = useState<ReminderStub[]>(stubReminders);
-  const [formVisible, setFormVisible] = useState(false);
+  const [reminders, setReminders] = useState<ReminderStub[]>([]);
+  const [isLoadingReminders, setIsLoadingReminders] = useState<boolean>(true);
+  const [remindersError, setRemindersError] = useState<string | null>(null);
+  const [formVisible, setFormVisible] = useState<boolean>(false);
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const [formInitialValues, setFormInitialValues] = useState<Partial<ReminderFormValues> | undefined>();
+  const [isSubmittingReminder, setIsSubmittingReminder] = useState<boolean>(false);
   const sheetAnim = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
+  const deviceTimeZone = useMemo(() => getDeviceTimeZone(), []);
+
+  const fetchReminders = useCallback(async () => {
+    try {
+      setIsLoadingReminders(true);
+      setRemindersError(null);
+      const response = await remindersService.getReminders({ limit: 200 });
+      setReminders(response.items.map(mapReminderToStub));
+    } catch (error) {
+      const message = (error as Error)?.message || 'Unable to load reminders.';
+      setRemindersError(message);
+    } finally {
+      setIsLoadingReminders(false);
+    }
+  }, []);
 
   const remindersByDate = useMemo(() => {
     return reminders.reduce<Record<string, ReminderStub[]>>((acc, reminder) => {
@@ -160,6 +175,10 @@ export default function Reminders() {
     }).start();
   }, [sheetOpen, sheetAnim]);
 
+  useEffect(() => {
+    fetchReminders();
+  }, [fetchReminders]);
+
   const handleDayPress = (day: DateObject) => {
     setSelectedDate(day.dateString);
     setSheetOpen(true);
@@ -224,37 +243,57 @@ export default function Reminders() {
   const selectedDateLabel = useMemo(() => formatDayLabel(selectedDate), [selectedDate]);
 
   const handleReminderSubmit = useCallback(
-    (values: ReminderFormValues) => {
-      setReminders(prev => {
+    async (values: ReminderFormValues) => {
+      const scheduledAt = buildScheduledAtISO(values.date, values.time);
+      try {
+        setIsSubmittingReminder(true);
+        let savedReminder: Reminder;
+
         if (values.id) {
-          return prev.map(reminder =>
-            reminder.id === values.id
-              ? {
-                  ...reminder,
-                  title: values.title,
-                  date: values.date,
-                  time: values.time,
-                  category: values.category,
-                }
-              : reminder
-          );
+          savedReminder = await remindersService.updateReminder(values.id, {
+            title: values.title,
+            scheduledAt,
+            timezone: deviceTimeZone,
+            category: values.category,
+            notes: values.notes,
+            priority: 'medium',
+          });
+        } else {
+          savedReminder = await remindersService.createReminder({
+            title: values.title,
+            scheduledAt,
+            timezone: deviceTimeZone,
+            category: values.category,
+            notes: values.notes,
+            priority: 'medium',
+          });
         }
 
-        const newReminder: ReminderStub = {
-          id: `${Date.now()}`,
-          title: values.title,
-          date: values.date,
-          time: values.time,
-          category: values.category,
-        };
-        return [...prev, newReminder];
-      });
-
-      setSelectedDate(values.date);
-      setSheetOpen(true);
+        const mapped = mapReminderToStub(savedReminder);
+        setReminders(prev =>
+          values.id
+            ? prev.map(reminder => (reminder.id === mapped.id ? mapped : reminder))
+            : [...prev, mapped]
+        );
+        setSelectedDate(mapped.date);
+        setSheetOpen(true);
+        setFormVisible(false);
+        setFormInitialValues(undefined);
+      } catch (error) {
+        const message = (error as Error)?.message || 'Unable to save reminder.';
+        Alert.alert('Reminders', message);
+        throw error;
+      } finally {
+        setIsSubmittingReminder(false);
+      }
     },
-    []
+    [deviceTimeZone]
   );
+
+  const handleModalClose = useCallback(() => {
+    setFormVisible(false);
+    setFormInitialValues(undefined);
+  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: isDark ? '#030711' : '#F8FAFF' }}>
@@ -267,30 +306,46 @@ export default function Reminders() {
         })}
         scrollEventThrottle={16}
       >
-        <ReminderHero
-          isDark={isDark}
-          dateLabel={selectedDateLabel}
-          totalCount={reminders.length}
-          nextReminder={heroNextReminder}
-          scrollY={scrollY}
-        />
-        <QuickActions
-          isDark={isDark}
-          actions={reminderQuickActions}
-          onActionPress={handleQuickActionPress}
-        />
-        <CalendarCard isDark={isDark} markedDates={markedDates} onDayPress={handleDayPress} />
-        <ReminderFilters
-          isDark={isDark}
-          options={filterOptions}
-          activeFilter={activeFilter}
-          onFilterChange={handleFilterChange}
-        />
-        <UpcomingList
-          isDark={isDark}
-          items={upcomingTimeline}
-          onReminderPress={handleReminderPreviewPress}
-        />
+        {isLoadingReminders ? (
+          <View style={{ paddingVertical: 80, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={isDark ? '#93C5FD' : '#4338CA'} />
+            <Text style={{ marginTop: 12, color: isDark ? '#BBD0FF' : '#475569' }}>
+              Loading reminders...
+            </Text>
+          </View>
+        ) : (
+          <>
+            <ReminderHero
+              isDark={isDark}
+              dateLabel={selectedDateLabel}
+              totalCount={reminders.length}
+              nextReminder={heroNextReminder}
+              scrollY={scrollY}
+            />
+            <QuickActions
+              isDark={isDark}
+              actions={reminderQuickActions}
+              onActionPress={handleQuickActionPress}
+            />
+            <CalendarCard isDark={isDark} markedDates={markedDates} onDayPress={handleDayPress} />
+            <ReminderFilters
+              isDark={isDark}
+              options={filterOptions}
+              activeFilter={activeFilter}
+              onFilterChange={handleFilterChange}
+            />
+            <UpcomingList
+              isDark={isDark}
+              items={upcomingTimeline}
+              onReminderPress={handleReminderPreviewPress}
+            />
+            {remindersError ? (
+              <Text style={{ marginTop: 16, color: isDark ? '#F87171' : '#B91C1C' }}>
+                {remindersError}
+              </Text>
+            ) : null}
+          </>
+        )}
       </Animated.ScrollView>
       <ReminderSheet
         isDark={isDark}
@@ -305,9 +360,42 @@ export default function Reminders() {
         isDark={isDark}
         mode={formMode}
         initialValues={formInitialValues}
-        onClose={() => setFormVisible(false)}
+        submitting={isSubmittingReminder}
+        onClose={handleModalClose}
         onSubmit={handleReminderSubmit}
       />
     </View>
   );
+}
+
+function getDeviceTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
+function buildScheduledAtISO(date: string, time: string): string {
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = (time || '00:00').split(':').map(Number);
+  const composed = new Date();
+  composed.setFullYear(year || composed.getFullYear(), (month || 1) - 1, day || composed.getDate());
+  composed.setHours(hour ?? 0, minute ?? 0, 0, 0);
+  return composed.toISOString();
+}
+
+function formatTimeForDisplay(date: Date): string {
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function mapReminderToStub(reminder: Reminder): ReminderStub {
+  const scheduledDate = new Date(reminder.scheduledAt);
+  return {
+    id: reminder.id,
+    title: reminder.title,
+    date: formatDateKey(scheduledDate),
+    time: formatTimeForDisplay(scheduledDate),
+    category: reminder.category ?? 'personal',
+  };
 }
