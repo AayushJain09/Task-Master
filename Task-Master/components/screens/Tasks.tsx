@@ -382,8 +382,8 @@ const Tasks: React.FC<TasksScreenProps> = ({
       } else {
         // Use the optimized status-specific API
         response = await tasksService.getTasksByStatusOptimized(status, {
-          sortBy: 'updatedAt',
-          sortOrder: 'desc',
+          // sortBy: 'updatedAt',
+          // sortOrder: 'desc',
           limit: 10, // Smaller page size for mobile optimization
           ...params,
         });

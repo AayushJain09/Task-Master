@@ -575,10 +575,11 @@ class TasksService {
         ...params,
         status, // Always include the required status parameter
       };
-
-      // Build query string
-      const queryString = this.buildQueryString(queryParams);
-      const url = `${this.baseEndpoint}/overdue/status?${queryString}`;
+""
+// Build query string
+const queryString = this.buildQueryString(queryParams);
+const url = `${this.baseEndpoint}/overdue/status?${queryString}`;
+console.log("query string", url)
       
       const response = await apiService.get<TasksListResponse>(url);
       
@@ -775,6 +776,7 @@ class TasksService {
       // Build query string
       const queryString = this.buildQueryString(queryParams);
       const url = `${this.baseEndpoint}/status?${queryString}`;
+      console.log("query string", url)
       
       const response = await apiService.get<TasksListResponse>(url);
       

@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, Animated, PanResponder, ScrollView } from 'react-native';
+import { View, Text, Animated, PanResponder, ScrollView, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ReminderStub, palette } from './data';
+import { Pencil, Trash2 } from 'lucide-react-native';
 
 interface ReminderSheetProps {
   isDark: boolean;
@@ -11,6 +12,10 @@ interface ReminderSheetProps {
   open: boolean;
   animationValue: Animated.Value;
   onClose: () => void;
+  onReminderPress?: (reminder: ReminderStub) => void;
+  onEditPress?: (reminder: ReminderStub) => void;
+  onDeletePress?: (reminder: ReminderStub) => void;
+  deletingReminderId?: string | null;
 }
 
 export const ReminderSheet: React.FC<ReminderSheetProps> = ({
@@ -20,6 +25,10 @@ export const ReminderSheet: React.FC<ReminderSheetProps> = ({
   open,
   animationValue,
   onClose,
+  onReminderPress,
+  onEditPress,
+  onDeletePress,
+  deletingReminderId,
 }) => {
   const insets = useSafeAreaInsets();
   const translateY = animationValue.interpolate({
@@ -106,21 +115,48 @@ export const ReminderSheet: React.FC<ReminderSheetProps> = ({
             showsVerticalScrollIndicator={false}
           >
             {reminders.map(reminder => (
-              <View
+              <Pressable
                 key={reminder.id}
+                onPress={() => onReminderPress?.(reminder)}
                 style={{
                   marginBottom: 12,
                   padding: 14,
                   borderRadius: 18,
                   borderWidth: 1,
                   borderColor: isDark ? 'rgba(148,163,184,0.2)' : 'rgba(226,232,240,0.9)',
+                  backgroundColor: isDark ? 'rgba(15,23,42,0.55)' : '#FFFFFF',
                 }}
               >
-                <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A', fontWeight: '700' }}>{reminder.title}</Text>
-                <Text style={{ color: palette[reminder.category], marginTop: 4, fontSize: 12 }}>
-                  {reminder.time} · {reminder.category.toUpperCase()}
-                </Text>
-              </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A', fontWeight: '700' }}>{reminder.title}</Text>
+                    <Text style={{ color: palette[reminder.category], marginTop: 4, fontSize: 12 }}>
+                      {reminder.time} · {reminder.category.toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <Pressable
+                      onPress={event => {
+                        event.stopPropagation();
+                        onEditPress?.(reminder);
+                      }}
+                      style={{ padding: 6 }}
+                    >
+                      <Pencil size={16} color={isDark ? '#E2E8F0' : '#0F172A'} />
+                    </Pressable>
+                    <Pressable
+                      onPress={event => {
+                        event.stopPropagation();
+                        onDeletePress?.(reminder);
+                      }}
+                      style={{ padding: 6, opacity: deletingReminderId === reminder.id ? 0.4 : 1 }}
+                      disabled={deletingReminderId === reminder.id}
+                    >
+                      <Trash2 size={16} color="#EF4444" />
+                    </Pressable>
+                  </View>
+                </View>
+              </Pressable>
             ))}
           </ScrollView>
         )}

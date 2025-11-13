@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ReminderStub, palette } from './data';
+import { Pencil, Trash2 } from 'lucide-react-native';
 
 export interface UpcomingListItem {
   reminder: ReminderStub;
@@ -13,6 +14,9 @@ interface UpcomingListProps {
   isDark: boolean;
   items: UpcomingListItem[];
   onReminderPress?: (reminder: ReminderStub) => void;
+  onEditPress?: (reminder: ReminderStub) => void;
+  onDeletePress?: (reminder: ReminderStub) => void;
+  deletingReminderId?: string | null;
 }
 
 /**
@@ -22,7 +26,14 @@ interface UpcomingListProps {
  * the scheduled time, contextual relative label, and inherits the palette color
  * for the reminder category so it matches the dots in the calendar.
  */
-export const UpcomingList: React.FC<UpcomingListProps> = ({ isDark, items, onReminderPress }) => {
+export const UpcomingList: React.FC<UpcomingListProps> = ({
+  isDark,
+  items,
+  onReminderPress,
+  onEditPress,
+  onDeletePress,
+  deletingReminderId,
+}) => {
   if (items.length === 0) {
     return (
       <View
@@ -85,6 +96,27 @@ export const UpcomingList: React.FC<UpcomingListProps> = ({ isDark, items, onRem
                 >
                   {item.reminder.category}
                 </Text>
+                <View style={{ flexDirection: 'row', marginTop: 8, gap: 10 }}>
+                  <Pressable
+                    onPress={event => {
+                      event.stopPropagation();
+                      onEditPress?.(item.reminder);
+                    }}
+                    style={{ padding: 4 }}
+                  >
+                    <Pencil size={16} color={isDark ? '#E2E8F0' : '#0F172A'} />
+                  </Pressable>
+                  <Pressable
+                    onPress={event => {
+                      event.stopPropagation();
+                      onDeletePress?.(item.reminder);
+                    }}
+                    style={{ padding: 4, opacity: deletingReminderId === item.reminder.id ? 0.4 : 1 }}
+                    disabled={deletingReminderId === item.reminder.id}
+                  >
+                    <Trash2 size={16} color="#EF4444" />
+                  </Pressable>
+                </View>
               </View>
             </View>
           </LinearGradient>

@@ -81,6 +81,14 @@ class RemindersService {
       throw this.transformError(error as ApiError);
     }
   }
+
+  async deleteReminder(reminderId: string): Promise<void> {
+    try {
+      await apiService.delete(`${this.baseEndpoint}/${reminderId}`);
+    } catch (error) {
+      throw this.transformError(error as ApiError);
+    }
+  }
 }
 
 export const remindersService = new RemindersService();

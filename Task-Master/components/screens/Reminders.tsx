@@ -10,7 +10,7 @@
  */
 
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { View, Animated, Text, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Animated, Text, ActivityIndicator, RefreshControl, Alert } from 'react-native';
 import { DateObject, MarkedDates } from 'react-native-calendars';
 import { useTheme } from '@/context/ThemeContext';
 import { CalendarCard } from './reminders/CalendarCard';
@@ -23,6 +23,7 @@ import { UpcomingList } from './reminders/UpcomingList';
 import type { UpcomingListItem } from './reminders/UpcomingList';
 import type { QuickActionConfig } from './reminders/QuickActions';
 import { ReminderFormModal, ReminderFormValues } from './reminders/ReminderFormModal';
+import ReminderDetailsModal from './reminders/ReminderDetailsModal';
 import { ReminderStub, palette } from './reminders/data';
 import {
   formatDateKey,
@@ -48,6 +49,9 @@ export default function Reminders() {
   const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
   const [formInitialValues, setFormInitialValues] = useState<Partial<ReminderFormValues> | undefined>();
   const [isSubmittingReminder, setIsSubmittingReminder] = useState<boolean>(false);
+  const [deletingReminderId, setDeletingReminderId] = useState<string | null>(null);
+  const [detailsVisible, setDetailsVisible] = useState(false);
+  const [detailsReminder, setDetailsReminder] = useState<Reminder | null>(null);
   const sheetAnim = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
   const deviceTimeZone = useMemo(() => getDeviceTimeZone(), []);
@@ -248,7 +252,19 @@ export default function Reminders() {
     setActiveFilter(optionId as 'all' | ReminderCategory);
   }, []);
 
-  const handleReminderPreviewPress = useCallback(
+  const handleReminderCardPress = useCallback(
+    (reminder: ReminderStub) => {
+      const entity = reminders.find(r => r.id === reminder.id);
+      if (!entity) {
+        return;
+      }
+      setDetailsReminder(entity);
+      setDetailsVisible(true);
+    },
+    [reminders]
+  );
+
+  const handleEditReminderRequest = useCallback(
     (reminder: ReminderStub) => {
       const entity = reminders.find(r => r.id === reminder.id);
       if (!entity) {
@@ -257,6 +273,42 @@ export default function Reminders() {
       openFormModal('edit', mapReminderToFormValues(entity, deviceTimeZone));
     },
     [openFormModal, reminders, deviceTimeZone]
+  );
+
+  const performDeleteReminder = useCallback(
+    async (reminderId: string) => {
+      try {
+        setDeletingReminderId(reminderId);
+        await remindersService.deleteReminder(reminderId);
+        setReminders(prev => prev.filter(reminder => reminder.id !== reminderId));
+        if (detailsReminder?.id === reminderId) {
+          setDetailsVisible(false);
+          setDetailsReminder(null);
+        }
+      } catch (error) {
+        const message =
+          (error as { message?: string })?.message || 'Unable to delete reminder. Please try again.';
+        Alert.alert('Reminders', message);
+      } finally {
+        setDeletingReminderId(null);
+      }
+    },
+    [detailsReminder]
+  );
+
+  const handleDeleteReminderRequest = useCallback(
+    (reminder: ReminderStub) => {
+      Alert.alert(
+        'Delete reminder',
+        `Remove "${reminder.title}" permanently?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: () => performDeleteReminder(reminder.id) },
+        ],
+        { cancelable: true }
+      );
+    },
+    [performDeleteReminder]
   );
 
   const selectedDateLabel = useMemo(() => formatDayLabel(selectedDate), [selectedDate]);
@@ -331,8 +383,7 @@ export default function Reminders() {
             onRefresh={handleRefresh}
             tintColor={isDark ? '#FFFFFF' : '#000000'}
           />
-        }
-        >
+        }>
         {isLoadingReminders ? (
           <View style={{ paddingVertical: 80, alignItems: 'center' }}>
             <ActivityIndicator size="large" color={isDark ? '#93C5FD' : '#4338CA'} />
@@ -364,7 +415,10 @@ export default function Reminders() {
             <UpcomingList
               isDark={isDark}
               items={upcomingTimeline}
-              onReminderPress={handleReminderPreviewPress}
+              onReminderPress={handleReminderCardPress}
+              onEditPress={handleEditReminderRequest}
+              onDeletePress={handleDeleteReminderRequest}
+              deletingReminderId={deletingReminderId}
             />
             {remindersError ? (
               <Text style={{ marginTop: 16, color: isDark ? '#F87171' : '#B91C1C' }}>
@@ -381,6 +435,10 @@ export default function Reminders() {
         open={sheetOpen}
         animationValue={sheetAnim}
         onClose={() => setSheetOpen(false)}
+        onReminderPress={handleReminderCardPress}
+        onEditPress={handleEditReminderRequest}
+        onDeletePress={handleDeleteReminderRequest}
+        deletingReminderId={deletingReminderId}
       />
       <ReminderFormModal
         visible={formVisible}
@@ -391,6 +449,15 @@ export default function Reminders() {
         submitting={isSubmittingReminder}
         onClose={handleModalClose}
         onSubmit={handleReminderSubmit}
+      />
+      <ReminderDetailsModal
+        visible={detailsVisible}
+        reminder={detailsReminder}
+        isDark={isDark}
+        onClose={() => {
+          setDetailsVisible(false);
+          setDetailsReminder(null);
+        }}
       />
     </View>
   );

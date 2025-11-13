@@ -12,10 +12,12 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Bell, Calendar as CalendarIcon, Clock, Tag as TagIcon, X } from 'lucide-react-native';
 import { palette } from './data';
+import { formatDateKey } from './utils';
 import type { ReminderCategory, ReminderPriority } from '@/types/reminder.types';
 
 export interface ReminderFormValues {
@@ -105,6 +107,8 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
   const [generalError, setGeneralError] = useState<string | null>(null);
   const opacity = React.useRef(new Animated.Value(0)).current;
   const translateY = React.useRef(new Animated.Value(40)).current;
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -244,12 +248,12 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
               {/* <View style={styles.grabber} /> */}
               <View style={styles.headerRow}>
                 <View>
-                  <Text style={[styles.title, { color: isDark ? '#F4F7FF' : '#0F172A' }]}>
+                  <Text className="px-3" style={[styles.title, { color: isDark ? '#F4F7FF' : '#0F172A' }]}>
                     {mode === 'edit' ? 'Edit reminder' : 'Create reminder'}
                   </Text>
-                  <Text style={{ color: isDark ? '#94A3B8' : '#64748B' }}>
+                  {/* <Text style={{ color: isDark ? '#94A3B8' : '#64748B' }}>
                     Keep your nudges aligned with your task system.
-                  </Text>
+                  </Text> */}
                 </View>
                 <Pressable onPress={onClose} style={styles.closeButton}>
                   <X size={18} color={isDark ? '#94A3B8' : '#475569'} />
@@ -257,7 +261,7 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
               </View>
 
               <ScrollView
-                style={{ marginTop: 12 }}
+                style={{ marginTop: 4 }}
                 contentContainerStyle={{ paddingBottom: 12 }}
                 keyboardShouldPersistTaps="handled"
               >
@@ -271,27 +275,37 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
                 )}
 
                 <View style={{ flexDirection: 'row', gap: 12 }}>
-                  <View style={{ flex: 1 }}>
-                    {renderInput(
-                      'Date',
-                      formValues.date,
-                      text => handleChange('date', text),
-                      'YYYY-MM-DD',
-                      <CalendarIcon size={16} color={isDark ? '#CBD5F5' : '#64748B'} />,
-                      errors.date
-                    )}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    {renderInput(
-                      'Time',
-                      formValues.time,
-                      text => handleChange('time', text),
-                      'HH:mm',
-                      <Clock size={16} color={isDark ? '#CBD5F5' : '#64748B'} />,
-                      errors.time
-                    )}
-                  </View>
+                  <Pressable
+                    style={[styles.pickerField, getPickerStyle(isDark, !!errors.date)]}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <CalendarIcon size={16} color={isDark ? '#CBD5F5' : '#64748B'} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.fieldLabel, { marginBottom: 2, color: isDark ? '#94A3B8' : '#475569' }]}>
+                        Date
+                      </Text>
+                      <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A' }}>
+                        {formValues.date || 'YYYY-MM-DD'}
+                      </Text>
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.pickerField, getPickerStyle(isDark, !!errors.time)]}
+                    onPress={() => setShowTimePicker(true)}
+                  >
+                    <Clock size={16} color={isDark ? '#CBD5F5' : '#64748B'} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.fieldLabel, { marginBottom: 2, color: isDark ? '#94A3B8' : '#475569' }]}>
+                        Time
+                      </Text>
+                      <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A' }}>
+                        {formValues.time || 'HH:mm'}
+                      </Text>
+                    </View>
+                  </Pressable>
                 </View>
+                {errors.date ? <Text style={styles.errorText}>{errors.date}</Text> : null}
+                {errors.time ? <Text style={styles.errorText}>{errors.time}</Text> : null}
 
                 <View style={{ marginBottom: 20 }}>
                   <Text style={[styles.fieldLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>
@@ -458,6 +472,36 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
             </LinearGradient>
           </Animated.View>
         </Animated.View>
+
+        {showDatePicker && (
+          <DateTimePicker
+            value={composeDateForPicker(formValues.date, formValues.time)}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(_, selectedDate) => {
+              setShowDatePicker(false);
+              if (selectedDate) {
+                handleChange('date', formatDateKey(selectedDate));
+              }
+            }}
+          />
+        )}
+
+        {showTimePicker && (
+          <DateTimePicker
+            value={composeDateForPicker(formValues.date, formValues.time)}
+            mode="time"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(_, selectedDate) => {
+              setShowTimePicker(false);
+              if (selectedDate) {
+                const hours = String(selectedDate.getHours()).padStart(2, '0');
+                const minutes = String(selectedDate.getMinutes()).padStart(2, '0');
+                handleChange('time', `${hours}:${minutes}`);
+              }
+            }}
+          />
+        )}
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -482,6 +526,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    borderBottomWidth: 1,
+    paddingBottom: 4,
+    borderBottomColor: 'grey'
   },
   closeButton: {
     width: 36,
@@ -580,4 +627,37 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
+  pickerField: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
 });
+
+function getPickerStyle(isDark: boolean, hasError: boolean) {
+  return {
+    borderColor: hasError
+      ? '#EF4444'
+      : isDark
+      ? 'rgba(148,163,184,0.25)'
+      : 'rgba(15,23,42,0.08)',
+    backgroundColor: isDark ? 'rgba(15,23,42,0.65)' : '#FFFFFF',
+  };
+}
+
+function composeDateForPicker(date: string, time: string) {
+  const baseline = new Date();
+  const [year, month, day] = (date || '').split('-').map(Number);
+  const [hours, minutes] = (time || '').split(':').map(Number);
+  const result = new Date(baseline);
+  if (!Number.isNaN(year) && !Number.isNaN(month) && !Number.isNaN(day)) {
+    result.setFullYear(year, (month || 1) - 1, day || 1);
+  }
+  result.setHours(Number.isNaN(hours) ? 0 : hours, Number.isNaN(minutes) ? 0 : minutes, 0, 0);
+  return result;
+}
