@@ -122,7 +122,7 @@ const getAssignableUsers = asyncHandler(async (req, res) => {
  * Get All Users
  *
  * Fetches all users from the database with pagination and filtering.
- * Accessible by admin users only.
+ * Accessible by admin and moderator users.
  *
  * @async
  * @function getAllUsers
@@ -155,6 +155,14 @@ const getAssignableUsers = asyncHandler(async (req, res) => {
  * }
  */
 const getAllUsers = asyncHandler(async (req, res) => {
+  const allowedRoles = new Set(['admin', 'moderator']);
+  if (!allowedRoles.has(req.user?.role)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Only administrators or moderators can view all users.',
+    });
+  }
+
   // Parse pagination parameters
   const { page, limit, skip } = parsePagination(req.query);
 

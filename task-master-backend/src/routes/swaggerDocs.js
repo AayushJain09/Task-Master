@@ -657,7 +657,7 @@
  * /users:
  *   get:
  *     summary: Get all users
- *     description: Fetches all users with pagination, filtering, and search. Admin only.
+ *     description: Fetches all users with pagination, filtering, and search. Admins and moderators only.
  *     tags: [User Management]
  *     security:
  *       - bearerAuth: []
@@ -738,7 +738,7 @@
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
  *       403:
- *         description: Forbidden - Admin access required
+ *         description: Forbidden - Admin or Moderator access required
  *         content:
  *           application/json:
  *             schema:

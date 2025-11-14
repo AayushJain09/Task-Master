@@ -70,7 +70,7 @@ router.get(
 /**
  * @route   GET /api/v1/users
  * @desc    Get all users with pagination and filtering
- * @access  Private (Admin only)
+ * @access  Private (Admin or Moderator)
  *
  * Query Parameters:
  * - page: number (default: 1)
@@ -91,7 +91,7 @@ router.get(
 router.get(
   '/',
   authenticate,
-  authorize('admin'),
+  authorize('admin', 'moderator'),
   getAllUsersValidation,
   handleValidationErrors,
   userController.getAllUsers
