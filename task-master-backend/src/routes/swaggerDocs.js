@@ -2106,12 +2106,6 @@
  *                 maximum: 1000
  *                 description: Updated estimated hours
  *                 example: 12.5
- *               actualHours:
- *                 type: number
- *                 minimum: 0
- *                 maximum: 1000
- *                 description: Actual hours spent on the task
- *                 example: 8.25
  *     responses:
  *       200:
  *         description: Task updated successfully

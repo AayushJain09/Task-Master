@@ -827,7 +827,6 @@ const updateTask = async (req, res) => {
       tags,
       category,
       estimatedHours,
-      actualHours,
     } = req.body;
 
     // Build update object with only provided fields
@@ -874,12 +873,11 @@ const updateTask = async (req, res) => {
       updateData.estimatedHours = estimatedHours ? parseFloat(estimatedHours) : null;
     }
 
-    if (actualHours !== undefined) {
-      updateData.actualHours = parseFloat(actualHours) || 0;
-    }
-
     // Update the task
     Object.assign(task, updateData);
+    if (status !== undefined && status !== previousStatus) {
+      task.applyStatusTimerChange(previousStatus);
+    }
     await task.save();
 
     // Populate user references for response
@@ -1008,7 +1006,8 @@ const deleteTask = async (req, res) => {
       });
     }
 
-    // Soft delete the task
+    // Stop any running timer and soft delete the task
+    task.pauseWorkTimer();
     task.isActive = false;
     await task.save();
 

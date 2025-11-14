@@ -60,6 +60,15 @@ export interface UserReference {
 }
 
 /**
+ * Work timer metadata mirrors backend auto-tracking state.
+ */
+export interface WorkTimerState {
+  isRunning: boolean;
+  lastStartedAt?: string | null;
+  totalSeconds: number;
+}
+
+/**
  * Core Task Interface
  * 
  * Represents a task entity with all its properties including
@@ -77,11 +86,13 @@ export interface Task {
   dueDate?: string; // ISO 8601 date string
   completedAt?: string; // ISO 8601 date string
   estimatedHours?: number;
-  actualHours: number;
+  actualHours: number; // Persisted (paused) effort tracked on the server
   category: string;
   isActive: boolean;
   createdAt: string; // ISO 8601 date string
   updatedAt: string; // ISO 8601 date string
+  workTimer?: WorkTimerState; // Raw timer state for UI overlays
+  trackedActualHours?: number; // Live hours including a running timer session
   
   // Virtual fields (computed by backend)
   isOverdue?: boolean;
@@ -123,7 +134,6 @@ export interface UpdateTaskRequest {
   tags?: string[];
   category?: string;
   estimatedHours?: number | null;
-  actualHours?: number;
 }
 
 /**

@@ -464,8 +464,37 @@ const swaggerDefinition = {
             type: 'number',
             minimum: 0,
             maximum: 1000,
-            description: 'Actual hours spent on the task',
+            readOnly: true,
+            description: 'Actual hours accumulated via automatic work-timer tracking',
             example: 6.25,
+          },
+          trackedActualHours: {
+            type: 'number',
+            description: 'Live actual hours including any currently running timer session',
+            example: 6.75,
+            readOnly: true,
+          },
+          workTimer: {
+            type: 'object',
+            description: 'Internal timer metadata used to derive automatic actual hours',
+            readOnly: true,
+            properties: {
+              isRunning: {
+                type: 'boolean',
+                example: true,
+              },
+              lastStartedAt: {
+                type: 'string',
+                format: 'date-time',
+                nullable: true,
+                example: '2024-01-16T14:45:00.000Z',
+              },
+              totalSeconds: {
+                type: 'integer',
+                minimum: 0,
+                example: 7200,
+              },
+            },
           },
           category: {
             type: 'string',

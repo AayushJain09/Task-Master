@@ -200,11 +200,6 @@ const validateTaskUpdate = [
       return true;
     }),
 
-  // Actual hours validation
-  body('actualHours')
-    .optional()
-    .isFloat({ min: 0, max: 1000 })
-    .withMessage('Actual hours must be between 0 and 1000'),
 ];
 
 /**

@@ -10,6 +10,37 @@
 const mongoose = require('mongoose');
 
 /**
+ * Applies consistent serialization rules for task documents so that every
+ * response includes live timer metadata and normalized field formats.
+ *
+ * @param {mongoose.Document} doc
+ * @param {Object} ret
+ * @returns {Object}
+ */
+const applyTaskSerializationTransform = (doc, ret) => {
+  if (doc?.ensureWorkTimer) {
+    doc.ensureWorkTimer();
+  }
+
+  if (doc?.getLiveActualHours) {
+    const liveHours = doc.getLiveActualHours();
+    ret.actualHours = liveHours;
+    ret.trackedActualHours = liveHours;
+  }
+
+  if (!ret.workTimer && doc?.workTimer) {
+    ret.workTimer = {
+      isRunning: doc.workTimer.isRunning,
+      lastStartedAt: doc.workTimer.lastStartedAt,
+      totalSeconds: doc.workTimer.totalSeconds,
+    };
+  }
+
+  delete ret.__v;
+  return ret;
+};
+
+/**
  * Task Schema Definition
  *
  * Defines the structure and validation rules for task documents in MongoDB.
@@ -151,6 +182,23 @@ const taskSchema = new mongoose.Schema(
       default: 0,
     },
 
+    // Internal work timer metadata used to automatically calculate actual hours
+    workTimer: {
+      totalSeconds: {
+        type: Number,
+        default: 0,
+        min: [0, 'Tracked time cannot be negative'],
+      },
+      lastStartedAt: {
+        type: Date,
+        default: null,
+      },
+      isRunning: {
+        type: Boolean,
+        default: false,
+      },
+    },
+
     // Category for task organization
     category: {
       type: String,
@@ -166,15 +214,14 @@ const taskSchema = new mongoose.Schema(
     // Transform output when converting to JSON
     toJSON: {
       virtuals: true,
-      transform: function (doc, ret) {
-        // Remove internal fields from JSON output
-        delete ret.__v;
-        return ret;
-      },
+      transform: applyTaskSerializationTransform,
     },
 
     // Enable virtuals for Object conversion
-    toObject: { virtuals: true },
+    toObject: {
+      virtuals: true,
+      transform: applyTaskSerializationTransform,
+    },
   }
 );
 
@@ -299,8 +346,10 @@ taskSchema.methods.updateStatus = async function (newStatus) {
   if (!validStatuses.includes(newStatus)) {
     throw new Error('Invalid task status');
   }
-  
+
+  const previousStatus = this.status;
   this.status = newStatus;
+  this.applyStatusTimerChange(previousStatus);
   await this.save();
 };
 
@@ -337,6 +386,125 @@ taskSchema.methods.removeTag = async function (tag) {
   this.tags = this.tags.filter(t => t !== normalizedTag);
   await this.save();
 };
+
+/**
+ * Ensures the task has a workTimer subdocument populated with defaults.
+ */
+taskSchema.methods.ensureWorkTimer = function () {
+  if (!this.workTimer) {
+    this.workTimer = {
+      totalSeconds: 0,
+      lastStartedAt: null,
+      isRunning: false,
+    };
+  }
+};
+
+/**
+ * Updates actualHours based on the total tracked seconds.
+ *
+ * @private
+ */
+taskSchema.methods.syncActualHoursFromTimer = function () {
+  this.ensureWorkTimer();
+  const roundedHours = Math.round((this.workTimer.totalSeconds / 3600) * 100) / 100;
+  this.actualHours = Number.isFinite(roundedHours) ? roundedHours : 0;
+};
+
+/**
+ * Starts (or resumes) the background timer when a task enters "in_progress".
+ */
+taskSchema.methods.startWorkTimer = function () {
+  this.ensureWorkTimer();
+  if (this.workTimer.isRunning) {
+    return;
+  }
+  this.workTimer.isRunning = true;
+  this.workTimer.lastStartedAt = new Date();
+};
+
+/**
+ * Pauses the timer and accumulates elapsed seconds into the total.
+ */
+taskSchema.methods.pauseWorkTimer = function () {
+  this.ensureWorkTimer();
+  if (!this.workTimer.isRunning || !this.workTimer.lastStartedAt) {
+    this.workTimer.isRunning = false;
+    this.workTimer.lastStartedAt = null;
+    this.syncActualHoursFromTimer();
+    return;
+  }
+
+  const now = Date.now();
+  const elapsedSeconds = Math.max(
+    0,
+    Math.floor((now - this.workTimer.lastStartedAt.getTime()) / 1000)
+  );
+  this.workTimer.totalSeconds += elapsedSeconds;
+  this.workTimer.isRunning = false;
+  this.workTimer.lastStartedAt = null;
+  this.syncActualHoursFromTimer();
+};
+
+/**
+ * Returns live actual hours including any currently running timer segment.
+ *
+ * @returns {number}
+ */
+taskSchema.methods.getLiveActualHours = function () {
+  this.ensureWorkTimer();
+  let totalSeconds = this.workTimer.totalSeconds;
+
+  if (this.workTimer.isRunning && this.workTimer.lastStartedAt) {
+    totalSeconds += Math.max(
+      0,
+      Math.floor((Date.now() - this.workTimer.lastStartedAt.getTime()) / 1000)
+    );
+  }
+
+  return Math.round((totalSeconds / 3600) * 100) / 100;
+};
+
+/**
+ * Handles timer transitions whenever status changes.
+ *
+ * @param {string} previousStatus
+ */
+taskSchema.methods.applyStatusTimerChange = function (previousStatus = null) {
+  this.ensureWorkTimer();
+  const next = this.status;
+
+  if (!previousStatus) {
+    if (next === 'in_progress') {
+      this.startWorkTimer();
+    } else if (next === 'done') {
+      this.pauseWorkTimer();
+    }
+    return;
+  }
+
+  if (previousStatus === next) {
+    return;
+  }
+
+  const enteredInProgress = next === 'in_progress' && previousStatus !== 'in_progress';
+  const leftInProgress = previousStatus === 'in_progress' && next !== 'in_progress';
+
+  if (enteredInProgress) {
+    this.startWorkTimer();
+  }
+
+  if (leftInProgress || next === 'done') {
+    this.pauseWorkTimer();
+  }
+};
+
+/**
+ * Virtual property that exposes the live (not-yet persisted) tracked hours.
+ */
+taskSchema.virtual('trackedActualHours').get(function () {
+  return this.getLiveActualHours();
+});
 
 /**
  * Static Method: Find By User

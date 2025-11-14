@@ -174,16 +174,6 @@ class TasksService {
       }
     }
 
-    if ('actualHours' in taskData && taskData.actualHours !== undefined) {
-      if (taskData.actualHours < 0 || taskData.actualHours > 1000) {
-        throw {
-          message: 'Actual hours must be between 0 and 1000.',
-          code: 'TASK_VALIDATION_ERROR' as TaskErrorCode,
-          field: 'actualHours',
-        } as TaskError;
-      }
-    }
-
     if (taskData.tags && taskData.tags.length > 10) {
       throw {
         message: 'Cannot have more than 10 tags per task.',
@@ -348,7 +338,6 @@ class TasksService {
    * ```typescript
    * const updatedTask = await tasksService.updateTask('507f1f77bcf86cd799439011', {
    *   status: 'in_progress',
-   *   actualHours: 2.5,
    *   tags: ['design', 'ui', 'responsive']
    * });
    * 
