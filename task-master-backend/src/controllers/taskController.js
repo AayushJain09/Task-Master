@@ -94,6 +94,26 @@ const normalizeObjectId = (value) => {
   return String(value);
 };
 
+const PRIVILEGED_TASK_ROLES = new Set(['admin', 'moderator']);
+
+/**
+ * Checks whether the requesting user can manage (edit/delete) a task.
+ *
+ * @param {Object} task - Task mongoose document
+ * @param {Object} user - Authenticated user details
+ * @returns {boolean}
+ */
+const hasTaskManagementPermission = (task, user = {}) => {
+  if (!task || !user) return false;
+  if (PRIVILEGED_TASK_ROLES.has(user.role)) {
+    return true;
+  }
+
+  const creatorId = normalizeObjectId(task.assignedBy);
+  const requesterId = normalizeObjectId(user.userId);
+  return creatorId && requesterId && creatorId === requesterId;
+};
+
 /**
  * Get All Tasks for User
  *
@@ -761,7 +781,7 @@ const updateTask = async (req, res) => {
     }
 
     const { taskId } = req.params;
-    const userId = req.user.userId;
+    const userId = req.user.userId?.toString();
 
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(taskId)) {
@@ -784,11 +804,11 @@ const updateTask = async (req, res) => {
       });
     }
 
-    // Check if user has edit permission (only task creator can edit)
-    if (task.assignedBy.toString() !== userId) {
+    // Check if user has edit permission (creator, moderator, or admin)
+    if (!hasTaskManagementPermission(task, req.user)) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied. Only the task creator can edit this task.',
+        message: 'Access denied. Only the task creator, moderators, or admins can edit this task.',
         code: 'EDIT_PERMISSION_DENIED'
       });
     }
@@ -820,8 +840,8 @@ const updateTask = async (req, res) => {
     if (category !== undefined) updateData.category = category.trim();
     if (tags !== undefined) updateData.tags = Array.isArray(tags) ? tags : [];
 
-    // Handle user assignment (only assignor or admin can reassign)
-    if (assignedTo !== undefined && task.assignedBy.toString() === userId) {
+    // Handle user assignment
+    if (assignedTo !== undefined) {
       const assigneeUser = await User.findById(assignedTo);
       if (!assigneeUser) {
         return res.status(404).json({
@@ -958,7 +978,7 @@ const updateTask = async (req, res) => {
 const deleteTask = async (req, res) => {
   try {
     const { taskId } = req.params;
-    const userId = req.user.userId;
+    const userId = req.user.userId?.toString();
 
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(taskId)) {
@@ -968,17 +988,23 @@ const deleteTask = async (req, res) => {
       });
     }
 
-    // Find the task and ensure user has delete permission (only assignor can delete)
+    // Find the task
     const task = await Task.findOne({
       _id: taskId,
-      assignedBy: userId, // Only the creator can delete
       isActive: true,
     });
 
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Task not found or permission denied',
+        message: 'Task not found',
+      });
+    }
+
+    if (!hasTaskManagementPermission(task, req.user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Only the task creator, moderators, or admins can delete this task.',
       });
     }
 

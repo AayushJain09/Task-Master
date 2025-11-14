@@ -98,7 +98,7 @@ class TasksService {
 
     // Use status code mapping
     const code = errorCodeMap[error.status] || 'TASK_VALIDATION_ERROR';
-    
+
     return {
       message: error.message || 'An error occurred while processing your task request.',
       code,
@@ -122,7 +122,7 @@ class TasksService {
           field: 'title',
         } as TaskError;
       }
-      
+
       if (taskData.title.length > 200) {
         throw {
           message: 'Task title cannot exceed 200 characters.',
@@ -143,7 +143,7 @@ class TasksService {
     if (taskData.dueDate) {
       const dueDate = new Date(taskData.dueDate);
       const now = new Date();
-      
+
       if (isNaN(dueDate.getTime())) {
         throw {
           message: 'Invalid due date format.',
@@ -151,7 +151,7 @@ class TasksService {
           field: 'dueDate',
         } as TaskError;
       }
-      
+
       // Allow dates from today onwards (be permissive with timezone differences)
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
@@ -202,13 +202,13 @@ class TasksService {
    */
   private buildQueryString(params: TaskQueryParams): string {
     const searchParams = new URLSearchParams();
-    
+
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         searchParams.append(key, String(value));
       }
     });
-    
+
     return searchParams.toString();
   }
 
@@ -246,7 +246,7 @@ class TasksService {
     try {
       const queryString = this.buildQueryString(params);
       const url = queryString ? `${this.baseEndpoint}?${queryString}` : this.baseEndpoint;
-      
+
       const response = await apiService.get<TasksListResponse>(url);
       return response;
     } catch (error) {
@@ -367,6 +367,7 @@ class TasksService {
       // Validate task data before sending
       this.validateTaskData(taskData);
 
+      console.log("edit task data", taskData)
       const response = await apiService.put<TaskResponse>(`${this.baseEndpoint}/${taskId}`, taskData);
       return response;
     } catch (error) {
@@ -575,20 +576,20 @@ class TasksService {
         ...params,
         status, // Always include the required status parameter
       };
-""
-// Build query string
-const queryString = this.buildQueryString(queryParams);
-const url = `${this.baseEndpoint}/overdue/status?${queryString}`;
-console.log("query string", url)
-      
+      ""
+      // Build query string
+      const queryString = this.buildQueryString(queryParams);
+      const url = `${this.baseEndpoint}/overdue/status?${queryString}`;
+      // console.log("query string", url)
+
       const response = await apiService.get<TasksListResponse>(url);
-      
+
       // The response includes enhanced overdue metadata:
       // - overdueMetadata: Status-specific overdue analysis including severity breakdown
       // - tasks: Each task includes overdueMetadata with daysPastDue, severity, and isOverdue
       // - pagination: Standard pagination with enhanced indices
       // - filters: Applied filter summary for debugging
-      
+
       return response;
     } catch (error) {
       throw this.transformError(error as ApiError);
@@ -620,7 +621,7 @@ console.log("query string", url)
   async searchTasks(searchParams: TaskSearchParams): Promise<TasksListResponse> {
     try {
       const { query, fields = ['title', 'description', 'tags'], filters = {} } = searchParams;
-      
+
       if (!query?.trim()) {
         throw {
           message: 'Search query is required.',
@@ -637,7 +638,7 @@ console.log("query string", url)
       };
 
       const response = await this.getAllTasks(searchFilters);
-      
+
       // Client-side filtering (should ideally be done on backend)
       const filteredTasks = response.tasks.filter(task => {
         const searchLower = query.toLowerCase();
@@ -753,7 +754,7 @@ console.log("query string", url)
    * ```
    */
   async getTasksByStatusOptimized(
-    status: Task['status'], 
+    status: Task['status'],
     params: Omit<TaskQueryParams, 'status'> = {}
   ): Promise<TasksListResponse> {
     try {
@@ -776,15 +777,15 @@ console.log("query string", url)
       // Build query string
       const queryString = this.buildQueryString(queryParams);
       const url = `${this.baseEndpoint}/status?${queryString}`;
-      console.log("query string", url)
-      
+      // console.log("query string", url)
+
       const response = await apiService.get<TasksListResponse>(url);
-      
+
       // The response includes enhanced metadata for status-specific queries:
       // - pagination: Enhanced pagination with start/end indices
       // - statusMetadata: Status-specific information including overdue detection
       // - filters: Applied filter summary for debugging
-      
+
       return response;
     } catch (error) {
       throw this.transformError(error as ApiError);
@@ -858,7 +859,7 @@ console.log("query string", url)
   async getUpcomingTasks(days: number = 7): Promise<TasksListResponse> {
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + days);
-    
+
     return this.getAllTasks({
       sortBy: 'dueDate',
       sortOrder: 'asc',
