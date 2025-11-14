@@ -33,13 +33,20 @@ const {
   validateOverdueTasksByStatusQuery,
 } = require('../validators/taskValidator');
 
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
 const { rateLimitStrict, rateLimitModerate } = require('../middleware/rateLimiter');
 
 const router = express.Router();
 
 // GET /api/tasks - Get all tasks (documented in swaggerDocs.js)
-router.get('/', authenticate, rateLimitModerate, validateTaskQuery, getAllTasks);
+router.get(
+  '/',
+  authenticate,
+  authorize('admin', 'moderator'),
+  rateLimitModerate,
+  validateTaskQuery,
+  getAllTasks
+);
 
 // GET /api/tasks/status - Get tasks by specific status with enhanced filtering (documented in swaggerDocs.js)
 router.get('/status', authenticate, rateLimitModerate, validateTaskStatusQuery, getTasksByStatus);

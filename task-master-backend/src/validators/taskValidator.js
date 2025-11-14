@@ -251,26 +251,6 @@ const validateTaskQuery = [
     .isIn(['low', 'medium', 'high'])
     .withMessage('Priority must be one of: low, medium, high'),
 
-  // Role filter validation
-  query('role')
-    .optional()
-    .isIn(['assignee', 'assignor', 'both'])
-    .withMessage('Role must be one of: assignee, assignor, both'),
-
-  // Category filter validation
-  query('category')
-    .optional()
-    .isLength({ min: 1, max: 50 })
-    .withMessage('Category must be between 1 and 50 characters')
-    .trim()
-    .escape(),
-
-  // Tags filter validation
-  query('tags')
-    .optional()
-    .isString()
-    .withMessage('Tags must be a comma-separated string'),
-
   // Due date filter validation
   query('dueDate')
     .optional()
@@ -345,9 +325,6 @@ const validateTaskSearch = [
  *
  * Optional Parameters:
  * @param {string} [priority] - Filter by priority (low, medium, high)
- * @param {string} [role] - User role filter ('assignee', 'assignor', 'both')
- * @param {string} [category] - Category filter (case-insensitive partial match)
- * @param {string} [tags] - Comma-separated tags for filtering
  * @param {string} [dueDate] - Specific due date filter (ISO 8601 format)
  * @param {boolean} [overdue] - Filter overdue tasks
  * @param {string} [search] - Search term for multiple fields
@@ -375,28 +352,6 @@ const validateTaskStatusQuery = [
     .optional()
     .isIn(['low', 'medium', 'high'])
     .withMessage('Priority must be one of: low, medium, high'),
-
-  // Role filter validation
-  query('role')
-    .optional()
-    .isIn(['assignee', 'assignor', 'both'])
-    .withMessage('Role must be one of: assignee, assignor, both'),
-
-  // Category filter validation
-  query('category')
-    .optional()
-    .isLength({ min: 1, max: 50 })
-    .withMessage('Category must be between 1 and 50 characters')
-    .trim()
-    .escape(),
-
-  // Tags filter validation (comma-separated string)
-  query('tags')
-    .optional()
-    .isString()
-    .withMessage('Tags must be a comma-separated string')
-    .isLength({ max: 200 })
-    .withMessage('Tags string cannot exceed 200 characters'),
 
   // Due date filter validation
   query('dueDate')

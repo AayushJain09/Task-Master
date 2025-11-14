@@ -117,8 +117,8 @@ const hasTaskManagementPermission = (task, user = {}) => {
 /**
  * Get All Tasks for User
  *
- * Retrieves all tasks assigned to or created by the authenticated user
- * with optional filtering by status, priority, and other criteria
+ * Retrieves all tasks in the system with optional filtering.
+ * Restricted to administrator or moderator roles.
  *
  * @async
  * @function getAllTasks
@@ -128,13 +128,16 @@ const hasTaskManagementPermission = (task, user = {}) => {
  */
 const getAllTasks = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    if (!PRIVILEGED_TASK_ROLES.has(req.user?.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Only administrators or moderators can view all tasks.',
+      });
+    }
+
     const {
       status,
       priority,
-      role = 'both', // 'assignee', 'assignor', or 'both'
-      category,
-      tags,
       dueDate,
       overdue,
       page = 1,
@@ -143,126 +146,102 @@ const getAllTasks = async (req, res) => {
       sortOrder = 'desc',
     } = req.query;
 
-    // Build query options
-    const options = {
-      role,
-      activeOnly: true,
-    };
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const filters = { isActive: true };
 
-    if (status) options.status = status;
-
-    // Build additional filters
-    let additionalFilters = {};
+    if (status) {
+      filters.status = status;
+    }
 
     if (priority) {
-      additionalFilters.priority = priority;
-    }
-
-    if (category) {
-      additionalFilters.category = new RegExp(category, 'i');
-    }
-
-    if (tags) {
-      const tagArray = tags.split(',').map(tag => tag.trim().toLowerCase());
-      additionalFilters.tags = { $in: tagArray };
+      filters.priority = priority;
     }
 
     if (dueDate) {
-      const date = new Date(dueDate);
-      if (!isNaN(date.getTime())) {
-        additionalFilters.dueDate = {
-          $gte: date,
-          $lt: new Date(date.getTime() + 24 * 60 * 60 * 1000),
+      const parsedDate = new Date(dueDate);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        const endOfDay = new Date(parsedDate.getTime() + 24 * 60 * 60 * 1000);
+        filters.dueDate = {
+          $gte: parsedDate,
+          $lt: endOfDay,
         };
       }
     }
 
     if (overdue === 'true') {
-      additionalFilters.dueDate = { $lt: new Date() };
-      additionalFilters.status = { $ne: 'done' };
-    }
-
-    // Get base tasks using the model method
-    let tasks = await Task.findByUser(userId, options);
-    const referenceDate = new Date();
-
-    // Work with plain objects so we can annotate metadata consistently
-    tasks = tasks.map(task => (typeof task.toObject === 'function' ? task.toObject() : task));
-
-    // Apply additional filters
-    if (Object.keys(additionalFilters).length > 0) {
-      tasks = tasks.filter(task => {
-        return Object.entries(additionalFilters).every(([key, value]) => {
-          if (key === 'category' && value instanceof RegExp) {
-            return value.test(task.category);
-          }
-          if (key === 'tags' && value.$in) {
-            return task.tags.some(tag => value.$in.includes(tag));
-          }
-          if (key === 'dueDate' && typeof value === 'object') {
-            if (value.$lt) return new Date(task.dueDate) < value.$lt;
-            if (value.$gte && value.$lt) {
-              return new Date(task.dueDate) >= value.$gte && new Date(task.dueDate) < value.$lt;
-            }
-          }
-          if (key === 'status' && value.$ne) {
-            return task.status !== value.$ne;
-          }
-          return task[key] === value;
-        });
-      });
-    }
-
-    // Attach overdue metadata so every consumer gets the same insights
-    tasks = tasks.map(task => {
-      const overdueMetadata = buildOverdueMetadata(task, referenceDate);
-      if (overdueMetadata) {
-        task.overdueMetadata = overdueMetadata;
-        task.isOverdue = true;
-      } else if (task.status !== 'done') {
-        task.isOverdue = false;
+      filters.dueDate = { $lt: new Date() };
+      if (!status) {
+        filters.status = { $ne: 'done' };
       }
-      return task;
-    });
+    }
 
-    // Sort tasks
-    tasks.sort((a, b) => {
-      const aValue = a[sortBy];
-      const bValue = b[sortBy];
-      const multiplier = sortOrder === 'desc' ? -1 : 1;
+    const referenceDate = new Date();
+    const transformTask = (task) => {
+      const plain = typeof task.toObject === 'function' ? task.toObject() : task;
+      const overdueMetadata = buildOverdueMetadata(plain, referenceDate);
+      if (overdueMetadata) {
+        plain.overdueMetadata = overdueMetadata;
+        plain.isOverdue = true;
+      } else if (plain.status !== 'done') {
+        plain.isOverdue = false;
+      }
+      return plain;
+    };
 
-      if (aValue < bValue) return -1 * multiplier;
-      if (aValue > bValue) return 1 * multiplier;
-      return 0;
-    });
+    let tasks = [];
+    let totalTasks = 0;
 
-    // Pagination
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + parseInt(limit);
-    const paginatedTasks = tasks.slice(startIndex, endIndex);
+    if (sortBy === 'daysPastDue') {
+      const allTasks = await Task.find(filters)
+        .populate('assignedBy', 'firstName lastName email role')
+        .populate('assignedTo', 'firstName lastName email role');
 
-    // Response metadata
-    const totalTasks = tasks.length;
-    const totalPages = Math.ceil(totalTasks / limit);
+      totalTasks = allTasks.length;
+      tasks = allTasks.map(transformTask);
+
+      tasks.sort((a, b) => {
+        const aDays = a.overdueMetadata?.daysPastDue || 0;
+        const bDays = b.overdueMetadata?.daysPastDue || 0;
+        return sortOrder === 'asc' ? aDays - bDays : bDays - aDays;
+      });
+
+      const startIndex = (pageNum - 1) * limitNum;
+      const endIndex = startIndex + limitNum;
+      tasks = tasks.slice(startIndex, endIndex);
+    } else {
+      const sortOptions = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
+      const [tasksRaw, count] = await Promise.all([
+        Task.find(filters)
+          .populate('assignedBy', 'firstName lastName email role')
+          .populate('assignedTo', 'firstName lastName email role')
+          .sort(sortOptions)
+          .skip((pageNum - 1) * limitNum)
+          .limit(limitNum),
+        Task.countDocuments(filters),
+      ]);
+
+      tasks = tasksRaw.map(transformTask);
+      totalTasks = count;
+    }
+
+    const totalPages = Math.ceil(totalTasks / limitNum) || 0;
 
     res.status(200).json({
       success: true,
       message: 'Tasks retrieved successfully',
       data: {
-        tasks: paginatedTasks,
+        tasks,
         pagination: {
-          currentPage: parseInt(page),
+          currentPage: pageNum,
           totalPages,
           totalTasks,
-          hasNextPage: endIndex < totalTasks,
-          hasPrevPage: page > 1,
+          hasNextPage: pageNum * limitNum < totalTasks,
+          hasPrevPage: pageNum > 1,
         },
         filters: {
           status,
           priority,
-          role,
-          category,
-          tags,
           dueDate,
           overdue,
         },
@@ -288,8 +267,7 @@ const getAllTasks = async (req, res) => {
  * Features:
  * - Status-specific task retrieval (todo, in_progress, done)
  * - Independent pagination per status column
- * - Comprehensive filtering by priority, category, tags, due date
- * - Role-based filtering (assignee, assignor, both)
+ * - Comprehensive filtering by priority, due date, and overdue state
  * - Overdue task detection
  * - Flexible sorting options
  * - Search functionality across title, description, and tags
@@ -298,9 +276,6 @@ const getAllTasks = async (req, res) => {
  * Query Parameters:
  * @param {string} status - Task status (todo, in_progress, done) - REQUIRED
  * @param {string} [priority] - Filter by priority (low, medium, high)
- * @param {string} [role=both] - User role filter ('assignee', 'assignor', 'both')
- * @param {string} [category] - Filter by category (case-insensitive partial match)
- * @param {string} [tags] - Comma-separated list of tags to filter by
  * @param {string} [dueDate] - Filter by specific due date (ISO format)
  * @param {boolean} [overdue] - Filter overdue tasks (true/false)
  * @param {string} [search] - Search term for title, description, and tags
@@ -349,9 +324,6 @@ const getTasksByStatus = async (req, res) => {
     const {
       status, // Required parameter
       priority,
-      role = 'both', // 'assignee', 'assignor', or 'both'
-      category,
-      tags,
       dueDate,
       overdue,
       search,
@@ -386,7 +358,6 @@ const getTasksByStatus = async (req, res) => {
 
     // Build base query options for the specific status
     const options = {
-      role,
       activeOnly: true,
       status, // Always filter by the specified status
     };
@@ -400,17 +371,6 @@ const getTasksByStatus = async (req, res) => {
       if (validPriorities.includes(priority)) {
         additionalFilters.priority = priority;
       }
-    }
-
-    // Category filter (case-insensitive partial match)
-    if (category) {
-      additionalFilters.category = new RegExp(category, 'i');
-    }
-
-    // Tags filter (support multiple tags)
-    if (tags) {
-      const tagArray = tags.split(',').map(tag => tag.trim().toLowerCase());
-      additionalFilters.tags = { $in: tagArray };
     }
 
     // Due date filter (specific date)
@@ -440,12 +400,6 @@ const getTasksByStatus = async (req, res) => {
     if (Object.keys(additionalFilters).length > 0) {
       tasks = tasks.filter(task => {
         return Object.entries(additionalFilters).every(([key, value]) => {
-          if (key === 'category' && value instanceof RegExp) {
-            return value.test(task.category || '');
-          }
-          if (key === 'tags' && value.$in) {
-            return task.tags && task.tags.some(tag => value.$in.includes(tag.toLowerCase()));
-          }
           if (key === 'dueDate' && typeof value === 'object') {
             if (!task.dueDate) return false;
             const taskDate = new Date(task.dueDate);
@@ -558,9 +512,6 @@ const getTasksByStatus = async (req, res) => {
         filters: {
           status,
           priority,
-          role,
-          category,
-          tags,
           dueDate,
           overdue,
           search,

@@ -679,20 +679,19 @@ class TasksService {
     return this.getAllTasks({ status });
   }
 
-  /**
-   * Get Tasks by Status with Enhanced Filtering and Pagination
-   * 
-   * Retrieves tasks for a specific status with comprehensive filtering, sorting,
-   * and pagination support. Optimized for Kanban board columns where each status
-   * requires independent pagination and filtering capabilities.
-   * 
-   * This endpoint provides:
-   * - Status-specific task retrieval (required parameter)
-   * - Independent pagination per status column
-   * - Enhanced filtering by priority, category, tags, due date
-   * - Role-based filtering (assignee, assignor, both)
-   * - Overdue task detection (for non-done status)
-   * - Full-text search across title, description, tags, and category
+   /**
+    * Get Tasks by Status with Enhanced Filtering and Pagination
+    * 
+    * Retrieves tasks for a specific status with comprehensive filtering, sorting,
+    * and pagination support. Optimized for Kanban board columns where each status
+    * requires independent pagination and filtering capabilities.
+    * 
+    * This endpoint provides:
+    * - Status-specific task retrieval (required parameter)
+    * - Independent pagination per status column
+    * - Enhanced filtering by priority, due date, overdue flag, and search
+    * - Overdue task detection (for non-done status)
+    * - Full-text search across title, description, tags, and category
    * - Flexible sorting with multiple field options
    * - Status-specific metadata including overdue detection
    * - Smaller default page sizes for mobile optimization

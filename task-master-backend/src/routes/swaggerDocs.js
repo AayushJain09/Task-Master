@@ -1285,8 +1285,8 @@
  * @swagger
  * /tasks:
  *   get:
- *     summary: Get all tasks for the authenticated user
- *     description: Retrieves all tasks assigned to or created by the authenticated user with advanced filtering, pagination, and sorting capabilities.
+ *     summary: Get all tasks (admin/moderator)
+ *     description: Retrieves every active task in the system with advanced filtering, pagination, and sorting. Only administrators or moderators can access this endpoint.
  *     tags: [Tasks]
  *     security:
  *       - bearerAuth: []
@@ -1305,27 +1305,6 @@
  *           enum: [low, medium, high]
  *         description: Filter tasks by priority level
  *         example: high
- *       - in: query
- *         name: role
- *         schema:
- *           type: string
- *           enum: [assignee, assignor, both]
- *           default: both
- *         description: Filter by user role in task relationship
- *         example: assignee
- *       - in: query
- *         name: category
- *         schema:
- *           type: string
- *           maxLength: 50
- *         description: Filter tasks by category
- *         example: Development
- *       - in: query
- *         name: tags
- *         schema:
- *           type: string
- *         description: Filter by tags (comma-separated list)
- *         example: "bug,frontend,urgent"
  *       - in: query
  *         name: dueDate
  *         schema:
@@ -1421,13 +1400,26 @@
  *                         priority:
  *                           type: string
  *                           example: high
- *                         role:
+ *                         dueDate:
  *                           type: string
- *                           example: assignee
+ *                           format: date
+ *                           example: "2024-12-31"
+ *                         overdue:
+ *                           type: boolean
+ *                           example: false
  *       400:
  *         $ref: '#/components/responses/ValidationError'
  *       401:
  *         $ref: '#/components/responses/UnauthorizedError'
+ *       403:
+ *         description: Forbidden - Admin or Moderator access required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *             example:
+ *               success: false
+ *               message: Access denied. Insufficient permissions.
  *       429:
  *         $ref: '#/components/responses/RateLimitError'
  *       500:
@@ -1544,8 +1536,7 @@
  *       **Key Features:**
  *       - Status-specific task retrieval (required parameter)
  *       - Independent pagination per status column
- *       - Enhanced filtering by priority, category, tags, due date
- *       - Role-based filtering (assignee, assignor, both)
+ *       - Enhanced filtering by priority, due date, and overdue state
  *       - Overdue task detection (for non-done status)
  *       - Full-text search across title, description, tags, and category
  *       - Flexible sorting with multiple field options
@@ -1576,28 +1567,6 @@
  *           enum: [low, medium, high]
  *         description: Filter tasks by priority level
  *         example: high
- *       - in: query
- *         name: role
- *         schema:
- *           type: string
- *           enum: [assignee, assignor, both]
- *           default: both
- *         description: Filter by user role in task relationship
- *         example: assignee
- *       - in: query
- *         name: category
- *         schema:
- *           type: string
- *           maxLength: 50
- *         description: Filter tasks by category (case-insensitive partial match)
- *         example: Development
- *       - in: query
- *         name: tags
- *         schema:
- *           type: string
- *           maxLength: 200
- *         description: Filter by tags (comma-separated list)
- *         example: "bug,frontend,urgent"
  *       - in: query
  *         name: dueDate
  *         schema:
