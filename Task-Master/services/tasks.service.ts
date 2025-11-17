@@ -26,6 +26,7 @@ import {
   TaskSearchParams,
   TaskExportOptions,
 } from '@/types/task.types';
+import { resolveTimezone as resolveClientTimezone } from '@/utils/timezone';
 
 /**
  * TasksService Class
@@ -35,6 +36,7 @@ import {
  */
 class TasksService {
   private readonly baseEndpoint = '/tasks';
+  private cachedTimezone: string | null = null;
 
   /**
    * Transform API errors to task-specific errors
@@ -190,10 +192,26 @@ class TasksService {
    * @param params - Query parameters
    * @returns URL search parameters string
    */
-  private buildQueryString(params: TaskQueryParams): string {
+  private resolveTimezone(providedTimezone?: string): string {
+    if (providedTimezone?.trim()) {
+      return resolveClientTimezone(providedTimezone.trim());
+    }
+
+    if (this.cachedTimezone) {
+      return this.cachedTimezone;
+    }
+
+    this.cachedTimezone = resolveClientTimezone();
+    return this.cachedTimezone;
+  }
+
+  private buildQueryString(params: Record<string, any> = {}): string {
+    const payload: Record<string, any> = { ...params };
+    payload.timezone = this.resolveTimezone(payload.timezone);
+
     const searchParams = new URLSearchParams();
 
-    Object.entries(params).forEach(([key, value]) => {
+    Object.entries(payload).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         searchParams.append(key, String(value));
       }
@@ -316,6 +334,7 @@ class TasksService {
       if (cleanTaskData.tags && cleanTaskData.tags.length === 0) {
         delete cleanTaskData.tags;
       }
+      cleanTaskData.timezone = this.resolveTimezone(cleanTaskData.timezone);
 
       const response = await apiService.post<TaskResponse>(this.baseEndpoint, cleanTaskData);
       return response;
@@ -357,7 +376,11 @@ class TasksService {
       this.validateTaskData(taskData);
 
       console.log("edit task data", taskData)
-      const response = await apiService.put<TaskResponse>(`${this.baseEndpoint}/${taskId}`, taskData);
+      const payload: UpdateTaskRequest = {
+        ...taskData,
+        timezone: this.resolveTimezone(taskData.timezone),
+      };
+      const response = await apiService.put<TaskResponse>(`${this.baseEndpoint}/${taskId}`, payload);
       return response;
     } catch (error) {
       throw this.transformError(error as ApiError);
@@ -405,7 +428,10 @@ class TasksService {
 
       const response = await apiService.patch<TaskResponse>(
         `${this.baseEndpoint}/${taskId}/status`,
-        { status }
+        {
+          status,
+          timezone: this.resolveTimezone(),
+        }
       );
       return response;
     } catch (error) {
@@ -470,7 +496,10 @@ class TasksService {
    */
   async getTaskStatistics(): Promise<TaskStatisticsResponse> {
     try {
-      const response = await apiService.get<TaskStatisticsResponse>(`${this.baseEndpoint}/statistics`);
+      const timezone = this.resolveTimezone();
+      const response = await apiService.get<TaskStatisticsResponse>(
+        `${this.baseEndpoint}/statistics?timezone=${encodeURIComponent(timezone)}`
+      );
       return response;
     } catch (error) {
       throw this.transformError(error as ApiError);
@@ -497,7 +526,10 @@ class TasksService {
    */
   async getOverdueTasks(): Promise<OverdueTasksResponse> {
     try {
-      const response = await apiService.get<OverdueTasksResponse>(`${this.baseEndpoint}/overdue`);
+      const timezone = this.resolveTimezone();
+      const response = await apiService.get<OverdueTasksResponse>(
+        `${this.baseEndpoint}/overdue?timezone=${encodeURIComponent(timezone)}`
+      );
       return response;
     } catch (error) {
       throw this.transformError(error as ApiError);

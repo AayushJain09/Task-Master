@@ -12,6 +12,7 @@ import { BlurView } from 'expo-blur';
 import { Calendar as CalendarIcon, Clock, Tag as TagIcon, MapPin, X } from 'lucide-react-native';
 import type { Reminder, ReminderCategory } from '@/types/reminder.types';
 import { palette } from './data';
+import { formatDateKeyForDisplay, formatDateTimeInTimeZone } from '@/utils/timezone';
 interface ReminderDetailsModalProps {
   visible: boolean;
   reminder: Reminder | null;
@@ -46,14 +47,19 @@ const ReminderDetailsModal: React.FC<ReminderDetailsModalProps> = ({
     return null;
   }
 
-  const scheduledDate = new Date(reminder.scheduledAt);
-  const formattedDate = scheduledDate.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  });
-  const timeLabel = scheduledDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
+  const timezone = reminder.localTimezone || reminder.timezone || 'UTC';
+  const formattedDate = reminder.localScheduledDate
+    ? formatDateKeyForDisplay(reminder.localScheduledDate)
+    : formatDateTimeInTimeZone(reminder.scheduledAt, timezone, {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+      }) || '';
+  const timeLabel =
+    formatDateTimeInTimeZone(reminder.scheduledAt, timezone, {
+      hour: 'numeric',
+      minute: '2-digit',
+    }) || reminder.localScheduledTime || '';
   const categoryValue = (reminder.category || 'personal') as ReminderCategory;
 
   return (
@@ -101,7 +107,7 @@ const ReminderDetailsModal: React.FC<ReminderDetailsModalProps> = ({
               <InfoCard
                 icon={<MapPin size={16} color={isDark ? '#CBD5F5' : '#475569'} />}
                 label="Timezone"
-                value={reminder.timezone}
+                value={timezone}
                 isDark={isDark}
               />
               <InfoCard

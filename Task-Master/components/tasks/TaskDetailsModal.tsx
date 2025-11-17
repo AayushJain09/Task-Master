@@ -46,6 +46,7 @@ import {
   AlertTriangle
 } from 'lucide-react-native';
 import { Task } from './TaskCard';
+import { formatDateKeyForDisplay } from '@/utils/timezone';
 
 const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -275,6 +276,16 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
   const PriorityIcon = priorityConfig.iconComponent;
   const StatusIcon = statusConfig.iconComponent;
   const overdueDetails = buildOverdueDetails(task);
+  const dueDateDisplay =
+    task.localDueDateTimeDisplay ||
+    (task.localDueDate ? formatDateKeyForDisplay(task.localDueDate) : formatDate(task.dueDate));
+  const dueDateSubLabel = task.localDueDate
+    ? `${formatDateKeyForDisplay(task.localDueDate)}${
+        task.localDueTime ? ` • ${task.localDueTime}` : ''
+      }${task.localTimezone ? ` (${task.localTimezone})` : ''}`
+    : task.localTimezone
+      ? `Timezone: ${task.localTimezone}`
+      : null;
 
   const formatDate = (dateString: string) => {
     try {
@@ -518,10 +529,17 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                       Due Date
                     </Text>
                   </View>
-                  <Text className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'
-                    }`}>
-                    {formatDate(task.dueDate)}
+                  <Text
+                    className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'
+                      }`}
+                  >
+                    {dueDateDisplay}
                   </Text>
+                  {dueDateSubLabel ? (
+                    <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {dueDateSubLabel}
+                    </Text>
+                  ) : null}
                 </View>
 
                 {/* Created Date */}

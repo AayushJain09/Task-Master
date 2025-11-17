@@ -71,6 +71,7 @@ import { Task as TaskCardType, ColumnStatus } from '../tasks/TaskCard';
 import { Task, TasksListResponse, TaskError, TaskQueryParams, EnhancedOverdueMetadata, StatusMetadata, TaskStatistics } from '@/types/task.types';
 import { tasksService } from '@/services/tasks.service';
 import { formatDateForAPI } from '@/utils/dateUtils';
+import { getDeviceTimezone } from '@/utils/timezone';
 
 // Import validation utilities
 import { InputSanitizer, ErrorRecovery } from '@/utils/validation';
@@ -214,6 +215,7 @@ const Tasks: React.FC<TasksScreenProps> = ({
   onRefreshStatistics,
 }) => {
   const { isDark } = useTheme();
+  const deviceTimezone = useMemo(() => getDeviceTimezone(), []);
 
   /**
    * Column-Specific State Management
@@ -574,6 +576,11 @@ const Tasks: React.FC<TasksScreenProps> = ({
       priority: apiTask.priority,
       status: apiTask.status,
       dueDate: apiTask.dueDate || '',
+      localTimezone: apiTask.localTimezone,
+      localDueDate: apiTask.localDueDate,
+      localDueTime: apiTask.localDueTime,
+      localDueDateTimeISO: apiTask.localDueDateTimeISO,
+      localDueDateTimeDisplay: apiTask.localDueDateTimeDisplay,
       category: apiTask.category,
       createdAt: new Date(apiTask.createdAt).toLocaleDateString(),
       tags: apiTask.tags || [],
@@ -797,15 +804,17 @@ const Tasks: React.FC<TasksScreenProps> = ({
 
         console.log('Updating task:', editingTask.id, 'with data:', formData);
 
+        const timezone = deviceTimezone;
         const updateData = {
           title: formData.title?.trim() || '',
           description: formData.description?.trim() || undefined,
           priority: formData.priority,
           category: formData.category?.trim() || undefined,
-          dueDate: formData.dueDate ? formatDateForAPI(formData.dueDate) : undefined,
+          dueDate: formData.dueDate ? formatDateForAPI(formData.dueDate, timezone) : undefined,
           tags: formData.tags && formData.tags.length > 0 ? formData.tags : undefined,
           estimatedHours: formData.estimatedHours && formData.estimatedHours > 0 ? formData.estimatedHours : undefined,
-          assignedTo: formData.assignedTo?.trim() || undefined
+          assignedTo: formData.assignedTo?.trim() || undefined,
+          timezone,
         };
 
         const response = await tasksService.updateTask(editingTask.id, updateData);
@@ -821,15 +830,17 @@ const Tasks: React.FC<TasksScreenProps> = ({
         setGlobalErrors(prev => ({ ...prev, create: null }));
 
         // Create new task
+        const timezone = deviceTimezone;
         const createData = {
           title: formData.title?.trim() || '',
           description: formData.description?.trim() || undefined,
           priority: formData.priority,
           category: formData.category?.trim() || undefined,
-          dueDate: formData.dueDate ? formatDateForAPI(formData.dueDate) : undefined,
+          dueDate: formData.dueDate ? formatDateForAPI(formData.dueDate, timezone) : undefined,
           tags: formData.tags && formData.tags.length > 0 ? formData.tags : undefined,
           estimatedHours: formData.estimatedHours && formData.estimatedHours > 0 ? formData.estimatedHours : undefined,
-          assignedTo: formData.assignedTo?.trim() || undefined
+          assignedTo: formData.assignedTo?.trim() || undefined,
+          timezone,
         };
 
         const response = await tasksService.createTask(createData);
@@ -856,7 +867,7 @@ const Tasks: React.FC<TasksScreenProps> = ({
       const loadingKey = editingTask ? 'updating' : 'creating';
       setGlobalLoading(prev => ({ ...prev, [loadingKey]: false }));
     }
-  }, [editingTask, updateTaskInColumnState, addTaskToColumnState, refreshStatisticsSnapshot]);
+  }, [editingTask, updateTaskInColumnState, addTaskToColumnState, refreshStatisticsSnapshot, deviceTimezone]);
 
   const handleCloseModal = useCallback(() => {
     setShowTaskModal(false);

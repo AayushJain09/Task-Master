@@ -16,6 +16,10 @@ import {
   Bell,
   Menu,
   X,
+  Shield,
+  Users,
+  ClipboardList,
+  CheckSquare,
 } from 'lucide-react-native';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
@@ -29,6 +33,7 @@ export interface DrawerOption {
   title: string;
   icon: React.ComponentType<any>;
   color?: string;
+  subtitle?: string;
 }
 
 interface SideDrawerProps {
@@ -165,6 +170,195 @@ export default function SideDrawer({
   if (!isOpen && !isAnimating) {
     return null;
   }
+
+  const primarySections = [
+    {
+      key: 'primary',
+      label: 'Workspace',
+      accent: isDark ? '#F8FAFC' : '#0F172A',
+      badge: 'Main',
+      options,
+    },
+  ];
+
+  const adminOnlyOptions: DrawerOption[] =
+    user?.role === 'admin'
+      ? [
+          {
+            id: 'admin-users',
+            title: 'User Directory',
+            subtitle: 'Manage members & roles',
+            icon: Users,
+            color: '#EF4444',
+          },
+          {
+            id: 'admin-audit',
+            title: 'Audit Logs',
+            subtitle: 'Review security events',
+            icon: Shield,
+            color: '#F97316',
+          },
+        ]
+      : [];
+
+  const moderatorOnlyOptions: DrawerOption[] =
+    user?.role === 'moderator'
+      ? [
+          {
+            id: 'moderator-review',
+            title: 'Content Review',
+            subtitle: 'Approve or flag updates',
+            icon: ClipboardList,
+            color: '#06B6D4',
+          },
+          {
+            id: 'moderator-moderation',
+            title: 'Escalations',
+            subtitle: 'Track open moderation tasks',
+            icon: CheckSquare,
+            color: '#8B5CF6',
+          },
+        ]
+      : [];
+
+  if (adminOnlyOptions.length) {
+    primarySections.push({
+      key: 'admin',
+      label: 'Admin Controls',
+      accent: '#FACC15',
+      badge: 'Admin',
+      options: adminOnlyOptions,
+    });
+  }
+
+  if (moderatorOnlyOptions.length) {
+    primarySections.push({
+      key: 'moderator',
+      label: 'Moderator Tools',
+      accent: '#38BDF8',
+      badge: 'Moderator',
+      options: moderatorOnlyOptions,
+    });
+  }
+
+  const renderOptionCard = (option: DrawerOption) => {
+    const IconComponent = option.icon;
+    const isActive = activeOption === option.id;
+
+    return (
+      <TouchableOpacity
+        key={option.id}
+        onPress={() => handleOptionPress(option.id)}
+        activeOpacity={0.8}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          marginBottom: 14,
+          padding: 16,
+          borderRadius: 20,
+          borderWidth: 1,
+          borderColor: isActive
+            ? option.color
+              ? `${option.color}66`
+              : 'rgba(59,130,246,0.4)'
+            : isDark
+            ? 'rgba(148,163,184,0.2)'
+            : 'rgba(148,163,184,0.4)',
+          backgroundColor: isActive
+            ? option.color
+              ? `${option.color}33`
+              : 'rgba(59,130,246,0.15)'
+            : isDark
+            ? 'rgba(15,23,42,0.7)'
+            : 'rgba(248,250,252,0.9)',
+        }}
+      >
+        <View
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 14,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginRight: 16,
+            backgroundColor: isActive
+              ? option.color || '#3B82F6'
+              : isDark
+              ? 'rgba(15,23,42,0.9)'
+              : 'rgba(226,232,240,0.9)',
+          }}
+        >
+          <IconComponent
+            size={20}
+            color={
+              isActive
+                ? '#FFFFFF'
+                : option.color || (isDark ? '#E2E8F0' : '#475569')
+            }
+          />
+        </View>
+        <View className="flex-1">
+          <Text
+            className={`text-base font-semibold ${
+              isDark ? 'text-white' : 'text-gray-900'
+            }`}
+          >
+            {option.title}
+          </Text>
+          <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            {isActive
+              ? option.subtitle || 'Currently viewing'
+              : option.subtitle || 'Jump to section'}
+          </Text>
+        </View>
+        {isActive && (
+          <Animated.View
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: 999,
+              backgroundColor: option.color || '#3B82F6',
+              marginLeft: 8,
+              transform: [
+                {
+                  scale: fadeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 1],
+                  }),
+                },
+              ],
+            }}
+          />
+        )}
+      </TouchableOpacity>
+    );
+  };
+
+  const renderSection = (section: typeof primarySections[number]) => (
+    <View key={section.key} style={{ marginBottom: 24 }}>
+      <View className="flex-row items-center justify-between mb-3">
+        <Text
+          className="text-xs font-semibold tracking-wide uppercase"
+          style={{ color: section.accent }}
+        >
+          {section.label}
+        </Text>
+        <View
+          style={{
+            paddingHorizontal: 10,
+            paddingVertical: 3,
+            borderRadius: 999,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.05)',
+          }}
+        >
+          <Text className={`text-[10px] font-semibold ${isDark ? 'text-gray-200' : 'text-gray-600'}`}>
+            {section.badge}
+          </Text>
+        </View>
+      </View>
+      {section.options.map(renderOptionCard)}
+    </View>
+  );
 
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 1000 }}>
@@ -319,96 +513,7 @@ export default function SideDrawer({
             }}
           >
             <ScrollView contentContainerStyle={{ paddingBottom: 32 }}>
-              {options.map(option => {
-                const IconComponent = option.icon;
-                const isActive = activeOption === option.id;
-
-                return (
-                  <TouchableOpacity
-                    key={option.id}
-                    onPress={() => handleOptionPress(option.id)}
-                    activeOpacity={0.8}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      marginBottom: 14,
-                      padding: 16,
-                      borderRadius: 20,
-                      borderWidth: 1,
-                      borderColor: isActive
-                        ? option.color
-                          ? `${option.color}66`
-                          : 'rgba(59,130,246,0.4)'
-                        : isDark
-                        ? 'rgba(148,163,184,0.2)'
-                        : 'rgba(148,163,184,0.4)',
-                      backgroundColor: isActive
-                        ? option.color
-                          ? `${option.color}33`
-                          : 'rgba(59,130,246,0.15)'
-                        : isDark
-                        ? 'rgba(15,23,42,0.7)'
-                        : 'rgba(248,250,252,0.9)',
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 14,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginRight: 16,
-                        backgroundColor: isActive
-                          ? option.color || '#3B82F6'
-                          : isDark
-                          ? 'rgba(15,23,42,0.9)'
-                          : 'rgba(226,232,240,0.9)',
-                      }}
-                    >
-                      <IconComponent
-                        size={20}
-                        color={
-                          isActive
-                            ? '#FFFFFF'
-                            : option.color || (isDark ? '#E2E8F0' : '#475569')
-                        }
-                      />
-                    </View>
-                    <View className="flex-1">
-                      <Text
-                        className={`text-base font-semibold ${
-                          isDark ? 'text-white' : 'text-gray-900'
-                        }`}
-                      >
-                        {option.title}
-                      </Text>
-                      <Text className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
-                        {isActive ? 'Currently viewing' : 'Jump to section'}
-                      </Text>
-                    </View>
-                    {isActive && (
-                      <Animated.View
-                        style={{
-                          width: 6,
-                          height: 6,
-                          borderRadius: 999,
-                          backgroundColor: '#3B82F6',
-                          marginLeft: 8,
-                          transform: [
-                            {
-                              scale: fadeAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [0, 1],
-                              }),
-                            },
-                          ],
-                        }}
-                      />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
+              {primarySections.map(renderSection)}
             </ScrollView>
           </Animated.View>
 

@@ -101,6 +101,11 @@ export interface Task {
   
   // Overdue-specific metadata (from overdue endpoints)
   overdueMetadata?: OverdueMetadata;
+  localTimezone?: string;
+  localDueDate?: string;
+  localDueTime?: string;
+  localDueDateTimeISO?: string;
+  localDueDateTimeDisplay?: string;
 }
 
 /**
@@ -117,6 +122,7 @@ export interface CreateTaskRequest {
   tags?: string[];
   category?: string;
   estimatedHours?: number;
+  timezone?: string; // IANA timezone identifier
 }
 
 /**
@@ -134,6 +140,7 @@ export interface UpdateTaskRequest {
   tags?: string[];
   category?: string;
   estimatedHours?: number | null;
+  timezone?: string; // IANA timezone identifier
 }
 
 /**
@@ -162,6 +169,7 @@ export interface TaskQueryParams {
   limit?: number;
   sortBy?: TaskSortField;
   sortOrder?: SortOrder;
+  timezone?: string;
 }
 
 /**
@@ -250,6 +258,7 @@ export interface TaskFilters {
   tags?: string;
   dueDate?: string;
   overdue?: boolean;
+  timezone?: string;
 }
 
 /**

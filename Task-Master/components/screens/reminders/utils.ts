@@ -1,4 +1,5 @@
 import type { ReminderStub } from './data';
+import { formatDateKeyForDisplay } from '@/utils/timezone';
 
 export function formatDateKey(date: Date) {
   const year = date.getFullYear();
@@ -17,10 +18,14 @@ export function addDays(date: Date, amount: number) {
  * Creates a concrete Date instance from a reminder's date + time strings.
  */
 export function getReminderDate(reminder: ReminderStub) {
+  const scheduledDate = new Date(reminder.scheduledAtUtc);
+  if (!Number.isNaN(scheduledDate.getTime())) {
+    return scheduledDate;
+  }
   const [hours, minutes] = reminder.time.split(':').map(Number);
-  const date = new Date(reminder.date);
-  date.setHours(hours ?? 0, minutes ?? 0, 0, 0);
-  return date;
+  const fallback = new Date(reminder.date);
+  fallback.setHours(hours ?? 0, minutes ?? 0, 0, 0);
+  return fallback;
 }
 
 /**
@@ -52,9 +57,5 @@ export function formatRelativeLabel(date: Date) {
 }
 
 export function formatDayLabel(date: string) {
-  return new Date(date).toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  });
+  return formatDateKeyForDisplay(date);
 }

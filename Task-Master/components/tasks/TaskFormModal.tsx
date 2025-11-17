@@ -308,8 +308,8 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
         
         if (editingTask) {
           // Populate form with existing task data for editing
-          let formattedDueDate = '';
-          if (editingTask.dueDate) {
+          let formattedDueDate = editingTask.localDueDate || '';
+          if (!formattedDueDate && editingTask.dueDate) {
             try {
               // Handle different date formats
               const date = new Date(editingTask.dueDate);
@@ -518,9 +518,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
           category: sanitizedFormData.category 
             ? InputSanitizer.sanitizeCategory(sanitizedFormData.category)
             : undefined,
-          dueDate: sanitizedFormData.dueDate 
-            ? new Date(sanitizedFormData.dueDate).toISOString() 
-            : undefined,
+          dueDate: sanitizedFormData.dueDate || undefined,
           tags: sanitizedFormData.tags.length > 0 
             ? sanitizedFormData.tags.map(tag => InputSanitizer.sanitizeTag(tag)).filter(Boolean)
             : undefined,

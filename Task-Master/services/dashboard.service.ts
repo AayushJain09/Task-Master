@@ -4,6 +4,7 @@ import {
   DashboardActivityResponse,
   DashboardAnalyticsResponse,
 } from '@/types/dashboard.types';
+import { resolveTimezone as resolveClientTimezone } from '@/utils/timezone';
 
 class DashboardService {
   private baseEndpoint = '/dashboard';
@@ -12,7 +13,10 @@ class DashboardService {
    * Fetches the aggregated metrics dataset (task breakdowns, weekly stats, velocity summary).
    */
   async getMetrics(): Promise<DashboardMetricsResponse> {
-    const response = await apiService.get<DashboardMetricsResponse>(`${this.baseEndpoint}/metrics`);
+    const timezone = resolveClientTimezone();
+    const response = await apiService.get<DashboardMetricsResponse>(
+      `${this.baseEndpoint}/metrics?timezone=${encodeURIComponent(timezone)}`
+    );
     return response;
   }
 
@@ -20,7 +24,10 @@ class DashboardService {
    * Deeper analytics feed (weekly progress, cycle time, velocity trend) used for charts.
    */
   async getAnalytics(): Promise<DashboardAnalyticsResponse> {
-    const response = await apiService.get<DashboardAnalyticsResponse>(`${this.baseEndpoint}/analytics`);
+    const timezone = resolveClientTimezone();
+    const response = await apiService.get<DashboardAnalyticsResponse>(
+      `${this.baseEndpoint}/analytics?timezone=${encodeURIComponent(timezone)}`
+    );
     return response;
   }
 

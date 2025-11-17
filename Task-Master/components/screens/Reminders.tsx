@@ -30,11 +30,16 @@ import {
   sortReminders,
   getReminderDate,
   formatRelativeLabel,
-  formatDayLabel,
 } from './reminders/utils';
 import { reminderQuickActions } from './reminders/quickActions.data';
 import { remindersService } from '@/services/reminders.service';
 import type { Reminder, ReminderCategory } from '@/types/reminder.types';
+import {
+  convertLocalDateTimeToISO,
+  getDeviceTimezone,
+  formatDateKeyForDisplay,
+  formatDateTimeInTimeZone,
+} from '@/utils/timezone';
 
 export default function Reminders() {
   const { isDark } = useTheme();
@@ -54,7 +59,7 @@ export default function Reminders() {
   const [detailsReminder, setDetailsReminder] = useState<Reminder | null>(null);
   const sheetAnim = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
-  const deviceTimeZone = useMemo(() => getDeviceTimeZone(), []);
+  const deviceTimeZone = useMemo(() => getDeviceTimezone(), []);
 
   const fetchReminders = useCallback(async (options?: { silent?: boolean }) => {
     try {
@@ -75,7 +80,10 @@ export default function Reminders() {
     }
   }, []);
 
-  const reminderStubs = useMemo(() => reminders.map(mapReminderToStub), [reminders]);
+  const reminderStubs = useMemo(
+    () => reminders.map(reminder => mapReminderToStub(reminder, deviceTimeZone)),
+    [reminders, deviceTimeZone]
+  );
 
   const remindersByDate = useMemo(() => {
     return reminderStubs.reduce<Record<string, ReminderStub[]>>((acc, reminder) => {
@@ -119,9 +127,16 @@ export default function Reminders() {
       .slice(0, 4)
       .map(reminder => {
         const date = getReminderDate(reminder);
+        const timeLabel =
+          reminder.timeDisplay ||
+          formatDateTimeInTimeZone(reminder.scheduledAtUtc, reminder.timezone, {
+            hour: 'numeric',
+            minute: '2-digit',
+          }) ||
+          reminder.time;
         return {
           reminder,
-          timeLabel: date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          timeLabel,
           relativeLabel: formatRelativeLabel(date),
         };
       });
@@ -133,9 +148,16 @@ export default function Reminders() {
       return undefined;
     }
     const date = getReminderDate(next);
+    const timeLabel =
+      next.timeDisplay ||
+      formatDateTimeInTimeZone(next.scheduledAtUtc, next.timezone, {
+        hour: 'numeric',
+        minute: '2-digit',
+      }) ||
+      next.time;
     return {
       title: next.title,
-      timeLabel: date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+      timeLabel,
       relativeLabel: formatRelativeLabel(date),
       accentColor: palette[next.category],
     };
@@ -311,7 +333,10 @@ export default function Reminders() {
     [performDeleteReminder]
   );
 
-  const selectedDateLabel = useMemo(() => formatDayLabel(selectedDate), [selectedDate]);
+  const selectedDateLabel = useMemo(
+    () => formatDateKeyForDisplay(selectedDate),
+    [selectedDate]
+  );
 
   const handleModalClose = useCallback(() => {
     setFormVisible(false);
@@ -320,7 +345,8 @@ export default function Reminders() {
 
   const handleReminderSubmit = useCallback(
     async (values: ReminderFormValues) => {
-      const scheduledAt = buildScheduledAtISO(values.date, values.time);
+      const timezone = values.timezone || deviceTimeZone;
+      const scheduledAt = buildScheduledAtISO(values.date, values.time, timezone);
       try {
         setIsSubmittingReminder(true);
         let savedReminder: Reminder;
@@ -329,7 +355,7 @@ export default function Reminders() {
           savedReminder = await remindersService.updateReminder(values.id, {
             title: values.title,
             scheduledAt,
-            timezone: values.timezone || deviceTimeZone,
+            timezone,
             category: values.category,
             notes: values.notes,
             priority: values.priority,
@@ -339,7 +365,7 @@ export default function Reminders() {
           savedReminder = await remindersService.createReminder({
             title: values.title,
             scheduledAt,
-            timezone: values.timezone || deviceTimeZone,
+            timezone,
             category: values.category,
             notes: values.notes,
             priority: values.priority,
@@ -352,7 +378,8 @@ export default function Reminders() {
             ? prev.map(reminder => (reminder.id === savedReminder.id ? savedReminder : reminder))
             : [...prev, savedReminder]
         );
-        const targetDate = formatDateKey(new Date(savedReminder.scheduledAt));
+        const targetDate =
+          savedReminder.localScheduledDate || formatDateKey(new Date(savedReminder.scheduledAt));
         setSelectedDate(targetDate);
         setSheetOpen(true);
         handleModalClose();
@@ -463,53 +490,64 @@ export default function Reminders() {
   );
 }
 
-function getDeviceTimeZone(): string {
+function buildScheduledAtISO(date: string, time: string, timezone: string): string {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  } catch {
-    return 'UTC';
+    return convertLocalDateTimeToISO(date, time, timezone);
+  } catch (error) {
+    console.warn('Failed to build timezone-aware reminder payload, using device ISO fallback.', error);
+    const [year, month, day] = date.split('-').map(Number);
+    const [hour, minute] = (time || '00:00').split(':').map(Number);
+    const composed = new Date();
+    composed.setFullYear(year || composed.getFullYear(), (month || 1) - 1, day || composed.getDate());
+    composed.setHours(hour ?? 0, minute ?? 0, 0, 0);
+    return composed.toISOString();
   }
 }
 
-function buildScheduledAtISO(date: string, time: string): string {
-  const [year, month, day] = date.split('-').map(Number);
-  const [hour, minute] = (time || '00:00').split(':').map(Number);
-  const composed = new Date();
-  composed.setFullYear(year || composed.getFullYear(), (month || 1) - 1, day || composed.getDate());
-  composed.setHours(hour ?? 0, minute ?? 0, 0, 0);
-  return composed.toISOString();
-}
-
-function formatTimeForDisplay(date: Date): string {
+function formatTimeKeyFromDate(date: Date): string {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   return `${hours}:${minutes}`;
 }
 
-function mapReminderToStub(reminder: Reminder): ReminderStub {
-  const scheduledDate = new Date(reminder.scheduledAt);
+function mapReminderToStub(reminder: Reminder, fallbackTimezone: string): ReminderStub {
+  const scheduledUtc = reminder.scheduledAt;
+  const timezone = reminder.localTimezone || reminder.timezone || fallbackTimezone;
+  const scheduledDate = reminder.localScheduledDate || formatDateKey(new Date(scheduledUtc));
+  const scheduledTime = reminder.localScheduledTime || formatTimeKeyFromDate(new Date(scheduledUtc));
+  const timeDisplay =
+    formatDateTimeInTimeZone(scheduledUtc, timezone, {
+      hour: 'numeric',
+      minute: '2-digit',
+    }) || scheduledTime;
+
   return {
     id: reminder.id,
     title: reminder.title,
-    date: formatDateKey(scheduledDate),
-    time: formatTimeForDisplay(scheduledDate),
+    date: scheduledDate,
+    time: scheduledTime,
+    timeDisplay,
+    timezone,
+    scheduledAtUtc: scheduledUtc,
+    localDisplay: reminder.localScheduledDateTimeDisplay,
     category: (reminder.category || 'personal') as ReminderCategory,
   };
 }
 
-function mapReminderToFormValues(
-  reminder: Reminder,
-  fallbackTimezone: string
-): ReminderFormValues {
-  const scheduledDate = new Date(reminder.scheduledAt);
+function mapReminderToFormValues(reminder: Reminder, fallbackTimezone: string): ReminderFormValues {
+  const scheduledUtc = reminder.scheduledAt;
+  const timezone = reminder.localTimezone || reminder.timezone || fallbackTimezone;
+  const scheduledDate = reminder.localScheduledDate || formatDateKey(new Date(scheduledUtc));
+  const scheduledTime = reminder.localScheduledTime || formatTimeKeyFromDate(new Date(scheduledUtc));
+
   return {
     id: reminder.id,
     title: reminder.title,
-    date: formatDateKey(scheduledDate),
-    time: formatTimeForDisplay(scheduledDate),
+    date: scheduledDate,
+    time: scheduledTime,
     category: (reminder.category || 'personal') as ReminderCategory,
     priority: reminder.priority || 'medium',
-    timezone: reminder.timezone || fallbackTimezone,
+    timezone,
     notes: reminder.notes || reminder.description || '',
     tags: reminder.tags || [],
   };

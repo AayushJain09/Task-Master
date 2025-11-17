@@ -131,7 +131,7 @@ export const ReminderSheet: React.FC<ReminderSheetProps> = ({
                   <View style={{ flex: 1, paddingRight: 12 }}>
                     <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A', fontWeight: '700' }}>{reminder.title}</Text>
                     <Text style={{ color: palette[reminder.category], marginTop: 4, fontSize: 12 }}>
-                      {reminder.time} · {reminder.category.toUpperCase()}
+                      {(reminder.timeDisplay || reminder.time)} · {reminder.category.toUpperCase()}
                     </Text>
                   </View>
                   <View style={{ flexDirection: 'row', gap: 8 }}>

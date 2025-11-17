@@ -72,6 +72,7 @@ import {
   AlertTriangle
 } from 'lucide-react-native';
 import { OverdueMetadata, OverdueSeverity } from '@/types/task.types';
+import { formatDateKeyForDisplay } from '@/utils/timezone';
 
 /**
  * Task Interface Definition
@@ -96,6 +97,11 @@ export interface Task {
   priority: 'high' | 'medium' | 'low';
   status: 'todo' | 'in_progress' | 'done';
   dueDate?: string;
+  localTimezone?: string;
+  localDueDate?: string;
+  localDueTime?: string;
+  localDueDateTimeISO?: string;
+  localDueDateTimeDisplay?: string;
   category: string;
   createdAt: string;
   tags?: string[];
@@ -447,12 +453,18 @@ const buildDueDateInsights = (task: Task, isDark: boolean) => {
     };
   }
 
+  const localizedDateDisplay =
+    task.localDueDateTimeDisplay ||
+    (task.localDueDate ? formatDateKeyForDisplay(task.localDueDate) : null);
+  const deadlineLabel =
+    localizedDateDisplay && task.localDueTime
+      ? `${localizedDateDisplay} at ${task.localDueTime}`
+      : localizedDateDisplay || dueDate.toLocaleDateString();
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const dueDay = new Date(dueDate);
   dueDay.setHours(0, 0, 0, 0);
-  const formattedDate = dueDate.toLocaleDateString();
-
   const diffInDays = Math.round(
     (dueDay.getTime() - today.getTime()) / MS_IN_DAY
   );
@@ -465,7 +477,7 @@ const buildDueDateInsights = (task: Task, isDark: boolean) => {
 
     return {
       label: `${daysPastDue} day${daysPastDue !== 1 ? 's' : ''} overdue`,
-      helper: `Original deadline: ${formattedDate}`,
+      helper: `Original deadline: ${deadlineLabel}`,
       backgroundColor: severityTheme.bg,
       borderColor: severityTheme.border,
       textColor: severityTheme.text,
@@ -485,7 +497,7 @@ const buildDueDateInsights = (task: Task, isDark: boolean) => {
       textColor: isDark ? '#FEF3C7' : '#92400E',
       helperColor: isDark ? '#FDE68A' : '#B45309',
       label: 'Due today',
-      helper: `Deadline: ${formattedDate}`,
+      helper: `Deadline: ${deadlineLabel}`,
       iconColor: isDark ? '#FDE68A' : '#B45309',
     };
   }
@@ -494,7 +506,7 @@ const buildDueDateInsights = (task: Task, isDark: boolean) => {
     return {
       ...baseColors,
       label: 'Due tomorrow',
-      helper: `Deadline: ${formattedDate}`,
+      helper: `Deadline: ${deadlineLabel}`,
       backgroundColor: isDark ? '#1E3A8A' : '#DBEAFE',
       borderColor: isDark ? '#3B82F6' : '#93C5FD',
       textColor: isDark ? '#BFDBFE' : '#1E3A8A',
@@ -509,7 +521,7 @@ const buildDueDateInsights = (task: Task, isDark: boolean) => {
     const severityTheme = OVERDUE_SEVERITY_THEME[severity];
     return {
       label: `${Math.abs(diffInDays)} day${Math.abs(diffInDays) !== 1 ? 's' : ''} overdue`,
-      helper: `Original deadline: ${formattedDate}`,
+      helper: `Original deadline: ${deadlineLabel}`,
       backgroundColor: severityTheme.bg,
       borderColor: severityTheme.border,
       textColor: severityTheme.text,
@@ -524,7 +536,7 @@ const buildDueDateInsights = (task: Task, isDark: boolean) => {
   return {
     ...baseColors,
     label: `Due in ${diffInDays} day${diffInDays !== 1 ? 's' : ''}`,
-    helper: `Deadline: ${formattedDate}`,
+    helper: `Deadline: ${deadlineLabel}`,
   };
 };
 

@@ -16,6 +16,7 @@ import {
   ReminderQuickAddRequest,
   ReminderError,
 } from '@/types/reminder.types';
+import { resolveTimezone as resolveClientTimezone } from '@/utils/timezone';
 
 class RemindersService {
   private readonly baseEndpoint = '/reminders';
@@ -37,10 +38,16 @@ class RemindersService {
   }
 
   private buildQuery(params?: ReminderQueryParams): string {
-    if (!params) return '';
+    if (!params) {
+      const timezoneOnly = resolveClientTimezone();
+      return `?timezone=${encodeURIComponent(timezoneOnly)}`;
+    }
     const searchParams = new URLSearchParams();
 
-    Object.entries(params).forEach(([key, value]) => {
+    const payload: ReminderQueryParams = { ...params };
+    payload.timezone = resolveClientTimezone(payload.timezone);
+
+    Object.entries(payload).forEach(([key, value]) => {
       if (value === undefined || value === null || value === '') return;
       searchParams.append(key, String(value));
     });
@@ -60,7 +67,12 @@ class RemindersService {
 
   async createReminder(payload: ReminderCreateRequest): Promise<Reminder> {
     try {
-      return await apiService.post<Reminder>(this.baseEndpoint, payload);
+      const timezone = resolveClientTimezone(payload.timezone);
+      const requestPayload: ReminderCreateRequest = {
+        ...payload,
+        timezone,
+      };
+      return await apiService.post<Reminder>(this.baseEndpoint, requestPayload);
     } catch (error) {
       throw this.transformError(error as ApiError);
     }
@@ -68,7 +80,12 @@ class RemindersService {
 
   async updateReminder(reminderId: string, payload: ReminderUpdateRequest): Promise<Reminder> {
     try {
-      return await apiService.patch<Reminder>(`${this.baseEndpoint}/${reminderId}`, payload);
+      const timezone = resolveClientTimezone(payload.timezone);
+      const requestPayload: ReminderUpdateRequest = {
+        ...payload,
+        timezone,
+      };
+      return await apiService.patch<Reminder>(`${this.baseEndpoint}/${reminderId}`, requestPayload);
     } catch (error) {
       throw this.transformError(error as ApiError);
     }
@@ -76,7 +93,12 @@ class RemindersService {
 
   async quickAddReminder(payload: ReminderQuickAddRequest): Promise<Reminder> {
     try {
-      return await apiService.post<Reminder>(`${this.baseEndpoint}/quick-add`, payload);
+      const timezone = resolveClientTimezone(payload.timezone);
+      const requestPayload: ReminderQuickAddRequest = {
+        ...payload,
+        timezone,
+      };
+      return await apiService.post<Reminder>(`${this.baseEndpoint}/quick-add`, requestPayload);
     } catch (error) {
       throw this.transformError(error as ApiError);
     }

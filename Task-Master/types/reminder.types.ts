@@ -29,6 +29,11 @@ export interface Reminder {
   notes?: string;
   scheduledAt: string; // ISO timestamp
   timezone: string;
+  localTimezone?: string;
+  localScheduledDate?: string;
+  localScheduledTime?: string;
+  localScheduledDateTimeISO?: string;
+  localScheduledDateTimeDisplay?: string;
   category: ReminderCategory;
   tags: string[];
   priority: ReminderPriority;
@@ -64,6 +69,7 @@ export interface ReminderQueryParams {
   page?: number;
   limit?: number;
   search?: string;
+  timezone?: string;
 }
 
 export interface ReminderCreateRequest {

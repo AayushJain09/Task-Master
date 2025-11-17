@@ -1,4 +1,5 @@
 import React from 'react';
+import { View, Text } from 'react-native';
 import Dashboard from '../screens/Dashboard';
 import Tasks from '../screens/Tasks';
 import Reminders from '../screens/Reminders';
@@ -51,6 +52,34 @@ export default function DrawerContent({
       );
     case 'reminders':
       return <Reminders />;
+    case 'admin-users':
+      return (
+        <DrawerPlaceholder
+          title="Admin · User Directory"
+          description="Manage roles, reset access, and review membership approvals in the full web console."
+        />
+      );
+    case 'admin-audit':
+      return (
+        <DrawerPlaceholder
+          title="Admin · Audit Logs"
+          description="Open the admin experience to review authentication attempts, permission changes, and escalations."
+        />
+      );
+    case 'moderator-review':
+      return (
+        <DrawerPlaceholder
+          title="Moderator · Content Review"
+          description="Head to the moderation workspace to process flagged items and keep collaboration healthy."
+        />
+      );
+    case 'moderator-moderation':
+      return (
+        <DrawerPlaceholder
+          title="Moderator · Escalations"
+          description="Track outstanding moderation tickets from the dedicated moderator dashboard."
+        />
+      );
     default:
       return (
         <Dashboard
@@ -89,3 +118,13 @@ const transformMetricsToTaskStats = (metrics: DashboardMetricsResponse['metrics'
     done: metrics.tasks.done,
   },
 });
+
+const DrawerPlaceholder = ({ title, description }: { title: string; description: string }) => (
+  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+    <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 12, textAlign: 'center' }}>{title}</Text>
+    <Text style={{ color: '#6B7280', textAlign: 'center', lineHeight: 20 }}>{description}</Text>
+    <Text style={{ marginTop: 24, fontSize: 12, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: 1 }}>
+      Available on the desktop admin portal
+    </Text>
+  </View>
+);

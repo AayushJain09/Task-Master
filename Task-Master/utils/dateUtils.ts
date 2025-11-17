@@ -1,36 +1,31 @@
 /**
  * Date Utility Functions
- * 
- * Handles date formatting and timezone issues for task management
+ *
+ * Handles date formatting and timezone issues for task management.
  */
 
+import { convertLocalDateTimeToISO, resolveTimezone } from '@/utils/timezone';
+
 /**
- * Converts a date string to ISO format while preserving the intended date
- * Avoids timezone shifting issues by setting time to noon
- * 
- * @param dateString - Date in YYYY-MM-DD format
- * @returns ISO string safe from timezone shifts
+ * Converts a YYYY-MM-DD string into an ISO timestamp that represents the end of
+ * the local day for the provided timezone. Falls back to the raw input when the
+ * format is invalid so the backend can decide how to handle it.
  */
-export const formatDateForAPI = (dateString: string): string => {
+export const formatDateForAPI = (dateString: string, timezone?: string): string => {
   if (!dateString) return '';
-  
+
   try {
-    // If it's already an ISO string, return as-is
     if (dateString.includes('T') || dateString.includes('Z')) {
       return dateString;
     }
-    
-    // Validate the input format (should be YYYY-MM-DD)
+
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
       console.warn('Invalid date format:', dateString);
       return dateString;
     }
-    
-    // For date strings, append time to ensure it's treated as intended date
-    // Use end of day to be safe with timezone conversions
-    const dateTimeString = dateString + 'T23:59:59.999Z';
-    
-    return dateTimeString;
+
+    const safeZone = resolveTimezone(timezone);
+    return convertLocalDateTimeToISO(dateString, '23:59', safeZone);
   } catch (error) {
     console.error('Error formatting date for API:', error, 'Input:', dateString);
     return dateString;
