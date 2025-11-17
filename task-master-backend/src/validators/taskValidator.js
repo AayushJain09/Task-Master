@@ -102,6 +102,13 @@ const validateTaskCreation = [
     .optional()
     .isFloat({ min: 0.1, max: 1000 })
     .withMessage('Estimated hours must be between 0.1 and 1000'),
+
+  // Timezone validation
+  body('timezone')
+    .optional()
+    .isString()
+    .isLength({ min: 1, max: 60 })
+    .withMessage('Timezone must be a valid IANA identifier'),
 ];
 
 /**
@@ -214,6 +221,13 @@ const validateTaskStatusUpdate = [
     .withMessage('Status is required')
     .isIn(['todo', 'in_progress', 'done'])
     .withMessage('Status must be one of: todo, in_progress, done'),
+
+  // Timezone validation (optional for status transitions)
+  body('timezone')
+    .optional()
+    .isString()
+    .isLength({ min: 1, max: 60 })
+    .withMessage('Timezone must be a valid IANA identifier'),
 ];
 
 /**
@@ -231,6 +245,13 @@ const validateTaskId = [
       }
       return true;
     }),
+
+  // Timezone validation
+  body('timezone')
+    .optional()
+    .isString()
+    .isLength({ min: 1, max: 60 })
+    .withMessage('Timezone must be a valid IANA identifier'),
 ];
 
 /**
@@ -284,6 +305,13 @@ const validateTaskQuery = [
     .optional()
     .isIn(['asc', 'desc'])
     .withMessage('Sort order must be either asc or desc'),
+
+  // Timezone parameter validation
+  query('timezone')
+    .optional()
+    .isString()
+    .isLength({ min: 1, max: 60 })
+    .withMessage('Timezone must be a valid IANA identifier'),
 ];
 
 /**
@@ -308,6 +336,12 @@ const validateTaskSearch = [
     .optional()
     .isIn(['title', 'description', 'tags', 'category'])
     .withMessage('Search fields must be one of: title, description, tags, category'),
+
+  query('timezone')
+    .optional()
+    .isString()
+    .isLength({ min: 1, max: 60 })
+    .withMessage('Timezone must be a valid IANA identifier'),
 ];
 
 /**
@@ -394,6 +428,13 @@ const validateTaskStatusQuery = [
     .optional()
     .isIn(['asc', 'desc'])
     .withMessage('Sort order must be either asc or desc'),
+
+  // Timezone parameter validation
+  query('timezone')
+    .optional()
+    .isString()
+    .isLength({ min: 1, max: 60 })
+    .withMessage('Timezone must be a valid IANA identifier'),
 ];
 
 /**
@@ -578,6 +619,13 @@ const validateOverdueTasksByStatusQuery = [
     .optional()
     .isIn(['asc', 'desc'])
     .withMessage('Sort order must be either asc or desc'),
+
+  // Timezone parameter validation
+  query('timezone')
+    .optional()
+    .isString()
+    .isLength({ min: 1, max: 60 })
+    .withMessage('Timezone must be a valid IANA identifier'),
 ];
 
 module.exports = {

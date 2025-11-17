@@ -554,17 +554,19 @@ taskSchema.statics.findByUser = async function (userId, options = {}) {
 /**
  * Static Method: Find Overdue Tasks
  *
- * Finds all overdue tasks for a specific user or all users
+ * Finds all overdue tasks for a specific user or all users using a reference
+ * "current time" so controllers can supply timezone-adjusted boundaries.
  *
  * @async
  * @static
  * @method findOverdueTasks
  * @param {ObjectId} userId - Optional user ID to filter by
+ * @param {Date} [referenceDate=new Date()] - Reference "now" in UTC
  * @returns {Promise<Array>} Array of overdue task documents
  */
-taskSchema.statics.findOverdueTasks = async function (userId = null) {
-  let query = {
-    dueDate: { $lt: new Date() },
+taskSchema.statics.findOverdueTasks = async function (userId = null, referenceDate = new Date()) {
+  const query = {
+    dueDate: { $lt: referenceDate },
     status: { $ne: 'done' },
     isActive: true,
   };
@@ -588,16 +590,17 @@ taskSchema.statics.findOverdueTasks = async function (userId = null) {
  * @static
  * @method getTaskStatistics
  * @param {ObjectId} userId - User ID to get statistics for
+ * @param {Date} [referenceDate=new Date()] - Reference "now" in UTC for overdue calculations
  * @returns {Promise<Object>} Task statistics object
  */
-taskSchema.statics.getTaskStatistics = async function (userId) {
+taskSchema.statics.getTaskStatistics = async function (userId, referenceDate = new Date()) {
   const matchStage = {
     assignedTo: new mongoose.Types.ObjectId(userId),
     isActive: true,
   };
 
   // Helper expressions reused across aggregations
-  const now = new Date();
+  const now = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
   const overdueActiveExpr = {
     $and: [
       { $ne: ['$dueDate', null] },

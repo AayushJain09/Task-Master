@@ -11,6 +11,7 @@
 const mongoose = require('mongoose');
 const Task = require('../models/Task');
 const ActivityLog = require('../models/ActivityLog');
+const { getNowInTimeZone } = require('../utils/timezone');
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 const MS_IN_WEEK = MS_IN_DAY * 7;
@@ -99,10 +100,11 @@ const getDashboardMetrics = async (req, res) => {
       });
     }
 
+    const requestTimezone = req.requestedTimezone || 'UTC';
+    const now = getNowInTimeZone(requestTimezone).date;
     const { userId, role } = req.user;
     const userObjectId = new mongoose.Types.ObjectId(userId);
     const visibilityFilter = buildTaskVisibilityFilter(userObjectId);
-    const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * MS_IN_DAY);
     const threeDaysAhead = new Date(now.getTime() + 3 * MS_IN_DAY);
 
@@ -224,6 +226,9 @@ const getDashboardMetrics = async (req, res) => {
         },
         metrics,
       },
+      meta: {
+        timezone: requestTimezone,
+      },
     });
   } catch (error) {
     console.error('Get dashboard metrics error:', error);
@@ -256,13 +261,15 @@ const getDashboardAnalytics = async (req, res) => {
       });
     }
 
+    const requestTimezone = req.requestedTimezone || 'UTC';
+    const now = getNowInTimeZone(requestTimezone).date;
     const { userId, role } = req.user;
     const userObjectId = new mongoose.Types.ObjectId(userId);
     const visibilityFilter = buildTaskVisibilityFilter(userObjectId);
-    const now = new Date();
 
     const sevenDayWindowStart = new Date(now.getTime() - (7 - 1) * MS_IN_DAY);
     const eightWeekWindowStart = new Date(now.getTime() - 8 * MS_IN_WEEK);
+    const upcomingWindowEnd = new Date(now.getTime() + 3 * MS_IN_DAY);
 
     const [
       statusBreakdown,
@@ -299,7 +306,7 @@ const getDashboardAnalytics = async (req, res) => {
       }),
       Task.countDocuments({
         ...visibilityFilter,
-        dueDate: { $gte: now, $lt: new Date(now.getTime() + 3 * MS_IN_DAY) },
+        dueDate: { $gte: now, $lt: upcomingWindowEnd },
         status: { $ne: 'done' },
       }),
       Task.aggregate([
@@ -460,6 +467,9 @@ const getDashboardAnalytics = async (req, res) => {
           velocityTrend,
           cycleTime: cycleSummary,
         },
+      },
+      meta: {
+        timezone: requestTimezone,
       },
     });
   } catch (error) {

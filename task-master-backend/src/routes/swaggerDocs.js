@@ -68,6 +68,12 @@
  *           type: integer
  *           default: 20
  *           maximum: 100
+ *       - in: query
+ *         name: timezone
+ *         schema:
+ *           type: string
+ *         description: IANA timezone identifier used to interpret date filters and localize responses (defaults to UTC)
+ *         example: "Europe/Berlin"
  *     responses:
  *       200:
  *         description: Reminders retrieved successfully
@@ -110,11 +116,12 @@
  *     security:
  *       - bearerAuth: []
  *     requestBody:
+ *       description: Provide the reminder title, schedule, and timezone to ensure precise conversions.
  *       required: true
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/Reminder'
+ *             $ref: '#/components/schemas/ReminderCreateRequest'
  *     responses:
  *       201:
  *         description: Reminder created successfully
@@ -156,6 +163,7 @@
  *               timezone:
  *                 type: string
  *                 example: "America/Chicago"
+ *                 description: Preferred timezone for interpreting parsed dates (defaults to the resolved request timezone)
  *               defaults:
  *                 type: object
  *                 properties:
@@ -212,7 +220,7 @@
  *       content:
  *         application/json:
  *           schema:
- *             $ref: '#/components/schemas/Reminder'
+ *             $ref: '#/components/schemas/ReminderUpdateRequest'
  *     responses:
  *       200:
  *         description: Reminder updated
@@ -278,6 +286,9 @@
  *                 type: array
  *                 items:
  *                   $ref: '#/components/schemas/ReminderSyncChange'
+ *               timezone:
+ *                 type: string
+ *                 description: Optional timezone override if the client cannot rely on headers/query parameters
  *     responses:
  *       200:
  *         description: Sync finished
@@ -1351,6 +1362,18 @@
  *           default: desc
  *         description: Sort order (ascending or descending)
  *         example: asc
+ *       - in: query
+ *         name: timezone
+ *         schema:
+ *           type: string
+ *         description: IANA timezone identifier used to interpret due dates and overdue filters (defaults to UTC)
+ *         example: "Europe/Berlin"
+ *       - in: query
+ *         name: timezone
+ *         schema:
+ *           type: string
+ *         description: IANA timezone identifier used to interpret date filters (defaults to UTC)
+ *         example: "America/Los_Angeles"
  *     responses:
  *       200:
  *         description: Tasks retrieved successfully
@@ -1450,6 +1473,10 @@
  *                 maxLength: 2000
  *                 description: Detailed task description
  *                 example: "Create wireframes and mockups for the new landing page with modern design principles"
+ *               timezone:
+ *                 type: string
+ *                 description: IANA timezone used to interpret the due date (defaults to UTC)
+ *                 example: "Asia/Kolkata"
  *               priority:
  *                 type: string
  *                 enum: [low, medium, high]
@@ -1783,6 +1810,13 @@
  *     tags: [Tasks]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: timezone
+ *         schema:
+ *           type: string
+ *         description: IANA timezone identifier used to determine reporting windows (defaults to UTC)
+ *         example: "America/New_York"
  *     responses:
  *       200:
  *         description: Task statistics retrieved successfully
@@ -1817,6 +1851,13 @@
  *     tags: [Dashboard]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: timezone
+ *         schema:
+ *           type: string
+ *         description: IANA timezone identifier used to compute rolling windows (defaults to UTC)
+ *         example: "Europe/London"
  *     responses:
  *       200:
  *         description: Dashboard analytics retrieved successfully
@@ -1916,6 +1957,13 @@
  *     tags: [Tasks]
  *     security:
  *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: timezone
+ *         schema:
+ *           type: string
+ *         description: IANA timezone identifier used to determine "now" when evaluating overdue tasks (defaults to UTC)
+ *         example: "Pacific/Auckland"
  *     responses:
  *       200:
  *         description: Overdue tasks retrieved successfully
@@ -2075,6 +2123,10 @@
  *                 maximum: 1000
  *                 description: Updated estimated hours
  *                 example: 12.5
+ *               timezone:
+ *                 type: string
+ *                 description: IANA timezone used to interpret due date updates (defaults to UTC)
+ *                 example: "Europe/London"
  *     responses:
  *       200:
  *         description: Task updated successfully
@@ -2209,6 +2261,10 @@
  *                 enum: [todo, in_progress, done]
  *                 description: New task status
  *                 example: done
+ *               timezone:
+ *                 type: string
+ *                 description: Optional IANA timezone identifier to ensure server-side timers use the correct local time (defaults to UTC)
+ *                 example: "America/Denver"
  *           examples:
  *             markComplete:
  *               summary: Mark task as completed
@@ -2388,6 +2444,12 @@
  *           default: asc
  *         description: Sort order (asc = most overdue first for dueDate)
  *         example: desc
+ *       - in: query
+ *         name: timezone
+ *         schema:
+ *           type: string
+ *         description: IANA timezone identifier used for overdue calculations and severity analysis (defaults to UTC)
+ *         example: "America/Chicago"
  *     responses:
  *       200:
  *         description: Overdue tasks retrieved successfully

@@ -15,6 +15,7 @@ const rateLimit = require('express-rate-limit');
 const mongoSanitize = require('express-mongo-sanitize');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
+const attachTimezone = require('./middleware/timezone');
 
 // Import configuration
 const appConfig = require('./config/app');
@@ -187,6 +188,14 @@ app.use(sanitizeSQL);
  * Removes empty string fields from request body.
  */
 app.use(removeEmptyFields);
+
+/**
+ * Timezone Resolution
+ *
+ * Resolves the requester timezone once per request so downstream handlers
+ * can rely on req.requestedTimezone without duplicating logic.
+ */
+app.use(attachTimezone);
 
 /**
  * Rate Limiting Middleware

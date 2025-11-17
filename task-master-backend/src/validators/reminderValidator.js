@@ -46,6 +46,10 @@ const validateReminderQuery = [
   query('limit')
     .optional()
     .isInt({ min: 1, max: 100 }),
+  query('timezone')
+    .optional()
+    .isString()
+    .isLength({ max: 60 }),
 ];
 
 const baseReminderBody = [

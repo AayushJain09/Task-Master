@@ -158,6 +158,14 @@ http://localhost:5000/api-docs.json
 ✅ **Authentication Support** - Built-in JWT token authentication
 ✅ **Request/Response Examples** - Sample payloads for all endpoints
 ✅ **Schema Definitions** - Detailed data models and validation rules
+
+## 🕒 Timezone Integration Checklist
+
+- [x] **Global resolution middleware** – `src/middleware/timezone.js` normalizes the requester timezone once so every downstream handler can read `req.requestedTimezone`.
+- [x] **Controllers** – Task, reminder, and dashboard controllers now consume `req.requestedTimezone || 'UTC'` instead of recalculating per handler to avoid inconsistencies.
+- [x] **Localized reminder responses** – `src/controllers/reminderController.js` formats every reminder via `formatReminderResponse`, guaranteeing `localScheduled*` fields in responses.
+- [x] **Documentation** – Swagger definitions (`src/routes/swaggerDocs.js`, `src/config/swagger.js`) describe the `timezone` query/body parameters and dedicated request schemas for create/update flows.
+- [x] **Verification** – Run `node tests/timezone.test.js` and follow `tests/README.md` for manual reminder/task/dashboard timezone QA scenarios.
 ✅ **Try It Out** - Execute real API calls with custom parameters
 
 ### How to Use Swagger

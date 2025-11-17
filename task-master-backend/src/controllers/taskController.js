@@ -12,6 +12,13 @@ const User = require('../models/User');
 const ActivityLog = require('../models/ActivityLog');
 const { validationResult } = require('express-validator');
 const mongoose = require('mongoose');
+const {
+  parseDateInputToUTC,
+  getStartOfDayUTC,
+  getEndOfDayUTC,
+  getNowInTimeZone,
+  buildLocalizedDateTimeMetadata,
+} = require('../utils/timezone');
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
@@ -96,6 +103,33 @@ const normalizeObjectId = (value) => {
 
 const PRIVILEGED_TASK_ROLES = new Set(['admin', 'moderator']);
 
+const toPlainTask = (task) =>
+  task && typeof task.toObject === 'function' ? task.toObject() : { ...task };
+
+const enrichTaskWithTimezone = (task, timezone, referenceDate = new Date()) => {
+  const plain = toPlainTask(task);
+  plain.localTimezone = timezone;
+
+  const localMeta = buildLocalizedDateTimeMetadata(plain.dueDate, timezone);
+  if (localMeta) {
+    plain.localTimezone = localMeta.localTimezone;
+    plain.localDueDate = localMeta.localDate;
+    plain.localDueTime = localMeta.localTime;
+    plain.localDueDateTimeISO = localMeta.localDateTimeISO;
+    plain.localDueDateTimeDisplay = localMeta.localDateTimeDisplay;
+  }
+
+  const overdueMetadata = buildOverdueMetadata(plain, referenceDate);
+  if (overdueMetadata) {
+    plain.overdueMetadata = overdueMetadata;
+    plain.isOverdue = true;
+  } else if (plain.status !== 'done') {
+    plain.isOverdue = false;
+  }
+
+  return plain;
+};
+
 /**
  * Checks whether the requesting user can manage (edit/delete) a task.
  *
@@ -128,6 +162,7 @@ const hasTaskManagementPermission = (task, user = {}) => {
  */
 const getAllTasks = async (req, res) => {
   try {
+    const requestTimezone = req.requestedTimezone || 'UTC';
     if (!PRIVILEGED_TASK_ROLES.has(req.user?.role)) {
       return res.status(403).json({
         success: false,
@@ -159,35 +194,28 @@ const getAllTasks = async (req, res) => {
     }
 
     if (dueDate) {
-      const parsedDate = new Date(dueDate);
-      if (!Number.isNaN(parsedDate.getTime())) {
-        const endOfDay = new Date(parsedDate.getTime() + 24 * 60 * 60 * 1000);
+      try {
+        const start = getStartOfDayUTC(requestTimezone, new Date(dueDate));
+        const end = getEndOfDayUTC(requestTimezone, new Date(dueDate));
         filters.dueDate = {
-          $gte: parsedDate,
-          $lt: endOfDay,
+          $gte: start,
+          $lt: end,
         };
+      } catch (error) {
+        // Ignore invalid filters to avoid breaking existing clients
       }
     }
 
     if (overdue === 'true') {
-      filters.dueDate = { $lt: new Date() };
+      const nowUTC = getNowInTimeZone(requestTimezone).date;
+      filters.dueDate = { $lt: nowUTC };
       if (!status) {
         filters.status = { $ne: 'done' };
       }
     }
 
-    const referenceDate = new Date();
-    const transformTask = (task) => {
-      const plain = typeof task.toObject === 'function' ? task.toObject() : task;
-      const overdueMetadata = buildOverdueMetadata(plain, referenceDate);
-      if (overdueMetadata) {
-        plain.overdueMetadata = overdueMetadata;
-        plain.isOverdue = true;
-      } else if (plain.status !== 'done') {
-        plain.isOverdue = false;
-      }
-      return plain;
-    };
+    const referenceDate = getNowInTimeZone(requestTimezone).date;
+    const transformTask = (task) => enrichTaskWithTimezone(task, requestTimezone, referenceDate);
 
     let tasks = [];
     let totalTasks = 0;
@@ -244,6 +272,7 @@ const getAllTasks = async (req, res) => {
           priority,
           dueDate,
           overdue,
+          timezone: requestTimezone,
         },
       },
     });
@@ -320,6 +349,7 @@ const getAllTasks = async (req, res) => {
  */
 const getTasksByStatus = async (req, res) => {
   try {
+    const requestTimezone = req.requestedTimezone || 'UTC';
     const userId = req.user.userId;
     const {
       status, // Required parameter
@@ -375,26 +405,25 @@ const getTasksByStatus = async (req, res) => {
 
     // Due date filter (specific date)
     if (dueDate) {
-      const date = new Date(dueDate);
-      if (!isNaN(date.getTime())) {
-        additionalFilters.dueDate = {
-          $gte: date,
-          $lt: new Date(date.getTime() + 24 * 60 * 60 * 1000), // Same day
-        };
+      try {
+        const start = getStartOfDayUTC(requestTimezone, new Date(dueDate));
+        const end = getEndOfDayUTC(requestTimezone, new Date(dueDate));
+        additionalFilters.dueDate = { $gte: start, $lt: end };
+      } catch (error) {
+        // Ignore invalid filter
       }
     }
 
     // Overdue filter (only for non-done tasks)
     if (overdue === 'true' && status !== 'done') {
-      additionalFilters.dueDate = { $lt: new Date() };
+      const nowUTC = getNowInTimeZone(requestTimezone).date;
+      additionalFilters.dueDate = { $lt: nowUTC };
       additionalFilters.status = { $ne: 'done' };
     }
 
     // Get base tasks for the specified status using the model method
     let tasks = await Task.findByUser(userId, options);
-    const referenceDate = new Date();
-
-    tasks = tasks.map(task => (typeof task.toObject === 'function' ? task.toObject() : task));
+    tasks = tasks.map(toPlainTask);
 
     // Apply additional filters
     if (Object.keys(additionalFilters).length > 0) {
@@ -429,17 +458,8 @@ const getTasksByStatus = async (req, res) => {
       });
     }
 
-    // Attach overdue metadata to keep downstream consumers aligned
-    tasks = tasks.map(task => {
-      const overdueMetadata = buildOverdueMetadata(task, referenceDate);
-      if (overdueMetadata) {
-        task.overdueMetadata = overdueMetadata;
-        task.isOverdue = true;
-      } else if (task.status !== 'done') {
-        task.isOverdue = false;
-      }
-      return task;
-    });
+    const referenceDate = getNowInTimeZone(requestTimezone).date;
+    tasks = tasks.map(task => enrichTaskWithTimezone(task, requestTimezone, referenceDate));
 
     // Sort tasks with enhanced sorting options
     tasks.sort((a, b) => {
@@ -517,6 +537,7 @@ const getTasksByStatus = async (req, res) => {
           search,
           sortBy,
           sortOrder,
+          timezone: requestTimezone,
         },
         statusMetadata,
       },
@@ -544,6 +565,7 @@ const getTasksByStatus = async (req, res) => {
  */
 const getTaskById = async (req, res) => {
   try {
+    const requestTimezone = req.requestedTimezone || 'UTC';
     const { taskId } = req.params;
     const userId = req.user.userId;
 
@@ -570,10 +592,13 @@ const getTaskById = async (req, res) => {
       });
     }
 
+    const referenceDate = getNowInTimeZone(requestTimezone).date;
+    const responseTask = enrichTaskWithTimezone(task, requestTimezone, referenceDate);
+
     res.status(200).json({
       success: true,
       message: 'Task retrieved successfully',
-      data: { task },
+      data: { task: responseTask },
     });
   } catch (error) {
     console.error('Get task by ID error:', error);
@@ -598,6 +623,7 @@ const getTaskById = async (req, res) => {
  */
 const createTask = async (req, res) => {
   try {
+    const requestTimezone = req.requestedTimezone || 'UTC';
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -642,15 +668,18 @@ const createTask = async (req, res) => {
 
     // Add optional fields
     if (dueDate) {
-      const parsedDate = new Date(dueDate);
-      if (isNaN(parsedDate.getTime())) {
+      try {
+        // Persist due dates as UTC timestamps derived from the requester's timezone
+        taskData.dueDate = parseDateInputToUTC(dueDate, {
+          timeZone: requestTimezone,
+        });
+      } catch (conversionError) {
         return res.status(400).json({
           success: false,
           message: 'Invalid due date format',
-          code: 'INVALID_DUE_DATE_FORMAT'
+          code: 'INVALID_DUE_DATE_FORMAT',
         });
       }
-      taskData.dueDate = parsedDate;
     }
 
     if (estimatedHours) {
@@ -664,6 +693,8 @@ const createTask = async (req, res) => {
     // Populate user references for response
     await task.populate('assignedBy', 'firstName lastName email');
     await task.populate('assignedTo', 'firstName lastName email');
+    const referenceDate = getNowInTimeZone(requestTimezone).date;
+    const responseTask = enrichTaskWithTimezone(task, requestTimezone, referenceDate);
 
     // Log activity asynchronously (fire-and-forget)
     recordTaskActivity({
@@ -681,7 +712,7 @@ const createTask = async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Task created successfully',
-      data: { task },
+      data: { task: responseTask },
     });
   } catch (error) {
     console.error('Create task error:', error);
@@ -731,6 +762,7 @@ const updateTask = async (req, res) => {
       });
     }
 
+    const requestTimezone = req.requestedTimezone || 'UTC';
     const { taskId } = req.params;
     const userId = req.user.userId?.toString();
 
@@ -805,15 +837,18 @@ const updateTask = async (req, res) => {
     // Handle date fields
     if (dueDate !== undefined) {
       if (dueDate) {
-        const parsedDate = new Date(dueDate);
-        if (isNaN(parsedDate.getTime())) {
+        try {
+          // Normalize user input to UTC so all downstream logic compares consistent timestamps
+          updateData.dueDate = parseDateInputToUTC(dueDate, {
+            timeZone: requestTimezone,
+          });
+        } catch (conversionError) {
           return res.status(400).json({
             success: false,
             message: 'Invalid due date format',
-            code: 'INVALID_DUE_DATE_FORMAT'
+            code: 'INVALID_DUE_DATE_FORMAT',
           });
         }
-        updateData.dueDate = parsedDate;
       } else {
         updateData.dueDate = null;
       }
@@ -886,7 +921,7 @@ const updateTask = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Task updated successfully',
-      data: { task },
+      data: { task: responseTask },
     });
   } catch (error) {
     console.error('Update task error:', error);
@@ -1059,7 +1094,7 @@ const updateTaskStatus = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Task status updated successfully',
-      data: { task },
+      data: { task: responseTask },
     });
   } catch (error) {
     console.error('Update task status error:', error);
@@ -1084,10 +1119,12 @@ const updateTaskStatus = async (req, res) => {
  */
 const getTaskStatistics = async (req, res) => {
   try {
+    const requestTimezone = req.requestedTimezone || 'UTC';
     const userId = req.user.userId;
+    const nowInZone = getNowInTimeZone(requestTimezone).date;
 
     // Get statistics using the model method
-    const stats = await Task.getTaskStatistics(userId);
+    const stats = await Task.getTaskStatistics(userId, nowInZone);
 
     res.status(200).json({
       success: true,
@@ -1117,14 +1154,17 @@ const getTaskStatistics = async (req, res) => {
  */
 const getOverdueTasks = async (req, res) => {
   try {
+    const requestTimezone = req.requestedTimezone || 'UTC';
     const userId = req.user.userId;
 
-    const overdueTasks = await Task.findOverdueTasks(userId);
+    const nowInZone = getNowInTimeZone(requestTimezone).date;
+    let overdueTasks = await Task.findOverdueTasks(userId, nowInZone);
+    overdueTasks = overdueTasks.map(task => enrichTaskWithTimezone(task, requestTimezone, nowInZone));
 
     res.status(200).json({
       success: true,
       message: 'Overdue tasks retrieved successfully',
-      data: { 
+      data: {
         tasks: overdueTasks,
         count: overdueTasks.length,
       },
@@ -1190,6 +1230,7 @@ const getOverdueTasks = async (req, res) => {
  */
 const getOverdueTasksByStatus = async (req, res) => {
   try {
+    const requestTimezone = req.requestedTimezone || 'UTC';
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -1223,10 +1264,12 @@ const getOverdueTasksByStatus = async (req, res) => {
       activeOnly: true,
     };
 
+    const nowInZone = getNowInTimeZone(requestTimezone).date;
+
     // Additional filters for overdue-specific logic
     let additionalFilters = {
-      // Base overdue filter: due date in the past and not done
-      dueDate: { $lt: new Date() },
+      // Base overdue filter: due date earlier than "now" in the requester's timezone and not done
+      dueDate: { $lt: nowInZone },
       status: { $ne: 'done' }, // Redundant but explicit
     };
 
@@ -1249,9 +1292,10 @@ const getOverdueTasksByStatus = async (req, res) => {
     // Days past due filter
     if (daysPast) {
       const daysPastNum = parseInt(daysPast);
-      const cutoffDate = new Date();
-      cutoffDate.setDate(cutoffDate.getDate() - daysPastNum);
-      additionalFilters.dueDate = { $lt: cutoffDate };
+      if (!Number.isNaN(daysPastNum)) {
+        const cutoffDate = new Date(nowInZone.getTime() - daysPastNum * MS_IN_DAY);
+        additionalFilters.dueDate = { $lt: cutoffDate };
+      }
     }
 
     // Get base tasks for the specified status using the model method
@@ -1278,31 +1322,15 @@ const getOverdueTasksByStatus = async (req, res) => {
       });
     }
 
-    // Calculate overdue metadata for each task
-    const now = new Date();
-    tasks = tasks.map(task => {
-      const taskObj = task.toObject();
-      if (taskObj.dueDate) {
-        const daysPastDue = Math.ceil((now - new Date(taskObj.dueDate)) / (1000 * 60 * 60 * 24));
-        
-        // Calculate overdue severity
-        let calculatedSeverity = 'low';
-        if (daysPastDue >= 7 || (taskObj.priority === 'high' && daysPastDue >= 3)) {
-          calculatedSeverity = 'critical';
-        } else if (daysPastDue >= 3 || ((taskObj.priority === 'medium' || taskObj.priority === 'high') && daysPastDue >= 1)) {
-          calculatedSeverity = 'high';
-        } else if (daysPastDue >= 1) {
-          calculatedSeverity = 'medium';
-        }
+    tasks = tasks.map(toPlainTask);
+    tasks = tasks.map(task => enrichTaskWithTimezone(task, requestTimezone, nowInZone));
 
-        taskObj.overdueMetadata = {
-          daysPastDue,
-          severity: calculatedSeverity,
-          isOverdue: true,
-        };
+    if (daysPast) {
+      const minDays = parseInt(daysPast, 10);
+      if (!Number.isNaN(minDays)) {
+        tasks = tasks.filter(task => (task.overdueMetadata?.daysPastDue || 0) >= minDays);
       }
-      return taskObj;
-    });
+    }
 
     // Apply severity filter if specified
     if (severity) {
@@ -1420,6 +1448,7 @@ const getOverdueTasksByStatus = async (req, res) => {
           severity,
           sortBy,
           sortOrder,
+          timezone: requestTimezone,
         },
         overdueMetadata,
       },

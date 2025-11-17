@@ -534,6 +534,31 @@ const swaggerDefinition = {
             description: 'Virtual field showing difference between estimated and actual hours',
             example: -2.25,
           },
+          localTimezone: {
+            type: 'string',
+            description: 'Timezone used to format local due date/time for the requester',
+            example: 'America/New_York',
+          },
+          localDueDate: {
+            type: 'string',
+            description: 'Due date formatted for the requester\'s timezone (YYYY-MM-DD)',
+            example: '2024-03-15',
+          },
+          localDueTime: {
+            type: 'string',
+            description: 'Due time formatted for the requester\'s timezone (HH:mm)',
+            example: '18:30',
+          },
+          localDueDateTimeISO: {
+            type: 'string',
+            description: 'ISO-like timestamp for the due datetime in the requester\'s timezone',
+            example: '2024-03-15T18:30:00',
+          },
+          localDueDateTimeDisplay: {
+            type: 'string',
+            description: 'Formatted due datetime suitable for UI display in the requester\'s timezone',
+            example: 'Mar 15, 2024, 6:30 PM',
+          },
         },
       },
       TaskStatistics: {
@@ -873,6 +898,31 @@ const swaggerDefinition = {
             description: 'IANA timezone used when scheduling',
             example: 'America/Los_Angeles',
           },
+          localTimezone: {
+            type: 'string',
+            description: 'Requester timezone used for localized scheduling metadata',
+            example: 'Europe/Berlin',
+          },
+          localScheduledDate: {
+            type: 'string',
+            description: 'Localized scheduled date (YYYY-MM-DD)',
+            example: '2024-03-15',
+          },
+          localScheduledTime: {
+            type: 'string',
+            description: 'Localized scheduled time (HH:mm)',
+            example: '09:30',
+          },
+          localScheduledDateTimeISO: {
+            type: 'string',
+            description: 'Localized scheduled datetime in ISO-like format',
+            example: '2024-03-15T09:30:00',
+          },
+          localScheduledDateTimeDisplay: {
+            type: 'string',
+            description: 'Localized scheduled datetime formatted for UI display',
+            example: 'Mar 15, 2024, 9:30 AM',
+          },
           category: {
             type: 'string',
             description: 'Categorization label',
@@ -924,6 +974,91 @@ const swaggerDefinition = {
           updatedAt: {
             type: 'string',
             format: 'date-time',
+          },
+        },
+      },
+      ReminderCreateRequest: {
+        type: 'object',
+        required: ['title', 'scheduledAt', 'timezone'],
+        properties: {
+          title: {
+            type: 'string',
+            description: 'Reminder title shown in the UI',
+            example: 'Send sprint update',
+          },
+          scheduledAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Local date/time string or ISO timestamp representing when the reminder should fire',
+            example: '2024-12-01T09:00:00.000',
+          },
+          timezone: {
+            type: 'string',
+            description: 'IANA timezone identifier to interpret scheduledAt if provided as local date/time',
+            example: 'America/Los_Angeles',
+          },
+          category: {
+            type: 'string',
+            description: 'Optional category slug',
+            example: 'work',
+          },
+          priority: {
+            type: 'string',
+            enum: ['low', 'medium', 'high', 'critical'],
+            default: 'medium',
+          },
+          tags: {
+            type: 'array',
+            items: { type: 'string' },
+            example: ['ops', 'weekly'],
+          },
+          notes: {
+            type: 'string',
+            description: 'Private notes associated with the reminder',
+          },
+          description: {
+            type: 'string',
+            description: 'Optional long-form description shown in detail views',
+          },
+        },
+      },
+      ReminderUpdateRequest: {
+        type: 'object',
+        properties: {
+          title: {
+            type: 'string',
+          },
+          scheduledAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Updated schedule. Supply timezone if you want to reinterpret it relative to another locale.',
+          },
+          timezone: {
+            type: 'string',
+            description: 'IANA timezone identifier. When provided alongside scheduledAt the server recalculates UTC storage.',
+          },
+          category: {
+            type: 'string',
+          },
+          priority: {
+            type: 'string',
+            enum: ['low', 'medium', 'high', 'critical'],
+          },
+          tags: {
+            type: 'array',
+            description: 'Full tag replacement. Provide the entire desired tag list.',
+            items: { type: 'string' },
+          },
+          notes: {
+            type: 'string',
+          },
+          description: {
+            type: 'string',
+          },
+          status: {
+            type: 'string',
+            enum: ['pending', 'completed', 'cancelled'],
+            description: 'Status toggle for marking reminders complete or cancelled.',
           },
         },
       },
