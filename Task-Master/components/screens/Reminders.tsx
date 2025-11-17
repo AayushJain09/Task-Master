@@ -4,24 +4,22 @@
  * A focused planning canvas dedicated to personal + work reminders. This screen carries
  * the same design language as the rest of the Task Master experience:
  * - Vector-inspired hero summary with subtle parallax animation
- * - Category filters + quick actions living below the hero card
+ * - Category filters that surface context directly under the hero card
  * - Calendar surface for date picking + dots referencing reminder categories
  * - Timeline preview + interactive bottom sheet for focused detail review
  */
 
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
-import { View, Animated, Text, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import { View, Animated, Text, ActivityIndicator, RefreshControl, Alert, TouchableOpacity } from 'react-native';
 import { DateObject, MarkedDates } from 'react-native-calendars';
 import { useTheme } from '@/context/ThemeContext';
 import { CalendarCard } from './reminders/CalendarCard';
 import { ReminderSheet } from './reminders/ReminderSheet';
-import { QuickActions } from './reminders/QuickActions';
 import { ReminderHero } from './reminders/ReminderHero';
 import { ReminderFilters } from './reminders/ReminderFilters';
 import type { ReminderFilterOption } from './reminders/ReminderFilters';
 import { UpcomingList } from './reminders/UpcomingList';
 import type { UpcomingListItem } from './reminders/UpcomingList';
-import type { QuickActionConfig } from './reminders/QuickActions';
 import { ReminderFormModal, ReminderFormValues } from './reminders/ReminderFormModal';
 import ReminderDetailsModal from './reminders/ReminderDetailsModal';
 import { ReminderStub, palette } from './reminders/data';
@@ -31,7 +29,6 @@ import {
   getReminderDate,
   formatRelativeLabel,
 } from './reminders/utils';
-import { reminderQuickActions } from './reminders/quickActions.data';
 import { remindersService } from '@/services/reminders.service';
 import type { Reminder, ReminderCategory } from '@/types/reminder.types';
 import {
@@ -84,6 +81,18 @@ export default function Reminders() {
     () => reminders.map(reminder => mapReminderToStub(reminder, deviceTimeZone)),
     [reminders, deviceTimeZone]
   );
+
+  const defaultReminderSeed = useMemo<Partial<ReminderFormValues>>(() => {
+    const derivedCategory: ReminderCategory = activeFilter === 'all' ? 'work' : activeFilter;
+    return {
+      date: selectedDate,
+      time: '09:00',
+      category: derivedCategory,
+      priority: 'medium',
+      timezone: deviceTimeZone,
+      tags: [],
+    };
+  }, [activeFilter, selectedDate, deviceTimeZone]);
 
   const remindersByDate = useMemo(() => {
     return reminderStubs.reduce<Record<string, ReminderStub[]>>((acc, reminder) => {
@@ -223,12 +232,6 @@ export default function Reminders() {
     setSheetOpen(true);
   };
 
-  /**
-   * Centralized handler for the quick action grid.
-   * For now we optimistically log the user intent and expand the sheet when relevant,
-   * but the branching structure keeps future integrations (modal navigation, API calls)
-   * localized.
-   */
   const openFormModal = useCallback(
     (mode: 'create' | 'edit', initial?: Partial<ReminderFormValues>) => {
       setFormMode(mode);
@@ -243,32 +246,9 @@ export default function Reminders() {
     [deviceTimeZone]
   );
 
-  const handleQuickActionPress = useCallback(
-    (action: QuickActionConfig) => {
-      const derivedCategory = activeFilter === 'all' ? 'work' : activeFilter;
-      const baseInitial: Partial<ReminderFormValues> = {
-        date: selectedDate,
-        time: '09:00',
-        category: derivedCategory,
-        priority: 'medium',
-        timezone: deviceTimeZone,
-        tags: [],
-      };
-
-      if (action.id === 'create-reminder') {
-        openFormModal('create', baseInitial);
-        return;
-      }
-
-      if (action.id === 'task-reminder') {
-        openFormModal('create', baseInitial);
-        return;
-      }
-
-      console.log('[Reminders] Unsupported action tapped:', action.id);
-    },
-    [openFormModal, selectedDate, activeFilter, deviceTimeZone]
-  );
+  const handleCreateReminderPress = useCallback(() => {
+    openFormModal('create', defaultReminderSeed);
+  }, [defaultReminderSeed, openFormModal]);
 
   const handleFilterChange = useCallback((optionId: string) => {
     setActiveFilter(optionId as 'all' | ReminderCategory);
@@ -427,11 +407,43 @@ export default function Reminders() {
               nextReminder={heroNextReminder}
               scrollY={scrollY}
             />
-            <QuickActions
-              isDark={isDark}
-              actions={reminderQuickActions}
-              onActionPress={handleQuickActionPress}
-            />
+            <TouchableOpacity
+              onPress={handleCreateReminderPress}
+              activeOpacity={0.9}
+              style={{
+                marginVertical: 10,
+                paddingVertical: 14,
+                paddingHorizontal: 18,
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: isDark ? 'rgba(96,165,250,0.4)' : 'rgba(37,99,235,0.25)',
+                backgroundColor: isDark ? 'rgba(30,64,175,0.35)' : 'rgba(219,234,254,0.85)',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <Text style={{ fontWeight: '700', fontSize: 16, color: isDark ? '#E0F2FE' : '#1E3A8A' }}>
+                  Add reminder
+                </Text>
+                <Text style={{ color: isDark ? '#93C5FD' : '#1D4ED8', marginTop: 2, fontSize: 13 }}>
+                  Capture a new touchpoint with today’s focus
+                </Text>
+              </View>
+              <View
+                style={{
+                  width: 38,
+                  height: 38,
+                  borderRadius: 19,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: isDark ? '#1E3A8A' : '#2563EB',
+                }}
+              >
+                <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '700' }}>+</Text>
+              </View>
+            </TouchableOpacity>
             <CalendarCard isDark={isDark} markedDates={markedDates} onDayPress={handleDayPress} />
             <ReminderFilters
               isDark={isDark}

@@ -1,7 +1,7 @@
 /**
  * Reminder Controller
  *
- * Handles reminder creation, quick-add parsing, filtering, snoozing, and
+ * Handles reminder creation, filtering, snoozing, and
  * offline synchronization workflows.
  *
  * @module controllers/reminderController
@@ -12,15 +12,10 @@ const mongoose = require('mongoose');
 const Reminder = require('../models/Reminder');
 const { parsePagination, buildPaginationResponse } = require('../utils/helpers');
 const {
-  parseNaturalLanguageReminder,
-  ensureTimeZone: ensureReminderParserTimeZone,
-} = require('../utils/reminderParser');
-const {
   getStartOfDayUTC,
   getEndOfDayUTC,
   parseDateInputToUTC,
   buildLocalizedDateTimeMetadata,
-  getNowInTimeZone,
   ensureTimeZone,
   isDateOnlyString,
 } = require('../utils/timezone');
@@ -34,8 +29,7 @@ const pickReminderFields = (payload = {}) => {
   if (payload.category) sanitized.category = payload.category.toLowerCase();
   if (payload.priority) sanitized.priority = payload.priority;
   if (payload.status) sanitized.status = payload.status;
-  if (payload.timezone) sanitized.timezone = ensureReminderParserTimeZone(payload.timezone);
-  if (payload.quickAddSource) sanitized.quickAddSource = payload.quickAddSource;
+  if (payload.timezone) sanitized.timezone = ensureTimeZone(payload.timezone);
 
   if (payload.tags) {
     sanitized.tags = Array.isArray(payload.tags)
@@ -188,53 +182,7 @@ const getReminders = async (req, res) => {
   }
 };
 
-/**
- * POST /api/reminders/quick-add
- */
-const quickAddReminder = async (req, res) => {
-  if (!handleValidation(req, res)) return;
-  const userId = req.user.userId;
-  const requestTimezone = req.requestedTimezone || 'UTC';
-  const { input, timezone, defaults = {} } = req.body;
-
-  try {
-    const effectiveTimezone = ensureTimeZone(timezone || defaults.timezone || requestTimezone);
-    const parsed = parseNaturalLanguageReminder(input, {
-      timeZone: effectiveTimezone,
-    });
-
-    const normalizedCategory = (defaults.category || 'personal').toLowerCase();
-    const reminderPayload = {
-      user: userId,
-      title: parsed.title,
-      scheduledAt: parsed.scheduledAt,
-      timezone: parsed.timezone || effectiveTimezone,
-      category: normalizedCategory,
-      priority: defaults.priority || 'medium',
-      tags: defaults.tags || [],
-      quickAddSource: parsed.source,
-      clientReference: defaults.clientReference || {},
-      clientUpdatedAt: defaults.clientUpdatedAt ? new Date(defaults.clientUpdatedAt) : new Date(),
-      syncStatus: defaults.clientReference ? 'pending' : 'synced',
-    };
-
-    const reminder = await Reminder.create(reminderPayload);
-
-    res.status(201).json({
-      success: true,
-      message: 'Reminder created from quick-add text',
-      data: formatReminderResponse(reminder, requestTimezone),
-    });
-  } catch (error) {
-    console.error('Quick add reminder failed:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Unable to create reminder from quick text',
-    });
-  }
-};
-
-/**
+/** 
  * POST /api/reminders
  */
 const createReminder = async (req, res) => {
@@ -543,7 +491,6 @@ const syncReminders = async (req, res) => {
 
 module.exports = {
   getReminders,
-  quickAddReminder,
   createReminder,
   updateReminder,
   deleteReminder,

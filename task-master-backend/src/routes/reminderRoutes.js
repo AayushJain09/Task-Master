@@ -1,8 +1,8 @@
 /**
  * Reminder Routes
  *
- * Defines API endpoints for reminder management including quick-add,
- * filtering, snoozing, and offline synchronization.
+ * Defines API endpoints for reminder management including filtering,
+ * snoozing, and offline synchronization.
  *
  * @module routes/reminderRoutes
  */
@@ -12,7 +12,6 @@ const router = express.Router();
 
 const {
   getReminders,
-  quickAddReminder,
   createReminder,
   updateReminder,
   deleteReminder,
@@ -24,7 +23,6 @@ const {
   validateReminderQuery,
   validateReminderCreation,
   validateReminderUpdate,
-  validateQuickAddReminder,
   validateSyncPayload,
 } = require('../validators/reminderValidator');
 
@@ -32,14 +30,6 @@ const { authenticate } = require('../middleware/auth');
 const { rateLimitStrict, rateLimitModerate } = require('../middleware/rateLimiter');
 
 router.get('/', authenticate, rateLimitModerate, validateReminderQuery, getReminders);
-
-router.post(
-  '/quick-add',
-  authenticate,
-  rateLimitStrict,
-  validateQuickAddReminder,
-  quickAddReminder
-);
 
 router.post('/', authenticate, rateLimitStrict, validateReminderCreation, createReminder);
 

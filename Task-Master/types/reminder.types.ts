@@ -39,7 +39,6 @@ export interface Reminder {
   priority: ReminderPriority;
   status: ReminderStatus;
   recurrence?: ReminderRecurrence;
-  quickAddSource?: string;
   clientReference?: ReminderClientReference;
   createdAt: string;
   updatedAt: string;
@@ -86,18 +85,6 @@ export interface ReminderCreateRequest {
 export type ReminderUpdateRequest = Partial<ReminderCreateRequest> & {
   status?: ReminderStatus;
 };
-
-export interface ReminderQuickAddRequest {
-  input: string;
-  timezone?: string;
-  defaults?: {
-    category?: ReminderCategory;
-    priority?: ReminderPriority;
-    tags?: string[];
-    clientReference?: ReminderClientReference;
-    clientUpdatedAt?: string;
-  };
-}
 
 export type ReminderErrorCode =
   | 'REMINDER_VALIDATION_ERROR'

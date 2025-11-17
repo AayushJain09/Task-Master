@@ -2,7 +2,6 @@
  * Reminder Model
  *
  * Data model for the reminders module. Supports the following features:
- * - Quick-add / natural language input via quickAddSource
  * - Recurring cadence definitions (daily, weekly, custom)
  * - Category + tag metadata for filtering
  * - Offline-first synchronization metadata (client references, versioning)
@@ -116,12 +115,6 @@ const reminderSchema = new mongoose.Schema(
       enum: ['pending', 'completed', 'cancelled'],
       default: 'pending',
       index: true,
-    },
-
-    quickAddSource: {
-      type: String,
-      trim: true,
-      maxlength: 500,
     },
 
     notes: {

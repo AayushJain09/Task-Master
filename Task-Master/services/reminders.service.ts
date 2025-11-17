@@ -2,7 +2,7 @@
  * Reminders Service
  *
  * Provides typed helpers for interacting with the reminders API including
- * listing, creation, updates, quick-add, and offline sync hooks.
+ * listing, creation, updates, and offline sync hooks.
  */
 
 import { apiService } from './api.service';
@@ -13,7 +13,6 @@ import {
   ReminderUpdateRequest,
   ReminderListResponse,
   ReminderQueryParams,
-  ReminderQuickAddRequest,
   ReminderError,
 } from '@/types/reminder.types';
 import { resolveTimezone as resolveClientTimezone } from '@/utils/timezone';
@@ -86,19 +85,6 @@ class RemindersService {
         timezone,
       };
       return await apiService.patch<Reminder>(`${this.baseEndpoint}/${reminderId}`, requestPayload);
-    } catch (error) {
-      throw this.transformError(error as ApiError);
-    }
-  }
-
-  async quickAddReminder(payload: ReminderQuickAddRequest): Promise<Reminder> {
-    try {
-      const timezone = resolveClientTimezone(payload.timezone);
-      const requestPayload: ReminderQuickAddRequest = {
-        ...payload,
-        timezone,
-      };
-      return await apiService.post<Reminder>(`${this.baseEndpoint}/quick-add`, requestPayload);
     } catch (error) {
       throw this.transformError(error as ApiError);
     }

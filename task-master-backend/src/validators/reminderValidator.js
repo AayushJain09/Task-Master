@@ -117,29 +117,6 @@ const validateReminderUpdate = [
   body('recurrence.daysOfWeek.*').optional().isInt({ min: 0, max: 6 }),
 ];
 
-const validateQuickAddReminder = [
-  body('input')
-    .notEmpty()
-    .withMessage('input text is required')
-    .isLength({ min: 1, max: 500 }),
-  body('timezone')
-    .optional()
-    .isString()
-    .isLength({ max: 60 }),
-  body('defaults')
-    .optional()
-    .isObject(),
-  body('defaults.category')
-    .optional()
-    .isLength({ min: 1, max: 50 }),
-  body('defaults.priority')
-    .optional()
-    .isIn(['low', 'medium', 'high', 'critical']),
-  body('defaults.tags')
-    .optional()
-    .isArray({ max: 20 }),
-];
-
 const validateSyncPayload = [
   body('clientId')
     .notEmpty()
@@ -173,6 +150,5 @@ module.exports = {
   validateReminderQuery,
   validateReminderCreation,
   validateReminderUpdate,
-  validateQuickAddReminder,
   validateSyncPayload,
 };

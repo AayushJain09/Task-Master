@@ -141,68 +141,6 @@
  *         $ref: '#/components/responses/UnauthorizedError'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
- *
- * /reminders/quick-add:
- *   post:
- *     summary: Quick add reminder via natural language input
- *     description: Parses natural language text (e.g., "call Alex next Tue 3p") and creates a reminder.
- *     tags: [Reminders]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [input]
- *             properties:
- *               input:
- *                 type: string
- *                 example: "Send sprint recap next Mon 9a"
- *               timezone:
- *                 type: string
- *                 example: "America/Chicago"
- *                 description: Preferred timezone for interpreting parsed dates (defaults to the resolved request timezone)
- *               defaults:
- *                 type: object
- *                 properties:
- *                   category:
- *                     type: string
- *                     example: work
- *                   priority:
- *                     type: string
- *                     enum: [low, medium, high, critical]
- *                   tags:
- *                     type: array
- *                     items:
- *                       type: string
- *                   clientReference:
- *                     type: object
- *                     properties:
- *                       id:
- *                         type: string
- *                       device:
- *                         type: string
- *     responses:
- *       201:
- *         description: Reminder created from quick-add text
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *                 data:
- *                   $ref: '#/components/schemas/Reminder'
- *       400:
- *         $ref: '#/components/responses/ValidationError'
- *       401:
- *         $ref: '#/components/responses/UnauthorizedError'
- *       500:
- *         $ref: '#/components/responses/InternalServerError'
- *
  * /reminders/{reminderId}:
  *   patch:
  *     summary: Update a reminder

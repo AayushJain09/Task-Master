@@ -67,7 +67,7 @@ const swaggerDefinition = {
     },
     {
       name: 'Reminders',
-      description: 'Reminder management endpoints including quick-add parsing, scheduling, snoozing, and offline sync',
+      description: 'Reminder management endpoints including scheduling, snoozing, and offline sync',
     },
   ],
   components: {
@@ -945,11 +945,6 @@ const swaggerDefinition = {
           },
           recurrence: {
             $ref: '#/components/schemas/ReminderRecurrence',
-          },
-          quickAddSource: {
-            type: 'string',
-            description: 'Original quick-add text when applicable',
-            example: 'standup update tomorrow 9a',
           },
           clientReference: {
             type: 'object',
