@@ -18,7 +18,7 @@ import { BlurView } from 'expo-blur';
 import { Bell, Calendar as CalendarIcon, Clock, Tag as TagIcon, X } from 'lucide-react-native';
 import { palette } from './data';
 import { formatDateKey } from './utils';
-import type { ReminderCategory, ReminderPriority } from '@/types/reminder.types';
+import type { ReminderCategory, ReminderPriority, ReminderRecurrence } from '@/types/reminder.types';
 
 export interface ReminderFormValues {
   id?: string;
@@ -30,6 +30,7 @@ export interface ReminderFormValues {
   timezone: string;
   notes?: string;
   tags: string[];
+  recurrence: ReminderRecurrence;
 }
 
 interface ReminderFormModalProps {
@@ -97,6 +98,7 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
     timezone: defaultTimezone,
     notes: '',
     tags: [],
+    recurrence: { cadence: 'none', interval: 1, daysOfWeek: [], anchorDate: null, customRule: '' },
   });
   const [tagDraft, setTagDraft] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -119,6 +121,9 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
         timezone: payload.timezone ?? defaultTimezone,
         notes: payload.notes ?? '',
         tags: payload.tags ?? [],
+        recurrence:
+          payload.recurrence ??
+          { cadence: 'none', interval: 1, daysOfWeek: [], anchorDate: null, customRule: '' },
       });
       setErrors({});
       setGeneralError(null);
@@ -136,10 +141,45 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
   }, [visible, initialValues, defaultTimezone, opacity, translateY]);
 
   const categoryOptions = useMemo<ReminderCategory[]>(() => ['work', 'personal', 'health', 'deadline'], []);
+  const recurrenceOptions = useMemo(
+    () => [
+      { key: 'none' as ReminderRecurrence['cadence'], label: 'One-time', accent: '#94A3B8' },
+      { key: 'daily' as ReminderRecurrence['cadence'], label: 'Daily', accent: '#22C55E' },
+      { key: 'weekly' as ReminderRecurrence['cadence'], label: 'Weekly', accent: '#2563EB' },
+      { key: 'custom' as ReminderRecurrence['cadence'], label: 'Custom', accent: '#F59E0B' },
+    ],
+    []
+  );
+  const dayLabels = useMemo(
+    () => ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+    []
+  );
 
   const handleChange = <K extends keyof ReminderFormValues>(key: K, value: ReminderFormValues[K]) => {
     setFormValues(prev => ({ ...prev, [key]: value }));
     setErrors(prev => ({ ...prev, [key]: undefined }));
+  };
+
+  const handleRecurrenceChange = (updates: Partial<ReminderRecurrence>) => {
+    setFormValues(prev => ({
+      ...prev,
+      recurrence: { ...prev.recurrence, ...updates },
+    }));
+    setErrors(prev => ({ ...prev, recurrence: undefined }));
+  };
+
+  const toggleDayOfWeek = (dayIndex: number) => {
+    setFormValues(prev => {
+      const currentDays = prev.recurrence.daysOfWeek || [];
+      const nextDays = currentDays.includes(dayIndex)
+        ? currentDays.filter(day => day !== dayIndex)
+        : [...currentDays, dayIndex].sort();
+      return {
+        ...prev,
+        recurrence: { ...prev.recurrence, daysOfWeek: nextDays },
+      };
+    });
+    setErrors(prev => ({ ...prev, recurrence: undefined }));
   };
 
   const handleTagCommit = () => {
@@ -168,6 +208,20 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
     }
     if (!/^\d{2}:\d{2}$/.test(formValues.time)) {
       nextErrors.time = 'Use HH:mm format.';
+    }
+    if (formValues.recurrence?.cadence && formValues.recurrence.cadence !== 'none') {
+      if (!formValues.recurrence.interval || formValues.recurrence.interval < 1) {
+        nextErrors.recurrence = 'Repeat interval must be at least 1.';
+      }
+      if (
+        formValues.recurrence.cadence === 'weekly' &&
+        (!formValues.recurrence.daysOfWeek || formValues.recurrence.daysOfWeek.length === 0)
+      ) {
+        nextErrors.recurrence = 'Pick at least one weekday.';
+      }
+      if (formValues.recurrence.cadence === 'custom' && !formValues.recurrence.customRule?.trim()) {
+        nextErrors.recurrence = 'Provide a custom rule or note.';
+      }
     }
 
     setErrors(nextErrors);
@@ -379,6 +433,137 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
                   </View>
                 </View>
 
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={[styles.fieldLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>
+                    Repeat
+                  </Text>
+                  <View style={styles.pillRow}>
+                    {recurrenceOptions.map(option => {
+                      const isActive = formValues.recurrence?.cadence === option.key;
+                      return (
+                        <Pressable
+                          key={option.key}
+                          onPress={() => handleRecurrenceChange({ cadence: option.key })}
+                          style={[
+                            styles.pill,
+                            {
+                              borderColor: isActive ? option.accent : 'rgba(148,163,184,0.25)',
+                              backgroundColor: isActive
+                                ? `${option.accent}22`
+                                : isDark
+                                ? 'rgba(15,23,42,0.55)'
+                                : '#FFFFFF',
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={{
+                              color: isActive ? option.accent : isDark ? '#E2E8F0' : '#475569',
+                              fontWeight: '600',
+                            }}
+                          >
+                            {option.label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  {formValues.recurrence?.cadence !== 'none' ? (
+                    <View
+                      style={[
+                        styles.recurrenceCard,
+                        {
+                          borderColor: isDark ? 'rgba(148,163,184,0.25)' : 'rgba(37,99,235,0.16)',
+                          backgroundColor: isDark ? 'rgba(15,23,42,0.55)' : '#F8FAFF',
+                        },
+                      ]}
+                    >
+                      {formValues.recurrence?.cadence !== 'custom' ? (
+                        <View style={styles.intervalRow}>
+                          <Text style={{ color: isDark ? '#CBD5E1' : '#0F172A' }}>Every</Text>
+                          <TextInput
+                            keyboardType="number-pad"
+                            value={String(formValues.recurrence?.interval ?? 1)}
+                            onChangeText={text =>
+                              handleRecurrenceChange({
+                                interval: Math.max(1, parseInt(text || '1', 10) || 1),
+                              })
+                            }
+                            style={[
+                              styles.intervalInput,
+                              {
+                                color: isDark ? '#F8FAFC' : '#0F172A',
+                                backgroundColor: isDark ? 'rgba(15,23,42,0.65)' : '#FFFFFF',
+                                borderColor: isDark ? 'rgba(148,163,184,0.25)' : 'rgba(15,23,42,0.08)',
+                              },
+                            ]}
+                          />
+                          <Text style={{ color: isDark ? '#CBD5E1' : '#0F172A', textTransform: 'lowercase' }}>
+                            {formValues.recurrence?.cadence === 'weekly' ? 'week(s)' : 'day(s)'}
+                          </Text>
+                        </View>
+                      ) : null}
+
+                      {formValues.recurrence?.cadence === 'weekly' ? (
+                        <View style={[styles.pillRow, { marginTop: 10 }]}>
+                          {dayLabels.map((label, index) => {
+                            const isActive = formValues.recurrence?.daysOfWeek?.includes(index);
+                            return (
+                              <Pressable
+                                key={label}
+                                onPress={() => toggleDayOfWeek(index)}
+                                style={[
+                                  styles.dayPill,
+                                  {
+                                    backgroundColor: isActive
+                                      ? (isDark ? '#1D4ED8' : '#2563EB')
+                                      : isDark
+                                      ? 'rgba(148,163,184,0.18)'
+                                      : '#E2E8F0',
+                                  },
+                                ]}
+                              >
+                                <Text style={{ color: isActive ? '#FFFFFF' : isDark ? '#E2E8F0' : '#0F172A' }}>
+                                  {label}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      ) : null}
+
+                      {formValues.recurrence?.cadence === 'custom' ? (
+                        <View style={{ marginTop: 10 }}>
+                          <Text style={{ color: isDark ? '#CBD5E1' : '#0F172A', marginBottom: 6 }}>
+                            Custom rule or note (cron-like or human text)
+                          </Text>
+                          <TextInput
+                            placeholder="e.g. 0 9 1 * * or 'First Monday each month'"
+                            placeholderTextColor={isDark ? '#4B5563' : '#94A3B8'}
+                            value={formValues.recurrence?.customRule || ''}
+                            onChangeText={text => handleRecurrenceChange({ customRule: text })}
+                            style={[
+                              styles.customRuleInput,
+                              {
+                                color: isDark ? '#F8FAFC' : '#0F172A',
+                                backgroundColor: isDark ? 'rgba(15,23,42,0.65)' : '#FFFFFF',
+                                borderColor: isDark ? 'rgba(148,163,184,0.25)' : 'rgba(15,23,42,0.08)',
+                              },
+                            ]}
+                            multiline
+                          />
+                        </View>
+                      ) : null}
+
+                      <Text style={{ marginTop: 10, color: isDark ? '#94A3B8' : '#475569', fontSize: 12 }}>
+                        First occurrence anchors on {formValues.date || 'the selected date'} at{' '}
+                        {formValues.time || 'HH:mm'}.
+                      </Text>
+                    </View>
+                  ) : null}
+                  {errors.recurrence ? <Text style={styles.errorText}>{errors.recurrence}</Text> : null}
+                </View>
+
                 <View style={{ marginBottom: 20 }}>
                   <Text style={[styles.fieldLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>
                     Tags (optional)
@@ -581,6 +766,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  recurrenceCard: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 10,
+  },
+  intervalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  intervalInput: {
+    minWidth: 60,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  customRuleInput: {
+    minHeight: 60,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    textAlignVertical: 'top',
+  },
   notesInput: {
     minHeight: 110,
     borderRadius: 20,
@@ -633,6 +846,11 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 6,
+  },
+  dayPill: {
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
   pickerField: {
     flex: 1,

@@ -78,7 +78,10 @@ export default function Reminders() {
   }, []);
 
   const reminderStubs = useMemo(
-    () => reminders.map(reminder => mapReminderToStub(reminder, deviceTimeZone)),
+    () =>
+      reminders.flatMap(reminder =>
+        expandReminderOccurrences(reminder, deviceTimeZone)
+      ),
     [reminders, deviceTimeZone]
   );
 
@@ -91,6 +94,7 @@ export default function Reminders() {
       priority: 'medium',
       timezone: deviceTimeZone,
       tags: [],
+      recurrence: { cadence: 'none', interval: 1, daysOfWeek: [], anchorDate: null, customRule: '' },
     };
   }, [activeFilter, selectedDate, deviceTimeZone]);
 
@@ -239,6 +243,7 @@ export default function Reminders() {
         timezone: deviceTimeZone,
         priority: 'medium',
         tags: [],
+        recurrence: { cadence: 'none', interval: 1, daysOfWeek: [], anchorDate: null, customRule: '' },
         ...initial,
       });
       setFormVisible(true);
@@ -327,6 +332,19 @@ export default function Reminders() {
     async (values: ReminderFormValues) => {
       const timezone = values.timezone || deviceTimeZone;
       const scheduledAt = buildScheduledAtISO(values.date, values.time, timezone);
+      const recurrencePayload =
+        values.recurrence && values.recurrence.cadence !== 'none'
+          ? {
+              cadence: values.recurrence.cadence,
+              interval: values.recurrence.interval || 1,
+              daysOfWeek:
+                values.recurrence.cadence === 'weekly'
+                  ? values.recurrence.daysOfWeek || []
+                  : undefined,
+              customRule: values.recurrence.customRule,
+              anchorDate: scheduledAt,
+            }
+          : undefined;
       try {
         setIsSubmittingReminder(true);
         let savedReminder: Reminder;
@@ -340,6 +358,7 @@ export default function Reminders() {
             notes: values.notes,
             priority: values.priority,
             tags: values.tags,
+            recurrence: recurrencePayload,
           });
         } else {
           savedReminder = await remindersService.createReminder({
@@ -350,6 +369,7 @@ export default function Reminders() {
             notes: values.notes,
             priority: values.priority,
             tags: values.tags,
+            recurrence: recurrencePayload,
           });
         }
 
@@ -516,6 +536,8 @@ function buildScheduledAtISO(date: string, time: string, timezone: string): stri
   }
 }
 
+const MS_IN_DAY = 24 * 60 * 60 * 1000;
+
 function formatTimeKeyFromDate(date: Date): string {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
@@ -562,5 +584,89 @@ function mapReminderToFormValues(reminder: Reminder, fallbackTimezone: string): 
     timezone,
     notes: reminder.notes || reminder.description || '',
     tags: reminder.tags || [],
+    recurrence:
+      reminder.recurrence || {
+        cadence: 'none',
+        interval: 1,
+        daysOfWeek: [],
+        anchorDate: null,
+        customRule: '',
+      },
   };
+}
+
+function shiftDateKeepTime(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * MS_IN_DAY);
+}
+
+function buildOccurrenceDate(
+  reminder: Reminder,
+  baseDate: Date,
+  daysOffset: number,
+  fallbackTimezone: string
+): ReminderStub {
+  const occurrenceDate = shiftDateKeepTime(baseDate, daysOffset);
+  const iso = occurrenceDate.toISOString();
+  const timezone = reminder.localTimezone || reminder.timezone || fallbackTimezone;
+  const scheduledDate = formatDateKey(occurrenceDate);
+  const scheduledTime = formatTimeKeyFromDate(occurrenceDate);
+  const timeDisplay =
+    formatDateTimeInTimeZone(iso, timezone, {
+      hour: 'numeric',
+      minute: '2-digit',
+    }) || scheduledTime;
+
+  return {
+    id: reminder.id,
+    title: reminder.title,
+    date: scheduledDate,
+    time: scheduledTime,
+    timeDisplay,
+    timezone,
+    scheduledAtUtc: iso,
+    localDisplay: reminder.localScheduledDateTimeDisplay,
+    category: (reminder.category || 'personal') as ReminderCategory,
+  };
+}
+
+function expandReminderOccurrences(reminder: Reminder, fallbackTimezone: string): ReminderStub[] {
+  const recurrence = reminder.recurrence;
+  if (!recurrence || recurrence.cadence === 'none') {
+    return [mapReminderToStub(reminder, fallbackTimezone)];
+  }
+
+  const maxOccurrences = 60; // cap to avoid runaway expansion
+  const horizonDays = 120; // ~4 months lookahead for calendar/list
+  const baseDate = reminder.localScheduledDate
+    ? new Date(`${reminder.localScheduledDate}T${reminder.localScheduledTime || '00:00'}:00Z`)
+    : new Date(reminder.scheduledAt);
+  const occurrences: ReminderStub[] = [];
+
+  if (recurrence.cadence === 'daily') {
+    const interval = Math.max(1, recurrence.interval || 1);
+    for (let day = 0; day <= horizonDays && occurrences.length < maxOccurrences; day += interval) {
+      occurrences.push(buildOccurrenceDate(reminder, baseDate, day, fallbackTimezone));
+    }
+    return occurrences;
+  }
+
+  if (recurrence.cadence === 'weekly') {
+    const intervalWeeks = Math.max(1, recurrence.interval || 1);
+    const daysOfWeek = (recurrence.daysOfWeek && recurrence.daysOfWeek.length > 0)
+      ? recurrence.daysOfWeek
+      : [baseDate.getUTCDay()];
+
+    for (let day = 0; day <= horizonDays && occurrences.length < maxOccurrences; day += 1) {
+      const target = shiftDateKeepTime(baseDate, day);
+      const diffDays = Math.floor((target.getTime() - baseDate.getTime()) / MS_IN_DAY);
+      const weeksSinceAnchor = Math.floor(diffDays / 7);
+      if (weeksSinceAnchor >= 0 && weeksSinceAnchor % intervalWeeks === 0 && daysOfWeek.includes(target.getUTCDay())) {
+        occurrences.push(buildOccurrenceDate(reminder, baseDate, day, fallbackTimezone));
+      }
+    }
+    return occurrences;
+  }
+
+  // For custom/other cadences, show the single anchor occurrence.
+  return [mapReminderToStub(reminder, fallbackTimezone)];
 }

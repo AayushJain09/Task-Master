@@ -204,6 +204,16 @@ const createReminder = async (req, res) => {
     const normalizedScheduledAt = parseDateInputToUTC(scheduledAt, {
       timeZone: reminderTimezone,
     });
+    const sanitizedFields = pickReminderFields(req.body);
+    if (
+      sanitizedFields.recurrence &&
+      sanitizedFields.recurrence.cadence &&
+      sanitizedFields.recurrence.cadence !== 'none' &&
+      !sanitizedFields.recurrence.anchorDate
+    ) {
+      // Default the recurrence anchor to the first scheduled occurrence
+      sanitizedFields.recurrence.anchorDate = normalizedScheduledAt;
+    }
     const reminder = await Reminder.create({
       user: userId,
       title,
@@ -212,7 +222,7 @@ const createReminder = async (req, res) => {
       category: normalizedCategory,
       priority,
       tags: Array.isArray(tags) ? tags.map(tag => tag.toLowerCase().trim()).filter(Boolean) : [],
-      ...pickReminderFields(req.body),
+      ...sanitizedFields,
       syncStatus: req.body.clientReference ? 'pending' : 'synced',
       clientReference: req.body.clientReference,
       clientUpdatedAt: req.body.clientUpdatedAt ? new Date(req.body.clientUpdatedAt) : null,

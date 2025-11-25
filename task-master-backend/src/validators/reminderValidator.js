@@ -97,6 +97,13 @@ const baseReminderBody = [
   body('recurrence.daysOfWeek.*')
     .optional()
     .isInt({ min: 0, max: 6 }),
+  body('recurrence.customRule')
+    .optional()
+    .isString()
+    .isLength({ max: 280 }),
+  body('recurrence.anchorDate')
+    .optional()
+    .isISO8601(),
 ];
 
 const validateReminderCreation = [...baseReminderBody];
@@ -115,6 +122,8 @@ const validateReminderUpdate = [
   body('recurrence.interval').optional().isInt({ min: 1, max: 365 }),
   body('recurrence.daysOfWeek').optional().isArray({ max: 7 }),
   body('recurrence.daysOfWeek.*').optional().isInt({ min: 0, max: 6 }),
+  body('recurrence.customRule').optional().isString().isLength({ max: 280 }),
+  body('recurrence.anchorDate').optional().isISO8601(),
 ];
 
 const validateSyncPayload = [

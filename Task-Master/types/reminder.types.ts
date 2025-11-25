@@ -80,6 +80,7 @@ export interface ReminderCreateRequest {
   tags?: string[];
   notes?: string;
   description?: string;
+  recurrence?: ReminderRecurrence;
 }
 
 export type ReminderUpdateRequest = Partial<ReminderCreateRequest> & {

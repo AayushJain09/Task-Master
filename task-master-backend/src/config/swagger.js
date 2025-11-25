@@ -1015,6 +1015,10 @@ const swaggerDefinition = {
             type: 'string',
             description: 'Optional long-form description shown in detail views',
           },
+          recurrence: {
+            $ref: '#/components/schemas/ReminderRecurrence',
+            description: 'Optional recurrence rule. When provided, anchorDate defaults to the first scheduled occurrence.',
+          },
         },
       },
       ReminderUpdateRequest: {
@@ -1054,6 +1058,10 @@ const swaggerDefinition = {
             type: 'string',
             enum: ['pending', 'completed', 'cancelled'],
             description: 'Status toggle for marking reminders complete or cancelled.',
+          },
+          recurrence: {
+            $ref: '#/components/schemas/ReminderRecurrence',
+            description: 'Update recurrence; omit to keep existing rule. Anchor recalculates from scheduledAt if omitted.',
           },
         },
       },
