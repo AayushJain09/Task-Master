@@ -690,7 +690,7 @@ const createTask = async (req, res) => {
     const task = new Task(taskData);
     await task.save();
 
-    // Populate user references for response
+    // Populate user references and enrich with timezone metadata for the response
     await task.populate('assignedBy', 'firstName lastName email');
     await task.populate('assignedTo', 'firstName lastName email');
     const referenceDate = getNowInTimeZone(requestTimezone).date;
@@ -752,9 +752,11 @@ const createTask = async (req, res) => {
  */
 const updateTask = async (req, res) => {
   try {
+    console.log('[TaskStatus] Requested change:', { params: req.params, body: req.body, user: req.user?.userId });
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
+      console.warn('[TaskStatus] Validation failed', errors.array());
       return res.status(400).json({
         success: false,
         message: 'Validation failed',
@@ -768,6 +770,7 @@ const updateTask = async (req, res) => {
 
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(taskId)) {
+      console.warn('[TaskStatus] Invalid taskId', taskId);
       return res.status(400).json({
         success: false,
         message: 'Invalid task ID format',
@@ -1063,6 +1066,7 @@ const updateTaskStatus = async (req, res) => {
     });
 
     if (!task) {
+      console.warn('[TaskStatus] Task not found or no access', taskId);
       return res.status(404).json({
         success: false,
         message: 'Task not found or access denied',
@@ -1073,10 +1077,14 @@ const updateTaskStatus = async (req, res) => {
 
     // Update the status using the model method
     await task.updateStatus(status);
+    console.log('[TaskStatus] Persistence complete', { taskId: task.id, previousStatus, newStatus: status });
 
-    // Populate user references for response
+    // Populate user references and rebuild the response payload with timezone metadata
     await task.populate('assignedBy', 'firstName lastName email');
     await task.populate('assignedTo', 'firstName lastName email');
+    const requestTimezone = req.requestedTimezone || 'UTC';
+    const referenceDate = getNowInTimeZone(requestTimezone).date;
+    const responseTask = enrichTaskWithTimezone(task, requestTimezone, referenceDate);
 
     recordTaskActivity({
       task,
@@ -1091,6 +1099,7 @@ const updateTaskStatus = async (req, res) => {
       },
     });
 
+    console.log('[TaskStatus] Responding with enriched task', task.id);
     res.status(200).json({
       success: true,
       message: 'Task status updated successfully',

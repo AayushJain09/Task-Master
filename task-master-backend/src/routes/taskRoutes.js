@@ -31,6 +31,8 @@ const {
   validateTaskQuery,
   validateTaskStatusQuery,
   validateOverdueTasksByStatusQuery,
+  logTaskStatusUpdateRequest,
+  logTaskStatusQueryRequest,
 } = require('../validators/taskValidator');
 
 const { authenticate, authorize } = require('../middleware/auth');
@@ -49,7 +51,14 @@ router.get(
 );
 
 // GET /api/tasks/status - Get tasks by specific status with enhanced filtering (documented in swaggerDocs.js)
-router.get('/status', authenticate, rateLimitModerate, validateTaskStatusQuery, getTasksByStatus);
+router.get(
+  '/status',
+  authenticate,
+  rateLimitModerate,
+  logTaskStatusQueryRequest,
+  validateTaskStatusQuery,
+  getTasksByStatus
+);
 
 // GET /api/tasks/statistics - Get task statistics (documented in swaggerDocs.js)
 router.get('/statistics', authenticate, rateLimitModerate, getTaskStatistics);
@@ -70,7 +79,15 @@ router.post('/', authenticate, rateLimitStrict, validateTaskCreation, createTask
 router.put('/:taskId', authenticate, rateLimitStrict, validateTaskId, validateTaskUpdate, updateTask);
 
 // PATCH /api/tasks/:taskId/status - Update task status (documented in swaggerDocs.js)
-router.patch('/:taskId/status', authenticate, rateLimitStrict, validateTaskId, validateTaskStatusUpdate, updateTaskStatus);
+router.patch(
+  '/:taskId/status',
+  authenticate,
+  rateLimitStrict,
+  logTaskStatusUpdateRequest,
+  validateTaskId,
+  validateTaskStatusUpdate,
+  updateTaskStatus
+);
 
 // DELETE /api/tasks/:taskId - Delete task (documented in swaggerDocs.js)
 router.delete('/:taskId', authenticate, rateLimitStrict, validateTaskId, deleteTask);

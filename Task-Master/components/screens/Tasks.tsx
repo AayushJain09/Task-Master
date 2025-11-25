@@ -766,11 +766,11 @@ const Tasks: React.FC<TasksScreenProps> = ({
     try {
       setGlobalLoading(prev => ({ ...prev, updating: true }));
       setGlobalErrors(prev => ({ ...prev, update: null }));
-      console.log('[TasksScreen] handleMoveTask -> request', { taskId, newStatus });
+      // console.log('[TasksScreen] handleMoveTask -> request', { taskId, newStatus });
 
       // Update task status via API
       const response = await tasksService.updateTaskStatus(taskId, newStatus);
-      console.log('[TasksScreen] handleMoveTask -> response', response);
+      // console.log('[TasksScreen] handleMoveTask -> response', response);
 
       // Update column states with the updated task
       updateTaskInColumnState(response.task);

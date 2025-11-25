@@ -10,6 +10,13 @@
 const { body, param, query } = require('express-validator');
 const mongoose = require('mongoose');
 
+const createValidationLogger = (label) => (req, res, next) => {
+  if (process.env.NODE_ENV !== 'test') {
+    console.log(`[Validator:${label}] params:`, req.params, 'query:', req.query, 'body:', req.body);
+  }
+  next();
+};
+
 /**
  * Task Creation Validation Rules
  *
@@ -639,4 +646,6 @@ module.exports = {
   validateBulkTaskOperation,
   validateTaskAssignment,
   validateOverdueTasksByStatusQuery,
+  logTaskStatusUpdateRequest: createValidationLogger('TaskStatusUpdate'),
+  logTaskStatusQueryRequest: createValidationLogger('TaskStatusQuery'),
 };
