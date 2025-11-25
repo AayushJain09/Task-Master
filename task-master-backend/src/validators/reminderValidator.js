@@ -52,6 +52,17 @@ const validateReminderQuery = [
     .isLength({ max: 60 }),
 ];
 
+const validateReminderOccurrencesQuery = [
+  query('from')
+    .optional()
+    .isISO8601()
+    .withMessage('from must be a valid ISO date'),
+  query('to')
+    .optional()
+    .isISO8601()
+    .withMessage('to must be a valid ISO date'),
+];
+
 const baseReminderBody = [
   body('title')
     .notEmpty()
@@ -87,7 +98,7 @@ const baseReminderBody = [
     .isObject(),
   body('recurrence.cadence')
     .optional()
-    .isIn(['none', 'daily', 'weekly', 'custom']),
+    .isIn(['none', 'daily', 'weekly', 'monthly']),
   body('recurrence.interval')
     .optional()
     .isInt({ min: 1, max: 365 }),
@@ -97,10 +108,6 @@ const baseReminderBody = [
   body('recurrence.daysOfWeek.*')
     .optional()
     .isInt({ min: 0, max: 6 }),
-  body('recurrence.customRule')
-    .optional()
-    .isString()
-    .isLength({ max: 280 }),
   body('recurrence.anchorDate')
     .optional()
     .isISO8601(),
@@ -118,11 +125,10 @@ const validateReminderUpdate = [
   body('tags').optional().isArray({ max: 20 }),
   body('tags.*').optional().isString().isLength({ min: 1, max: 30 }),
   body('recurrence').optional().isObject(),
-  body('recurrence.cadence').optional().isIn(['none', 'daily', 'weekly', 'custom']),
+  body('recurrence.cadence').optional().isIn(['none', 'daily', 'weekly', 'monthly']),
   body('recurrence.interval').optional().isInt({ min: 1, max: 365 }),
   body('recurrence.daysOfWeek').optional().isArray({ max: 7 }),
   body('recurrence.daysOfWeek.*').optional().isInt({ min: 0, max: 6 }),
-  body('recurrence.customRule').optional().isString().isLength({ max: 280 }),
   body('recurrence.anchorDate').optional().isISO8601(),
 ];
 
@@ -157,6 +163,7 @@ const validateSyncPayload = [
 module.exports = {
   validateReminderId,
   validateReminderQuery,
+  validateReminderOccurrencesQuery,
   validateReminderCreation,
   validateReminderUpdate,
   validateSyncPayload,

@@ -15,7 +15,7 @@ const recurrenceSchema = new mongoose.Schema(
   {
     cadence: {
       type: String,
-      enum: ['none', 'daily', 'weekly', 'custom'],
+      enum: ['none', 'daily', 'weekly', 'monthly'],
       default: 'none',
     },
     interval: {
@@ -31,12 +31,6 @@ const recurrenceSchema = new mongoose.Schema(
         message: 'daysOfWeek must be integers between 0 (Sunday) and 6 (Saturday)',
       },
       default: [],
-    },
-    customRule: {
-      type: String,
-      trim: true,
-      maxlength: 280,
-      default: '',
     },
     anchorDate: {
       type: Date,

@@ -109,6 +109,88 @@
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  *
+ * /reminders/occurrences:
+ *   get:
+ *     summary: Expand reminder occurrences within a date window
+ *     description: |
+ *       Returns concrete reminder occurrences (including recurring rules) between the requested
+ *       `from` and `to` timestamps so clients can render long-range calendars without local expansion.
+ *     tags: [Reminders]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: from
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Inclusive lower bound for occurrence expansion (defaults to now)
+ *       - in: query
+ *         name: to
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: Inclusive upper bound for occurrence expansion (max window 18 months)
+ *     responses:
+ *       200:
+ *         description: Occurrences retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       reminderId:
+ *                         type: string
+ *                       title:
+ *                         type: string
+ *                       category:
+ *                         type: string
+ *                       priority:
+ *                         type: string
+ *                       status:
+ *                         type: string
+ *                       timezone:
+ *                         type: string
+ *                       occurrenceDate:
+ *                         type: string
+ *                         format: date-time
+ *                       localDate:
+ *                         type: string
+ *                         example: '2024-07-01'
+ *                       localTime:
+ *                         type: string
+ *                         example: '09:00'
+ *                       localDateTimeDisplay:
+ *                         type: string
+ *                         example: 'Jul 1, 2024, 9:00 AM'
+ *                       occurrenceKey:
+ *                         type: string
+ *                         description: Unique key for this occurrence (reminderId-date-time)
+ *                 meta:
+ *                   type: object
+ *                   properties:
+ *                     from:
+ *                       type: string
+ *                       format: date-time
+ *                     to:
+ *                       type: string
+ *                       format: date-time
+ *       400:
+ *         description: Invalid or too-large window
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ *
  *   post:
  *     summary: Create a reminder
  *     description: Creates a reminder with explicit scheduling data. Use this when the user fills a structured form.

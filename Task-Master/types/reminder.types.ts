@@ -10,10 +10,9 @@ export type ReminderPriority = 'low' | 'medium' | 'high' | 'critical';
 export type ReminderStatus = 'pending' | 'completed' | 'cancelled';
 
 export interface ReminderRecurrence {
-  cadence: 'none' | 'daily' | 'weekly' | 'custom';
+  cadence: 'none' | 'daily' | 'weekly' | 'monthly';
   interval?: number;
   daysOfWeek?: number[];
-  customRule?: string;
   anchorDate?: string | null;
 }
 
@@ -98,4 +97,19 @@ export interface ReminderError {
   message: string;
   code: ReminderErrorCode;
   details?: any;
+}
+
+export interface ReminderOccurrence {
+  reminderId: string;
+  occurrenceDate: string; // UTC ISO
+  localDate: string;
+  localTime: string;
+  localDateTimeISO?: string;
+  localDateTimeDisplay?: string;
+  timezone: string;
+  title: string;
+  category: ReminderCategory;
+  priority?: ReminderPriority;
+  status?: ReminderStatus;
+  occurrenceKey: string;
 }

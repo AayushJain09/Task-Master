@@ -19,6 +19,7 @@ const {
   ensureTimeZone,
   isDateOnlyString,
 } = require('../utils/timezone');
+const { expandReminderOccurrences } = require('../utils/recurrence');
 
 const pickReminderFields = (payload = {}) => {
   const sanitized = {};
@@ -44,12 +45,90 @@ const pickReminderFields = (payload = {}) => {
       daysOfWeek: Array.isArray(payload.recurrence.daysOfWeek)
         ? payload.recurrence.daysOfWeek.map(Number).filter(day => day >= 0 && day <= 6)
         : [],
-      customRule: payload.recurrence.customRule || '',
       anchorDate: payload.recurrence.anchorDate ? new Date(payload.recurrence.anchorDate) : null,
     };
   }
 
   return sanitized;
+};
+
+/**
+ * GET /api/reminders/occurrences
+ *
+ * Returns expanded reminder occurrences within a requested window so clients
+ * can render long-range calendars without local horizon limits.
+ */
+const getReminderOccurrences = async (req, res) => {
+  const userId = req.user.userId;
+  const requestTimezone = req.requestedTimezone || 'UTC';
+
+  const { from, to } = req.query;
+  const windowStart = from ? new Date(from) : new Date();
+  const windowEnd = to ? new Date(to) : new Date(windowStart.getTime() + 365 * 24 * 60 * 60 * 1000);
+
+  if (Number.isNaN(windowStart.getTime()) || Number.isNaN(windowEnd.getTime())) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid date range',
+    });
+  }
+
+  // Clamp to a maximum of 18 months to prevent runaway expansions
+  const maxWindowMs = 18 * 30 * 24 * 60 * 60 * 1000;
+  if (windowEnd.getTime() - windowStart.getTime() > maxWindowMs) {
+    return res.status(400).json({
+      success: false,
+      message: 'Date range too large. Please request 18 months or less.',
+    });
+  }
+
+  try {
+    const reminders = await Reminder.find({
+      user: userId,
+      isDeleted: false,
+    }).lean();
+
+    const occurrences = [];
+    reminders.forEach(reminder => {
+      const expanded = expandReminderOccurrences(reminder, windowStart, windowEnd);
+      expanded.forEach(entry => {
+        if (!entry.localMeta) return;
+        occurrences.push({
+          reminderId: reminder._id.toString(),
+          title: reminder.title,
+          category: reminder.category || 'personal',
+          priority: reminder.priority || 'medium',
+          status: reminder.status || 'pending',
+          timezone: reminder.timezone || requestTimezone,
+          occurrenceDate: entry.occurrenceDate,
+          localDate: entry.localMeta.localDate,
+          localTime: entry.localMeta.localTime,
+          localDateTimeISO: entry.localMeta.localDateTimeISO,
+          localDateTimeDisplay: entry.localMeta.localDateTimeDisplay,
+          occurrenceKey: `${reminder._id.toString()}-${entry.localMeta.localDate}-${entry.localMeta.localTime}`,
+        });
+      });
+    });
+
+    occurrences.sort((a, b) => new Date(a.occurrenceDate) - new Date(b.occurrenceDate));
+
+    res.status(200).json({
+      success: true,
+      message: 'Occurrences retrieved successfully',
+      data: occurrences,
+      meta: {
+        from: windowStart,
+        to: windowEnd,
+        timezone: requestTimezone,
+      },
+    });
+  } catch (error) {
+    console.error('Failed to fetch reminder occurrences:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Unable to retrieve occurrences',
+    });
+  }
 };
 
 const toPlainReminder = (reminder) => {
@@ -206,14 +285,14 @@ const createReminder = async (req, res) => {
     });
     const sanitizedFields = pickReminderFields(req.body);
     if (
-      sanitizedFields.recurrence &&
-      sanitizedFields.recurrence.cadence &&
-      sanitizedFields.recurrence.cadence !== 'none' &&
-      !sanitizedFields.recurrence.anchorDate
-    ) {
-      // Default the recurrence anchor to the first scheduled occurrence
-      sanitizedFields.recurrence.anchorDate = normalizedScheduledAt;
-    }
+    sanitizedFields.recurrence &&
+    sanitizedFields.recurrence.cadence &&
+    sanitizedFields.recurrence.cadence !== 'none' &&
+    !sanitizedFields.recurrence.anchorDate
+  ) {
+    // Default the recurrence anchor to the first scheduled occurrence
+    sanitizedFields.recurrence.anchorDate = normalizedScheduledAt;
+  }
     const reminder = await Reminder.create({
       user: userId,
       title,
@@ -505,4 +584,5 @@ module.exports = {
   updateReminder,
   deleteReminder,
   syncReminders,
+  getReminderOccurrences,
 };

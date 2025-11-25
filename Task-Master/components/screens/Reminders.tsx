@@ -30,7 +30,7 @@ import {
   formatRelativeLabel,
 } from './reminders/utils';
 import { remindersService } from '@/services/reminders.service';
-import type { Reminder, ReminderCategory } from '@/types/reminder.types';
+import type { Reminder, ReminderCategory, ReminderOccurrence } from '@/types/reminder.types';
 import {
   convertLocalDateTimeToISO,
   getDeviceTimezone,
@@ -44,6 +44,7 @@ export default function Reminders() {
   const [sheetOpen, setSheetOpen] = useState<boolean>(false);
   const [activeFilter, setActiveFilter] = useState<'all' | ReminderCategory>('all');
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [occurrences, setOccurrences] = useState<ReminderOccurrence[]>([]);
   const [isLoadingReminders, setIsLoadingReminders] = useState<boolean>(true);
   const [remindersError, setRemindersError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -57,6 +58,16 @@ export default function Reminders() {
   const sheetAnim = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
   const deviceTimeZone = useMemo(() => getDeviceTimezone(), []);
+
+  const buildWindowForDate = (dateISO: string) => {
+    const candidate = new Date(`${dateISO}T00:00:00Z`);
+    const base = Number.isNaN(candidate.getTime()) ? new Date() : candidate;
+    const from = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), 1));
+    const to = new Date(Date.UTC(base.getUTCFullYear() + 1, base.getUTCMonth(), 1));
+    return { from: from.toISOString(), to: to.toISOString() };
+  };
+
+  const [occurrenceWindow, setOccurrenceWindow] = useState(() => buildWindowForDate(formatDateKey(new Date())));
 
   const fetchReminders = useCallback(async (options?: { silent?: boolean }) => {
     try {
@@ -77,12 +88,18 @@ export default function Reminders() {
     }
   }, []);
 
+  const fetchOccurrences = useCallback(async () => {
+    try {
+      const data = await remindersService.getOccurrences(occurrenceWindow.from, occurrenceWindow.to);
+      setOccurrences(data);
+    } catch (error) {
+      console.warn('Failed to load reminder occurrences', error);
+    }
+  }, [occurrenceWindow]);
+
   const reminderStubs = useMemo(
-    () =>
-      reminders.flatMap(reminder =>
-        expandReminderOccurrences(reminder, deviceTimeZone)
-      ),
-    [reminders, deviceTimeZone]
+    () => occurrences.map(occ => mapOccurrenceToStub(occ, deviceTimeZone)),
+    [occurrences, deviceTimeZone]
   );
 
   const defaultReminderSeed = useMemo<Partial<ReminderFormValues>>(() => {
@@ -94,7 +111,7 @@ export default function Reminders() {
       priority: 'medium',
       timezone: deviceTimeZone,
       tags: [],
-      recurrence: { cadence: 'none', interval: 1, daysOfWeek: [], anchorDate: null, customRule: '' },
+      recurrence: { cadence: 'none', interval: 1, daysOfWeek: [], anchorDate: null },
     };
   }, [activeFilter, selectedDate, deviceTimeZone]);
 
@@ -113,7 +130,7 @@ export default function Reminders() {
     Object.entries(remindersByDate).forEach(([key, reminders]) => {
       marks[key] = {
         dots: reminders.slice(0, 3).map(reminder => ({
-          key: `${key}-${reminder.id}`,
+          key: `${key}-${reminder.occurrenceKey}`,
           color: palette[reminder.category],
         })),
       };
@@ -226,15 +243,39 @@ export default function Reminders() {
     fetchReminders();
   }, [fetchReminders]);
 
+  useEffect(() => {
+    fetchOccurrences();
+  }, [fetchOccurrences]);
+
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
     fetchReminders({ silent: true });
-  }, [fetchReminders]);
+    fetchOccurrences();
+  }, [fetchReminders, fetchOccurrences]);
 
   const handleDayPress = (day: DateObject) => {
+    const dayISO = day.dateString;
+    const windowStart = new Date(occurrenceWindow.from);
+    const windowEnd = new Date(occurrenceWindow.to);
+    const selected = new Date(`${dayISO}T00:00:00Z`);
+    if (selected < windowStart || selected > windowEnd) {
+      const nextWindow = buildWindowForDate(dayISO);
+      setOccurrenceWindow(nextWindow);
+    }
     setSelectedDate(day.dateString);
     setSheetOpen(true);
   };
+
+  const handleMonthChange = useCallback(
+    (month: DateObject) => {
+      const iso = `${month.year}-${String(month.month).padStart(2, '0')}-01`;
+      const monthStart = new Date(`${iso}T00:00:00Z`);
+      if (monthStart < new Date(occurrenceWindow.from) || monthStart > new Date(occurrenceWindow.to)) {
+        setOccurrenceWindow(buildWindowForDate(iso));
+      }
+    },
+    [occurrenceWindow]
+  );
 
   const openFormModal = useCallback(
     (mode: 'create' | 'edit', initial?: Partial<ReminderFormValues>) => {
@@ -243,7 +284,7 @@ export default function Reminders() {
         timezone: deviceTimeZone,
         priority: 'medium',
         tags: [],
-        recurrence: { cadence: 'none', interval: 1, daysOfWeek: [], anchorDate: null, customRule: '' },
+        recurrence: { cadence: 'none', interval: 1, daysOfWeek: [], anchorDate: null },
         ...initial,
       });
       setFormVisible(true);
@@ -292,6 +333,7 @@ export default function Reminders() {
           setDetailsVisible(false);
           setDetailsReminder(null);
         }
+        fetchOccurrences();
       } catch (error) {
         const message =
           (error as { message?: string })?.message || 'Unable to delete reminder. Please try again.';
@@ -300,7 +342,7 @@ export default function Reminders() {
         setDeletingReminderId(null);
       }
     },
-    [detailsReminder]
+    [detailsReminder, fetchOccurrences]
   );
 
   const handleDeleteReminderRequest = useCallback(
@@ -341,7 +383,6 @@ export default function Reminders() {
                 values.recurrence.cadence === 'weekly'
                   ? values.recurrence.daysOfWeek || []
                   : undefined,
-              customRule: values.recurrence.customRule,
               anchorDate: scheduledAt,
             }
           : undefined;
@@ -380,6 +421,14 @@ export default function Reminders() {
         );
         const targetDate =
           savedReminder.localScheduledDate || formatDateKey(new Date(savedReminder.scheduledAt));
+    const windowCoversTarget =
+      new Date(`${targetDate}T00:00:00Z`) >= new Date(occurrenceWindow.from) &&
+      new Date(`${targetDate}T00:00:00Z`) <= new Date(occurrenceWindow.to);
+    if (!windowCoversTarget) {
+      setOccurrenceWindow(buildWindowForDate(targetDate));
+    } else {
+      fetchOccurrences();
+    }
         setSelectedDate(targetDate);
         setSheetOpen(true);
         handleModalClose();
@@ -391,7 +440,7 @@ export default function Reminders() {
         setIsSubmittingReminder(false);
       }
     },
-    [deviceTimeZone, handleModalClose]
+    [deviceTimeZone, handleModalClose, fetchOccurrences, occurrenceWindow]
   );
 
   return (
@@ -464,7 +513,12 @@ export default function Reminders() {
                 <Text style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '700' }}>+</Text>
               </View>
             </TouchableOpacity>
-            <CalendarCard isDark={isDark} markedDates={markedDates} onDayPress={handleDayPress} />
+            <CalendarCard
+              isDark={isDark}
+              markedDates={markedDates}
+              onDayPress={handleDayPress}
+              onMonthChange={handleMonthChange}
+            />
             <ReminderFilters
               isDark={isDark}
               options={filterOptions}
@@ -536,35 +590,36 @@ function buildScheduledAtISO(date: string, time: string, timezone: string): stri
   }
 }
 
-const MS_IN_DAY = 24 * 60 * 60 * 1000;
-
 function formatTimeKeyFromDate(date: Date): string {
   const hours = String(date.getHours()).padStart(2, '0');
   const minutes = String(date.getMinutes()).padStart(2, '0');
   return `${hours}:${minutes}`;
 }
 
-function mapReminderToStub(reminder: Reminder, fallbackTimezone: string): ReminderStub {
-  const scheduledUtc = reminder.scheduledAt;
-  const timezone = reminder.localTimezone || reminder.timezone || fallbackTimezone;
-  const scheduledDate = reminder.localScheduledDate || formatDateKey(new Date(scheduledUtc));
-  const scheduledTime = reminder.localScheduledTime || formatTimeKeyFromDate(new Date(scheduledUtc));
+function mapOccurrenceToStub(occurrence: ReminderOccurrence, fallbackTimezone: string): ReminderStub {
+  const timezone = occurrence.timezone || fallbackTimezone;
+  const scheduledUtc = occurrence.occurrenceDate;
+  const scheduledDate = occurrence.localDate || formatDateKey(new Date(scheduledUtc));
+  const scheduledTime = occurrence.localTime || formatTimeKeyFromDate(new Date(scheduledUtc));
   const timeDisplay =
+    occurrence.localDateTimeDisplay ||
     formatDateTimeInTimeZone(scheduledUtc, timezone, {
       hour: 'numeric',
       minute: '2-digit',
-    }) || scheduledTime;
+    }) ||
+    scheduledTime;
 
   return {
-    id: reminder.id,
-    title: reminder.title,
+    id: occurrence.reminderId,
+    occurrenceKey: occurrence.occurrenceKey,
+    title: occurrence.title,
     date: scheduledDate,
     time: scheduledTime,
     timeDisplay,
     timezone,
     scheduledAtUtc: scheduledUtc,
-    localDisplay: reminder.localScheduledDateTimeDisplay,
-    category: (reminder.category || 'personal') as ReminderCategory,
+    localDisplay: occurrence.localDateTimeDisplay,
+    category: occurrence.category as ReminderCategory,
   };
 }
 
@@ -590,83 +645,6 @@ function mapReminderToFormValues(reminder: Reminder, fallbackTimezone: string): 
         interval: 1,
         daysOfWeek: [],
         anchorDate: null,
-        customRule: '',
       },
   };
-}
-
-function shiftDateKeepTime(date: Date, days: number): Date {
-  return new Date(date.getTime() + days * MS_IN_DAY);
-}
-
-function buildOccurrenceDate(
-  reminder: Reminder,
-  baseDate: Date,
-  daysOffset: number,
-  fallbackTimezone: string
-): ReminderStub {
-  const occurrenceDate = shiftDateKeepTime(baseDate, daysOffset);
-  const iso = occurrenceDate.toISOString();
-  const timezone = reminder.localTimezone || reminder.timezone || fallbackTimezone;
-  const scheduledDate = formatDateKey(occurrenceDate);
-  const scheduledTime = formatTimeKeyFromDate(occurrenceDate);
-  const timeDisplay =
-    formatDateTimeInTimeZone(iso, timezone, {
-      hour: 'numeric',
-      minute: '2-digit',
-    }) || scheduledTime;
-
-  return {
-    id: reminder.id,
-    title: reminder.title,
-    date: scheduledDate,
-    time: scheduledTime,
-    timeDisplay,
-    timezone,
-    scheduledAtUtc: iso,
-    localDisplay: reminder.localScheduledDateTimeDisplay,
-    category: (reminder.category || 'personal') as ReminderCategory,
-  };
-}
-
-function expandReminderOccurrences(reminder: Reminder, fallbackTimezone: string): ReminderStub[] {
-  const recurrence = reminder.recurrence;
-  if (!recurrence || recurrence.cadence === 'none') {
-    return [mapReminderToStub(reminder, fallbackTimezone)];
-  }
-
-  const maxOccurrences = 60; // cap to avoid runaway expansion
-  const horizonDays = 120; // ~4 months lookahead for calendar/list
-  const baseDate = reminder.localScheduledDate
-    ? new Date(`${reminder.localScheduledDate}T${reminder.localScheduledTime || '00:00'}:00Z`)
-    : new Date(reminder.scheduledAt);
-  const occurrences: ReminderStub[] = [];
-
-  if (recurrence.cadence === 'daily') {
-    const interval = Math.max(1, recurrence.interval || 1);
-    for (let day = 0; day <= horizonDays && occurrences.length < maxOccurrences; day += interval) {
-      occurrences.push(buildOccurrenceDate(reminder, baseDate, day, fallbackTimezone));
-    }
-    return occurrences;
-  }
-
-  if (recurrence.cadence === 'weekly') {
-    const intervalWeeks = Math.max(1, recurrence.interval || 1);
-    const daysOfWeek = (recurrence.daysOfWeek && recurrence.daysOfWeek.length > 0)
-      ? recurrence.daysOfWeek
-      : [baseDate.getUTCDay()];
-
-    for (let day = 0; day <= horizonDays && occurrences.length < maxOccurrences; day += 1) {
-      const target = shiftDateKeepTime(baseDate, day);
-      const diffDays = Math.floor((target.getTime() - baseDate.getTime()) / MS_IN_DAY);
-      const weeksSinceAnchor = Math.floor(diffDays / 7);
-      if (weeksSinceAnchor >= 0 && weeksSinceAnchor % intervalWeeks === 0 && daysOfWeek.includes(target.getUTCDay())) {
-        occurrences.push(buildOccurrenceDate(reminder, baseDate, day, fallbackTimezone));
-      }
-    }
-    return occurrences;
-  }
-
-  // For custom/other cadences, show the single anchor occurrence.
-  return [mapReminderToStub(reminder, fallbackTimezone)];
 }

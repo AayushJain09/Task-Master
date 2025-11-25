@@ -56,7 +56,7 @@ export const UpcomingList: React.FC<UpcomingListProps> = ({
   return (
     <View style={{ marginTop: 12, gap: 12 }}>
       {items.map(item => (
-        <Pressable key={item.reminder.id} onPress={() => onReminderPress?.(item.reminder)}>
+        <Pressable key={item.reminder.occurrenceKey} onPress={() => onReminderPress?.(item.reminder)}>
           <LinearGradient
             colors={isDark ? ['#0B1220', '#050B15'] : ['#FFFFFF', '#F8FBFF']}
             start={{ x: 0, y: 0 }}

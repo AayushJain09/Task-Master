@@ -2,6 +2,7 @@ import type { ReminderCategory } from '@/types/reminder.types';
 
 export type ReminderStub = {
   id: string;
+  occurrenceKey: string;
   title: string;
   date: string; // Local YYYY-MM-DD
   time: string; // 24h HH:mm representation in local timezone

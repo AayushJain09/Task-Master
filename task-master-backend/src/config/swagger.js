@@ -835,7 +835,7 @@ const swaggerDefinition = {
         properties: {
           cadence: {
             type: 'string',
-            enum: ['none', 'daily', 'weekly', 'custom'],
+            enum: ['none', 'daily', 'weekly', 'monthly'],
             example: 'weekly',
           },
           interval: {
@@ -853,11 +853,6 @@ const swaggerDefinition = {
             },
             example: [1, 3, 5],
             description: 'Day indexes (0=Sunday ... 6=Saturday) when cadence=weekly',
-          },
-          customRule: {
-            type: 'string',
-            description: 'Optional cron-like rule for custom cadences',
-            example: '0 9 1 * *',
           },
           anchorDate: {
             type: 'string',

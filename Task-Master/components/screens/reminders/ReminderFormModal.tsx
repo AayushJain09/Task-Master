@@ -98,7 +98,7 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
     timezone: defaultTimezone,
     notes: '',
     tags: [],
-    recurrence: { cadence: 'none', interval: 1, daysOfWeek: [], anchorDate: null, customRule: '' },
+    recurrence: { cadence: 'none', interval: 1, daysOfWeek: [], anchorDate: null },
   });
   const [tagDraft, setTagDraft] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -123,7 +123,7 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
         tags: payload.tags ?? [],
         recurrence:
           payload.recurrence ??
-          { cadence: 'none', interval: 1, daysOfWeek: [], anchorDate: null, customRule: '' },
+          { cadence: 'none', interval: 1, daysOfWeek: [], anchorDate: null },
       });
       setErrors({});
       setGeneralError(null);
@@ -146,7 +146,7 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
       { key: 'none' as ReminderRecurrence['cadence'], label: 'One-time', accent: '#94A3B8' },
       { key: 'daily' as ReminderRecurrence['cadence'], label: 'Daily', accent: '#22C55E' },
       { key: 'weekly' as ReminderRecurrence['cadence'], label: 'Weekly', accent: '#2563EB' },
-      { key: 'custom' as ReminderRecurrence['cadence'], label: 'Custom', accent: '#F59E0B' },
+      { key: 'monthly' as ReminderRecurrence['cadence'], label: 'Monthly', accent: '#F59E0B' },
     ],
     []
   );
@@ -218,9 +218,6 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
         (!formValues.recurrence.daysOfWeek || formValues.recurrence.daysOfWeek.length === 0)
       ) {
         nextErrors.recurrence = 'Pick at least one weekday.';
-      }
-      if (formValues.recurrence.cadence === 'custom' && !formValues.recurrence.customRule?.trim()) {
-        nextErrors.recurrence = 'Provide a custom rule or note.';
       }
     }
 
@@ -478,31 +475,33 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
                         },
                       ]}
                     >
-                      {formValues.recurrence?.cadence !== 'custom' ? (
-                        <View style={styles.intervalRow}>
-                          <Text style={{ color: isDark ? '#CBD5E1' : '#0F172A' }}>Every</Text>
-                          <TextInput
-                            keyboardType="number-pad"
-                            value={String(formValues.recurrence?.interval ?? 1)}
-                            onChangeText={text =>
-                              handleRecurrenceChange({
-                                interval: Math.max(1, parseInt(text || '1', 10) || 1),
-                              })
-                            }
-                            style={[
-                              styles.intervalInput,
-                              {
-                                color: isDark ? '#F8FAFC' : '#0F172A',
-                                backgroundColor: isDark ? 'rgba(15,23,42,0.65)' : '#FFFFFF',
-                                borderColor: isDark ? 'rgba(148,163,184,0.25)' : 'rgba(15,23,42,0.08)',
-                              },
-                            ]}
-                          />
-                          <Text style={{ color: isDark ? '#CBD5E1' : '#0F172A', textTransform: 'lowercase' }}>
-                            {formValues.recurrence?.cadence === 'weekly' ? 'week(s)' : 'day(s)'}
-                          </Text>
-                        </View>
-                      ) : null}
+                      <View style={styles.intervalRow}>
+                        <Text style={{ color: isDark ? '#CBD5E1' : '#0F172A' }}>Every</Text>
+                        <TextInput
+                          keyboardType="number-pad"
+                          value={String(formValues.recurrence?.interval ?? 1)}
+                          onChangeText={text =>
+                            handleRecurrenceChange({
+                              interval: Math.max(1, parseInt(text || '1', 10) || 1),
+                            })
+                          }
+                          style={[
+                            styles.intervalInput,
+                            {
+                              color: isDark ? '#F8FAFC' : '#0F172A',
+                              backgroundColor: isDark ? 'rgba(15,23,42,0.65)' : '#FFFFFF',
+                              borderColor: isDark ? 'rgba(148,163,184,0.25)' : 'rgba(15,23,42,0.08)',
+                            },
+                          ]}
+                        />
+                        <Text style={{ color: isDark ? '#CBD5E1' : '#0F172A', textTransform: 'lowercase' }}>
+                          {formValues.recurrence?.cadence === 'weekly'
+                            ? 'week(s)'
+                            : formValues.recurrence?.cadence === 'monthly'
+                            ? 'month(s)'
+                            : 'day(s)'}
+                        </Text>
+                      </View>
 
                       {formValues.recurrence?.cadence === 'weekly' ? (
                         <View style={[styles.pillRow, { marginTop: 10 }]}>
@@ -529,29 +528,6 @@ export const ReminderFormModal: React.FC<ReminderFormModalProps> = ({
                               </Pressable>
                             );
                           })}
-                        </View>
-                      ) : null}
-
-                      {formValues.recurrence?.cadence === 'custom' ? (
-                        <View style={{ marginTop: 10 }}>
-                          <Text style={{ color: isDark ? '#CBD5E1' : '#0F172A', marginBottom: 6 }}>
-                            Custom rule or note (cron-like or human text)
-                          </Text>
-                          <TextInput
-                            placeholder="e.g. 0 9 1 * * or 'First Monday each month'"
-                            placeholderTextColor={isDark ? '#4B5563' : '#94A3B8'}
-                            value={formValues.recurrence?.customRule || ''}
-                            onChangeText={text => handleRecurrenceChange({ customRule: text })}
-                            style={[
-                              styles.customRuleInput,
-                              {
-                                color: isDark ? '#F8FAFC' : '#0F172A',
-                                backgroundColor: isDark ? 'rgba(15,23,42,0.65)' : '#FFFFFF',
-                                borderColor: isDark ? 'rgba(148,163,184,0.25)' : 'rgba(15,23,42,0.08)',
-                              },
-                            ]}
-                            multiline
-                          />
                         </View>
                       ) : null}
 
@@ -785,14 +761,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     textAlign: 'center',
     fontWeight: '700',
-  },
-  customRuleInput: {
-    minHeight: 60,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    textAlignVertical: 'top',
   },
   notesInput: {
     minHeight: 110,

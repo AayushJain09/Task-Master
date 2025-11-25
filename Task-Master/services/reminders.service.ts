@@ -14,6 +14,7 @@ import {
   ReminderListResponse,
   ReminderQueryParams,
   ReminderError,
+  ReminderOccurrence,
 } from '@/types/reminder.types';
 import { resolveTimezone as resolveClientTimezone } from '@/utils/timezone';
 
@@ -93,6 +94,18 @@ class RemindersService {
   async deleteReminder(reminderId: string): Promise<void> {
     try {
       await apiService.delete(`${this.baseEndpoint}/${reminderId}`);
+    } catch (error) {
+      throw this.transformError(error as ApiError);
+    }
+  }
+
+  async getOccurrences(from?: string, to?: string): Promise<ReminderOccurrence[]> {
+    try {
+      const params = new URLSearchParams();
+      if (from) params.append('from', from);
+      if (to) params.append('to', to);
+      const query = params.toString() ? `?${params.toString()}` : '';
+      return await apiService.get<ReminderOccurrence[]>(`${this.baseEndpoint}/occurrences${query}`);
     } catch (error) {
       throw this.transformError(error as ApiError);
     }

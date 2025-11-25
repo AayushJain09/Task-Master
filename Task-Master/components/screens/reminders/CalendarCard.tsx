@@ -8,9 +8,10 @@ interface CalendarCardProps {
   isDark: boolean;
   markedDates: MarkedDates;
   onDayPress: (day: DateData) => void;
+  onMonthChange?: (month: DateData) => void;
 }
 
-export const CalendarCard: React.FC<CalendarCardProps> = ({ isDark, markedDates, onDayPress }) => (
+export const CalendarCard: React.FC<CalendarCardProps> = ({ isDark, markedDates, onDayPress, onMonthChange }) => (
   <LinearGradient
     colors={isDark ? ['#0B1220', '#050B15'] : ['#FFFFFF', '#EDF2FF']}
     start={{ x: 0, y: 0 }}
@@ -36,6 +37,7 @@ export const CalendarCard: React.FC<CalendarCardProps> = ({ isDark, markedDates,
       markingType="multi-dot"
       markedDates={markedDates}
       onDayPress={onDayPress}
+      onMonthChange={onMonthChange}
       enableSwipeMonths
       hideExtraDays={false}
       theme={{

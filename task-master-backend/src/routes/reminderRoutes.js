@@ -16,6 +16,7 @@ const {
   updateReminder,
   deleteReminder,
   syncReminders,
+  getReminderOccurrences,
 } = require('../controllers/reminderController');
 
 const {
@@ -24,12 +25,20 @@ const {
   validateReminderCreation,
   validateReminderUpdate,
   validateSyncPayload,
+  validateReminderOccurrencesQuery,
 } = require('../validators/reminderValidator');
 
 const { authenticate } = require('../middleware/auth');
 const { rateLimitStrict, rateLimitModerate } = require('../middleware/rateLimiter');
 
 router.get('/', authenticate, rateLimitModerate, validateReminderQuery, getReminders);
+router.get(
+  '/occurrences',
+  authenticate,
+  rateLimitModerate,
+  validateReminderOccurrencesQuery,
+  getReminderOccurrences
+);
 
 router.post('/', authenticate, rateLimitStrict, validateReminderCreation, createReminder);
 
