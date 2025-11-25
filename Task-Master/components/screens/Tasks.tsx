@@ -766,9 +766,11 @@ const Tasks: React.FC<TasksScreenProps> = ({
     try {
       setGlobalLoading(prev => ({ ...prev, updating: true }));
       setGlobalErrors(prev => ({ ...prev, update: null }));
+      console.log('[TasksScreen] handleMoveTask -> request', { taskId, newStatus });
 
       // Update task status via API
       const response = await tasksService.updateTaskStatus(taskId, newStatus);
+      console.log('[TasksScreen] handleMoveTask -> response', response);
 
       // Update column states with the updated task
       updateTaskInColumnState(response.task);
@@ -780,7 +782,7 @@ const Tasks: React.FC<TasksScreenProps> = ({
         ...prev,
         update: taskError.message || 'Failed to update task status. Please try again.'
       }));
-      console.error('Error updating task:', taskError);
+      console.error('[TasksScreen] handleMoveTask -> error', taskError);
     } finally {
       setGlobalLoading(prev => ({ ...prev, updating: false }));
     }

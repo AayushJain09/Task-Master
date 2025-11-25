@@ -426,6 +426,7 @@ class TasksService {
         } as TaskError;
       }
 
+      console.log('[TasksService] updateTaskStatus -> request', { taskId, status });
       const response = await apiService.patch<TaskResponse>(
         `${this.baseEndpoint}/${taskId}/status`,
         {
@@ -433,8 +434,10 @@ class TasksService {
           timezone: this.resolveTimezone(),
         }
       );
+      console.log('[TasksService] updateTaskStatus -> response', response);
       return response;
     } catch (error) {
+      console.error('[TasksService] updateTaskStatus -> error', error);
       throw this.transformError(error as ApiError);
     }
   }
