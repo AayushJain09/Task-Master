@@ -105,13 +105,13 @@ export interface Task {
   category: string;
   createdAt: string;
   tags?: string[];
-  assignedTo?: {
+  assignedTo?: Array<{
     _id: string;
     firstName: string;
     lastName: string;
     email: string;
     fullName?: string;
-  };
+  }>;
   assignedBy?: {
     _id: string;
     firstName: string;
@@ -986,13 +986,38 @@ export const TaskCard: React.FC<TaskCardProps> = ({
               </View>
 
               {/* Assignment Information */}
-              {task.assignedTo && (
-                <View className="flex-row items-center">
-                  <User size={14} color={isDark ? '#9CA3AF' : '#6B7280'} />
-                  <Text className={`text-sm font-medium ml-2 ${isDark ? 'text-gray-400' : 'text-gray-500'
-                    }`}>
-                    Assigned to {task.assignedTo.fullName || `${task.assignedTo.firstName} ${task.assignedTo.lastName}`.trim()}
-                  </Text>
+              {task.assignedTo && task.assignedTo.length > 0 && (
+                <View className="mt-1">
+                  <View className="flex-row items-center mb-1">
+                    <User size={14} color={isDark ? '#9CA3AF' : '#6B7280'} />
+                    <Text className={`text-xs ml-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Assignees</Text>
+                  </View>
+                  <View className="flex-row flex-wrap" style={{ gap: 6 }}>
+                    {task.assignedTo.slice(0, 3).map(user => (
+                      <View
+                        key={user._id}
+                        className={`flex-row items-center px-2 py-1 rounded-full ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}
+                        style={{ borderWidth: 1, borderColor: isDark ? '#374151' : '#E5E7EB' }}
+                      >
+                        <Text className={`text-xs font-semibold mr-1 ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>
+                          {(user.firstName?.[0] || user.fullName?.[0] || '?').toUpperCase()}
+                        </Text>
+                        <Text className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`} numberOfLines={1}>
+                          {user.fullName}
+                        </Text>
+                      </View>
+                    ))}
+                    {task.assignedTo.length > 3 && (
+                      <View
+                        className={`px-2 py-1 rounded-full ${isDark ? 'bg-blue-900/40' : 'bg-blue-50'}`}
+                        style={{ borderWidth: 1, borderColor: isDark ? '#1D4ED8' : '#BFDBFE' }}
+                      >
+                        <Text className={`text-xs font-semibold ${isDark ? 'text-blue-200' : 'text-blue-700'}`}>
+                          +{task.assignedTo.length - 3} more
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
               )}
 

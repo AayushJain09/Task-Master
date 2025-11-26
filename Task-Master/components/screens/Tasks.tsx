@@ -73,18 +73,9 @@ import { tasksService } from '@/services/tasks.service';
 import { formatDateForAPI } from '@/utils/dateUtils';
 import { getDeviceTimezone } from '@/utils/timezone';
 
-// Import validation utilities
-import { InputSanitizer, ErrorRecovery } from '@/utils/validation';
-
 // Get device dimensions for responsive layout
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const severitySummaryTheme: Record<string, { bg: string; text: string }> = {
-  critical: { bg: '#FEE2E2', text: '#B91C1C' },
-  high: { bg: '#FEF3C7', text: '#92400E' },
-  medium: { bg: '#FFFBEB', text: '#92400E' },
-  low: { bg: '#ECFCCB', text: '#3F6212' },
-};
 const ERROR_CARD_WIDTH = Math.min(280, SCREEN_WIDTH * 0.85);
 
 /**
@@ -101,7 +92,7 @@ interface FormData {
   dueDate: string;
   tags: string[];
   estimatedHours: number;
-  assignedTo: string;
+  assignedTo: string[];
 };
 
 /**
@@ -295,20 +286,6 @@ const Tasks: React.FC<TasksScreenProps> = ({
     setShowOverdueOnly(prev => !prev);
   }, []);
 
-  const overdueSummary = useMemo(() => {
-    const total = overdueCounts.todo + overdueCounts.in_progress;
-    const severities = { critical: 0, high: 0, medium: 0, low: 0 };
-    (['todo', 'in_progress'] as KanbanColumnStatus[]).forEach(status => {
-      const breakdown = columnStates[status].overdueMetadata?.severityBreakdown;
-      if (breakdown) {
-        (Object.keys(severities) as Array<keyof typeof severities>).forEach(key => {
-          severities[key] += breakdown[key] || 0;
-        });
-      }
-    });
-    return { total, severities };
-  }, [overdueCounts, columnStates]);
-
   useEffect(() => {
     Animated.timing(overdueSwitchAnim, {
       toValue: showOverdueOnly ? 1 : 0,
@@ -389,6 +366,8 @@ const Tasks: React.FC<TasksScreenProps> = ({
           limit: 10, // Smaller page size for mobile optimization
           ...params,
         });
+
+        // console.log("response of task for the ", status, response.tasks[0])
       }
 
       const statusMetadata = response.statusMetadata || null;
@@ -556,17 +535,31 @@ const Tasks: React.FC<TasksScreenProps> = ({
    */
   const transformTaskForCard = useCallback((apiTask: Task): TaskCardType => {
     // Helper function to extract user details if populated
-    const extractUserDetails = (userRef: string | { _id: string; firstName: string; lastName: string; email: string; fullName?: string; }) => {
-      if (typeof userRef === 'object' && userRef !== null) {
-        return {
-          _id: userRef._id,
-          firstName: userRef.firstName,
-          lastName: userRef.lastName,
-          email: userRef.email,
-          fullName: userRef.fullName || `${userRef.firstName} ${userRef.lastName}`.trim(),
-        };
-      }
-      return undefined;
+    const extractUserDetailsArray = (value: any): any[] => {
+      const list = Array.isArray(value) ? value : value ? [value] : [];
+      return list
+        .map(userRef => {
+          if (typeof userRef === 'object' && userRef !== null) {
+            return {
+              _id: userRef._id,
+              firstName: userRef.firstName,
+              lastName: userRef.lastName,
+              email: userRef.email,
+              fullName: userRef.fullName || `${userRef.firstName} ${userRef.lastName}`.trim(),
+            };
+          }
+          if (typeof userRef === 'string') {
+            return {
+              _id: userRef,
+              firstName: 'Unknown',
+              lastName: '',
+              email: 'N/A',
+              fullName: 'Unknown User',
+            };
+          }
+          return null;
+        })
+        .filter(Boolean);
     };
 
     return {
@@ -584,8 +577,8 @@ const Tasks: React.FC<TasksScreenProps> = ({
       category: apiTask.category,
       createdAt: new Date(apiTask.createdAt).toLocaleDateString(),
       tags: apiTask.tags || [],
-      assignedTo: extractUserDetails(apiTask.assignedTo),
-      assignedBy: extractUserDetails(apiTask.assignedBy),
+      assignedTo: extractUserDetailsArray(apiTask.assignedTo),
+      assignedBy: extractUserDetailsArray(apiTask.assignedBy)[0],
       isOverdue: apiTask.overdueMetadata?.isOverdue ?? apiTask.isOverdue ?? false,
       overdueMetadata: apiTask.overdueMetadata,
     };
@@ -815,10 +808,11 @@ const Tasks: React.FC<TasksScreenProps> = ({
           dueDate: formData.dueDate ? formatDateForAPI(formData.dueDate, timezone) : undefined,
           tags: formData.tags && formData.tags.length > 0 ? formData.tags : undefined,
           estimatedHours: formData.estimatedHours && formData.estimatedHours > 0 ? formData.estimatedHours : undefined,
-          assignedTo: formData.assignedTo?.trim() || undefined,
+          assignedTo: formData.assignedTo && formData.assignedTo.length > 0 ? formData.assignedTo : undefined,
           timezone,
         };
 
+        console.log('Update payload:', updateData);
         const response = await tasksService.updateTask(editingTask.id, updateData);
         console.log('Update response:', response);
 
@@ -826,7 +820,7 @@ const Tasks: React.FC<TasksScreenProps> = ({
         updateTaskInColumnState(response.task);
         await refreshStatisticsSnapshot();
 
-        Alert.alert('Success', 'Task updated successfully!');
+        // Alert.alert('Success', 'Task updated successfully!');
       } else {
         setGlobalLoading(prev => ({ ...prev, creating: true }));
         setGlobalErrors(prev => ({ ...prev, create: null }));
@@ -841,10 +835,11 @@ const Tasks: React.FC<TasksScreenProps> = ({
           dueDate: formData.dueDate ? formatDateForAPI(formData.dueDate, timezone) : undefined,
           tags: formData.tags && formData.tags.length > 0 ? formData.tags : undefined,
           estimatedHours: formData.estimatedHours && formData.estimatedHours > 0 ? formData.estimatedHours : undefined,
-          assignedTo: formData.assignedTo?.trim() || undefined,
+          assignedTo: formData.assignedTo && formData.assignedTo.length > 0 ? formData.assignedTo : undefined,
           timezone,
         };
 
+        console.log('Create payload:', createData);
         const response = await tasksService.createTask(createData);
         // console.log('Create response:', response);
 

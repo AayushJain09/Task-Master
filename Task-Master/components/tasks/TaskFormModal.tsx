@@ -107,7 +107,7 @@ import { debounce } from '@/utils/debounce';
  * @property {string} dueDate - Due date in ISO format
  * @property {string[]} tags - Task tags for better organization
  * @property {number} estimatedHours - Estimated hours to complete
- * @property {string} assignedTo - User ID to assign task to
+ * @property {string[]} assignedTo - User IDs to assign task to
  */
 interface FormData {
   title: string;
@@ -117,7 +117,7 @@ interface FormData {
   dueDate: string;
   tags: string[];
   estimatedHours: number;
-  assignedTo: string;
+  assignedTo: string[];
 }
 
 /**
@@ -274,7 +274,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
     dueDate: new Date().toISOString().split('T')[0],
     tags: [],
     estimatedHours: 0,
-    assignedTo: currentUser?.id || ''
+    assignedTo: currentUser?.id ? [currentUser.id] : []
   });
 
   // Enhanced validation and error handling state
@@ -334,7 +334,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             dueDate: formattedDueDate,
             tags: editingTask.tags || [], // Use tags from editing task
             estimatedHours: editingTask.estimatedHours || 0, // Use estimated hours from editing task
-            assignedTo: currentUser?.id || '' // Will be set by backend to current user
+            assignedTo: editingTask.assignedTo?.map(a => (typeof a === 'string' ? a : a._id))?.filter(Boolean) || (currentUser?.id ? [currentUser.id] : [])
           };
         } else {
           // Try to load draft for new task creation
@@ -352,7 +352,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               dueDate: today,
               tags: [],
               estimatedHours: 0,
-              assignedTo: currentUser?.id || ''
+              assignedTo: currentUser?.id ? [currentUser.id] : []
             };
           } else {
             initialData = {
@@ -363,7 +363,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
               dueDate: today,
               tags: [],
               estimatedHours: 0,
-              assignedTo: currentUser?.id || ''
+              assignedTo: currentUser?.id ? [currentUser.id] : []
             };
           }
         }
@@ -525,9 +525,11 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
           estimatedHours: sanitizedFormData.estimatedHours > 0 
             ? sanitizedFormData.estimatedHours 
             : undefined,
-          assignedTo: sanitizedFormData.assignedTo 
-            ? InputSanitizer.sanitizeText(sanitizedFormData.assignedTo, { maxLength: 100 })
-            : currentUser?.id // Default to current user if no assignment specified
+          assignedTo: sanitizedFormData.assignedTo && sanitizedFormData.assignedTo.length > 0
+            ? sanitizedFormData.assignedTo.map(id => InputSanitizer.sanitizeText(id, { maxLength: 100 }))
+            : currentUser?.id
+              ? [currentUser.id]
+              : []
         };
         // console.log("api Data ", apiData)
         
@@ -698,6 +700,13 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
           
         case 'estimatedHours':
           sanitizedValue = InputSanitizer.sanitizeNumber(value, 0, 1000) || 0;
+          break;
+        case 'assignedTo':
+          sanitizedValue = Array.isArray(value)
+            ? value.map((id: string) => InputSanitizer.sanitizeText(id, { maxLength: 100 })).filter(Boolean)
+            : value
+              ? [InputSanitizer.sanitizeText(value, { maxLength: 100 })]
+              : [];
           break;
           
         default:
@@ -1280,10 +1289,9 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({
             {/* User Assignment Field */}
             <View className="mb-4">
               <UserAssignmentDropdown
-                selectedUserId={formData.assignedTo}
-                onUserSelect={(userId, userName) => {
-                  updateFormField('assignedTo', userId);
-                }}
+                multiple
+                selectedUserIds={formData.assignedTo}
+                onUsersChange={(userIds) => updateFormField('assignedTo', userIds)}
                 placeholder="Select user to assign task"
                 showLabel={true}
                 required={false}

@@ -330,11 +330,16 @@ class TasksService {
       this.validateTaskData(taskData);
 
       // Clean up empty arrays and null values
-      const cleanTaskData = { ...taskData };
+      const cleanTaskData: any = { ...taskData };
       if (cleanTaskData.tags && cleanTaskData.tags.length === 0) {
         delete cleanTaskData.tags;
       }
       cleanTaskData.timezone = this.resolveTimezone(cleanTaskData.timezone);
+      // Duplicate field to guard against any middleware flattening arrays
+      cleanTaskData.assignees = cleanTaskData.assignedTo;
+      if (Array.isArray(cleanTaskData.assignedTo)) {
+        cleanTaskData.assigneesCsv = cleanTaskData.assignedTo.join(',');
+      }
 
       const response = await apiService.post<TaskResponse>(this.baseEndpoint, cleanTaskData);
       return response;
@@ -376,9 +381,12 @@ class TasksService {
       this.validateTaskData(taskData);
 
       console.log("edit task data", taskData)
-      const payload: UpdateTaskRequest = {
+      const payload: UpdateTaskRequest & { assignees?: string | string[]; assigneesCsv?: string } = {
         ...taskData,
         timezone: this.resolveTimezone(taskData.timezone),
+        // Duplicate field to guard against any middleware flattening arrays
+        assignees: taskData.assignedTo,
+        assigneesCsv: Array.isArray(taskData.assignedTo) ? taskData.assignedTo.join(',') : undefined,
       };
       const response = await apiService.put<TaskResponse>(`${this.baseEndpoint}/${taskId}`, payload);
       return response;

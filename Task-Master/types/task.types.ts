@@ -82,7 +82,7 @@ export interface Task {
   priority: TaskPriority;
   tags: string[];
   assignedBy: string | UserReference;
-  assignedTo: string | UserReference;
+  assignedTo: Array<string | UserReference>;
   dueDate?: string; // ISO 8601 date string
   completedAt?: string; // ISO 8601 date string
   estimatedHours?: number;
@@ -117,7 +117,7 @@ export interface CreateTaskRequest {
   title: string;
   description?: string;
   priority?: TaskPriority;
-  assignedTo?: string; // User ID, defaults to current user
+  assignedTo?: string | string[]; // User ID(s), defaults to current user
   dueDate?: string; // ISO 8601 date string
   tags?: string[];
   category?: string;
@@ -135,7 +135,7 @@ export interface UpdateTaskRequest {
   description?: string;
   status?: TaskStatus;
   priority?: TaskPriority;
-  assignedTo?: string; // User ID
+  assignedTo?: string | string[]; // User ID(s)
   dueDate?: string | null; // ISO 8601 date string or null to remove
   tags?: string[];
   category?: string;
@@ -408,7 +408,7 @@ export interface TaskFormData {
   title: string;
   description: string;
   priority: TaskPriority;
-  assignedTo: string;
+  assignedTo: string | string[];
   dueDate?: string;
   tags: string[];
   category: string;

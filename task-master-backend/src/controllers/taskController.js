@@ -96,9 +96,29 @@ const recordTaskActivity = async (params) => {
 const normalizeObjectId = (value) => {
   if (!value) return null;
   if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    const [first] = value;
+    if (!first) return null;
+    if (first._id) return first._id.toString();
+    return String(first);
+  }
   if (value._id) return value._id.toString();
   if (typeof value.toString === 'function') return value.toString();
   return String(value);
+};
+
+const normalizeObjectIdArray = (value) => {
+  if (!value) return [];
+  const list = Array.isArray(value) ? value : [value];
+  return list
+    .map((item) => {
+      if (!item) return null;
+      if (typeof item === 'string') return item;
+      if (item._id) return item._id.toString();
+      if (typeof item.toString === 'function') return item.toString();
+      return String(item);
+    })
+    .filter(Boolean);
 };
 
 const PRIVILEGED_TASK_ROLES = new Set(['admin', 'moderator']);
@@ -145,7 +165,11 @@ const hasTaskManagementPermission = (task, user = {}) => {
 
   const creatorId = normalizeObjectId(task.assignedBy);
   const requesterId = normalizeObjectId(user.userId);
-  return creatorId && requesterId && creatorId === requesterId;
+  const assigneeIds = normalizeObjectIdArray(task.assignedTo);
+  return (
+    (creatorId && requesterId && creatorId === requesterId) ||
+    (requesterId && assigneeIds.includes(requesterId))
+  );
 };
 
 /**
@@ -647,11 +671,19 @@ const createTask = async (req, res) => {
     } = req.body;
 
     // Validate assigned user exists
-    const assigneeUser = await User.findById(assignedTo || userId);
-    if (!assigneeUser) {
+    // Prefer explicit assigneesCsv (comma-separated) > assignees (array/string) > assignedTo
+    let rawAssignees = req.body.assigneesCsv || req.body.assignees || assignedTo;
+    if (typeof rawAssignees === 'string' && rawAssignees.includes(',')) {
+      rawAssignees = rawAssignees.split(',').map(val => val.trim()).filter(Boolean);
+    }
+    const assigneeIds = Array.isArray(rawAssignees) ? rawAssignees : rawAssignees ? [rawAssignees] : [userId];
+    console.log('[Tasks] create payload received', { body: req.body, assigneeIds });
+    const uniqueAssignees = [...new Set(assigneeIds.map(String))];
+    const assigneeCount = await User.countDocuments({ _id: { $in: uniqueAssignees } });
+    if (assigneeCount !== uniqueAssignees.length) {
       return res.status(404).json({
         success: false,
-        message: 'Assigned user not found',
+        message: 'One or more assigned users were not found',
       });
     }
 
@@ -661,7 +693,7 @@ const createTask = async (req, res) => {
       description: description?.trim() || '',
       priority,
       assignedBy: userId,
-      assignedTo: assignedTo || userId, // Self-assign if no assignee specified
+      assignedTo: uniqueAssignees, // Supports multi-assign; defaults to requester
       tags: Array.isArray(tags) ? tags : [],
       category: category.trim(),
     };
@@ -800,7 +832,7 @@ const updateTask = async (req, res) => {
     }
 
     const previousStatus = task.status;
-    const previousAssignee = normalizeObjectId(task.assignedTo);
+    const previousAssignees = normalizeObjectIdArray(task.assignedTo);
 
     // Extract update fields
     const {
@@ -826,15 +858,24 @@ const updateTask = async (req, res) => {
     if (tags !== undefined) updateData.tags = Array.isArray(tags) ? tags : [];
 
     // Handle user assignment
-    if (assignedTo !== undefined) {
-      const assigneeUser = await User.findById(assignedTo);
-      if (!assigneeUser) {
+    if (assignedTo !== undefined || req.body.assignees !== undefined || req.body.assigneesCsv !== undefined) {
+      let rawAssignees = req.body.assigneesCsv !== undefined
+        ? req.body.assigneesCsv
+        : (req.body.assignees !== undefined ? req.body.assignees : assignedTo);
+      if (typeof rawAssignees === 'string' && rawAssignees.includes(',')) {
+        rawAssignees = rawAssignees.split(',').map(val => val.trim()).filter(Boolean);
+      }
+      const assigneeIds = Array.isArray(rawAssignees) ? rawAssignees : [rawAssignees];
+      console.log('[Tasks] update payload received', { body: req.body, assigneeIds });
+      const uniqueAssignees = [...new Set(assigneeIds.map(String))];
+      const assigneeCount = await User.countDocuments({ _id: { $in: uniqueAssignees } });
+      if (assigneeCount !== uniqueAssignees.length) {
         return res.status(404).json({
           success: false,
-          message: 'Assigned user not found',
+          message: 'One or more assigned users were not found',
         });
       }
-      updateData.assignedTo = assignedTo;
+      updateData.assignedTo = uniqueAssignees;
     }
 
     // Handle date fields
@@ -872,9 +913,11 @@ const updateTask = async (req, res) => {
     // Populate user references for response
     await task.populate('assignedBy', 'firstName lastName email');
     await task.populate('assignedTo', 'firstName lastName email');
+    const referenceDate = getNowInTimeZone(requestTimezone).date;
+    const responseTask = enrichTaskWithTimezone(task, requestTimezone, referenceDate);
 
     const changedFields = Object.keys(updateData);
-    const currentAssignee = normalizeObjectId(task.assignedTo);
+    const currentAssignees = normalizeObjectIdArray(task.assignedTo);
 
     if (status !== undefined && status !== previousStatus) {
       const isCompletion = task.status === 'done';
@@ -892,17 +935,24 @@ const updateTask = async (req, res) => {
       });
     }
 
-    if (assignedTo !== undefined && previousAssignee !== currentAssignee) {
-      recordTaskActivity({
-        task,
-        performedBy: userId,
-        action: 'task_reassigned',
-        description: `Reassigned task "${task.title}"`,
-        metadata: {
-          previousAssignee,
-          newAssignee: currentAssignee,
-        },
-      });
+    if (assignedTo !== undefined) {
+      const prevSet = new Set(previousAssignees);
+      const currSet = new Set(currentAssignees);
+      const hasDifference =
+        previousAssignees.length !== currentAssignees.length ||
+        previousAssignees.some(id => !currSet.has(id));
+      if (hasDifference) {
+        recordTaskActivity({
+          task,
+          performedBy: userId,
+          action: 'task_reassigned',
+          description: `Reassigned task "${task.title}"`,
+          metadata: {
+            previousAssignees,
+            newAssignees: currentAssignees,
+          },
+        });
+      }
     }
 
     const genericFields = changedFields.filter(

@@ -102,20 +102,20 @@ class UsersService {
    * @param userId User ID
    * @returns Promise with user data
    */
-  async getUserById(userId: string): Promise<UserListItem> {
+  async getUserById(userId: string): Promise<UserListItem | null> {
     try {
       // For user assignment, we can search for the specific user
       // This provides consistent data format with limited fields
       const response = await this.getUsers({ search: userId, limit: 1 });
       
       if (response.users.length === 0) {
-        throw new Error('User not found');
+        return null;
       }
       
       return response.users[0];
     } catch (error) {
       console.error('Error fetching user by ID:', error);
-      throw error;
+      return null;
     }
   }
 

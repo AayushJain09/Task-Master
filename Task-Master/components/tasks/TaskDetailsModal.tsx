@@ -17,7 +17,7 @@
  * @module components/tasks/TaskDetailsModal
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -177,12 +177,12 @@ const buildOverdueDetails = (task: Task) => {
 
   const computedDaysPast = dueDate
     ? Math.max(
-        1,
-        Math.round(
-          (today.getTime() - new Date(dueDate.setHours(0, 0, 0, 0)).getTime()) /
-            (24 * 60 * 60 * 1000)
-        )
+      1,
+      Math.round(
+        (today.getTime() - new Date(dueDate.setHours(0, 0, 0, 0)).getTime()) /
+        (24 * 60 * 60 * 1000)
       )
+    )
     : 1;
 
   const daysPastDue = task.overdueMetadata?.daysPastDue ?? computedDaysPast;
@@ -207,7 +207,10 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
   task,
   onClose
 }) => {
+  // console.log("task ", task)
+  // console.log("task assignedTO", task?.assignedTo)
   const { isDark } = useTheme();
+  const [showAssigneePopover, setShowAssigneePopover] = useState(false);
 
   // Animation values
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -280,9 +283,8 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
     task.localDueDateTimeDisplay ||
     (task.localDueDate ? formatDateKeyForDisplay(task.localDueDate) : formatDate(task.dueDate));
   const dueDateSubLabel = task.localDueDate
-    ? `${formatDateKeyForDisplay(task.localDueDate)}${
-        task.localDueTime ? ` • ${task.localDueTime}` : ''
-      }${task.localTimezone ? ` (${task.localTimezone})` : ''}`
+    ? `${formatDateKeyForDisplay(task.localDueDate)}${task.localDueTime ? ` • ${task.localDueTime}` : ''
+    }${task.localTimezone ? ` (${task.localTimezone})` : ''}`
     : task.localTimezone
       ? `Timezone: ${task.localTimezone}`
       : null;
@@ -387,6 +389,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
             contentContainerStyle={{
               flexGrow: 1
             }}
+            nestedScrollEnabled={true}
           >
             {task.title && (
               <View className="px-6 pt-6">
@@ -482,24 +485,9 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                 Task Information
               </Text>
 
-              {/* Row 1: Category and Task ID */}
-              <View className="flex-row gap-3 mb-4">
-                {/* Category */}
-                <View className={`flex-1 p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-blue-50'
-                  }`}>
-                  <View className="flex-row items-center mb-1">
-                    <Tag size={14} color={isDark ? '#60A5FA' : '#3B82F6'} />
-                    <Text className={`text-xs font-medium ml-1 ${isDark ? 'text-gray-400' : 'text-blue-600'
-                      }`}>
-                      Category
-                    </Text>
-                  </View>
-                  <Text className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'
-                    }`}>
-                    {task.category}
-                  </Text>
-                </View>
-
+              {/* Row 1: Task ID and Due date*/}
+              <View className="flex-row gap-3 mb-1">
+                
                 {/* Task ID */}
                 <View className={`flex-1 p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-gray-50'
                   }`}>
@@ -515,10 +503,7 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                     #{task.id}
                   </Text>
                 </View>
-              </View>
 
-              {/* Row 2: Due Date and Created Date */}
-              <View className="flex-row gap-3 mb-4">
                 {/* Due Date */}
                 <View className={`flex-1 p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-purple-50'
                   }`}>
@@ -542,6 +527,26 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                   ) : null}
                 </View>
 
+              </View>
+
+              {/* Row 2: Category and Created Date */}
+              <View className="flex-row gap-3 mb-1">
+                {/* Category */}
+                <View className={`flex-1 p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-blue-50'
+                  }`}>
+                  <View className="flex-row items-center mb-1">
+                    <Tag size={14} color={isDark ? '#60A5FA' : '#3B82F6'} />
+                    <Text className={`text-xs font-medium ml-1 ${isDark ? 'text-gray-400' : 'text-blue-600'
+                      }`}>
+                      Category
+                    </Text>
+                  </View>
+                  <Text className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'
+                    }`}>
+                    {task.category}
+                  </Text>
+                </View>
+                
                 {/* Created Date */}
                 <View className={`flex-1 p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-green-50'
                   }`}>
@@ -591,12 +596,89 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                   </Text>
                 </View>
               )}
+              {showAssigneePopover && task.assignedTo && task.assignedTo.length > 0 && (
+                <Pressable
+                  onPress={() => setShowAssigneePopover(false)}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                  }}
+                >
+                  <Pressable
+                    onPress={(e) => e.stopPropagation()}
+                    style={{
+                      position: 'absolute',
+                      top: -30,
+                      right: 20,
+                      width: '45%',
+                      height: 220,
+                      padding: 12,
+                      borderRadius: 14,
+                      backgroundColor: isDark ? '#0F172A' : '#FFFFFF',
+                      borderWidth: 1,
+                      borderColor: isDark ? '#1F2937' : '#E5E7EB',
+                      shadowColor: '#000',
+                      shadowOpacity: 0.2,
+                      shadowRadius: 12,
+                      elevation: 10,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text className='font-normal text-sm' style={{ color: isDark ? '#E2E8F0' : '#0F172A' }}>Assignees</Text>
+                      {/* <TouchableOpacity onPress={() => setShowAssigneePopover(false)}>
+                    <X size={16} color={isDark ? '#CBD5E1' : '#475569'} />
+                  </TouchableOpacity> */}
+                    </View>
+                    <ScrollView  showsVerticalScrollIndicator={false}  style={{ flex: 1 }} nestedScrollEnabled={true}>
+                      {task.assignedTo.map(user => (
+                        <View
+                          key={user._id}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            paddingVertical: 6,
+                            borderBottomWidth: 1,
+                            borderBottomColor: isDark ? 'rgba(148,163,184,0.2)' : '#E5E7EB',
+                          }}
+                        >
+                          <View
+                            style={{
+                              width: 20,
+                              height: 20,
+                              borderRadius: 15,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginRight: 10,
+                              backgroundColor: isDark ? '#1F2937' : '#EEF2FF',
+                            }}
+                          >
+                            <Text style={{ color: isDark ? '#E2E8F0' : '#1F2937', fontWeight: '700' }}>
+                              {(user.firstName?.[0] || user.fullName?.[0] || '?').toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text className='text-sm' style={{ fontWeight: '600', color: isDark ? '#F8FAFC' : '#0F172A' }}>
+                              {user.fullName || `${user.firstName} ${user.lastName}`.trim()}
+                            </Text>
+                            <Text style={{ fontSize: 12, color: isDark ? '#94A3B8' : '#475569' }} numberOfLines={1}>
+                              {user.email}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </Pressable>
+                </Pressable>
+              )}
 
               {/* Row 3: Assigned By and Assigned To */}
-              <View className="flex-row gap-3 mb-4">
+              <View className="flex-row gap-3 mb-4 relative">
                 {/* Assigned By */}
                 {task.assignedBy && (
-                  <View className={`flex-1 p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-orange-50'
+                  <View className={`flex-1 max-w-[33%] p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-orange-50'
                     }`}>
                     <View className="flex-row items-center mb-1">
                       <User size={14} color={isDark ? '#FB923C' : '#EA580C'} />
@@ -612,8 +694,9 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                   </View>
                 )}
 
+
                 {/* Assigned To */}
-                {task.assignedTo && (
+                {task.assignedTo && task.assignedTo.length > 0 && (
                   <View className={`flex-1 p-3 rounded-xl ${isDark ? 'bg-gray-800/50' : 'bg-blue-50'
                     }`}>
                     <View className="flex-row items-center mb-1">
@@ -623,10 +706,33 @@ export const TaskDetailsModal: React.FC<TaskDetailsModalProps> = ({
                         Assigned To
                       </Text>
                     </View>
-                    <Text className={`text-sm font-bold ${isDark ? 'text-white' : 'text-gray-900'
-                      }`}>
-                      {task.assignedTo.fullName || `${task.assignedTo.firstName} ${task.assignedTo.lastName}`.trim()}
-                    </Text>
+                    <View className="flex-row flex-wrap" style={{ gap: 3 }}>
+                      {task.assignedTo.slice(0, 1).map(user => (
+                        <View
+                          key={user._id}
+                          className={`flex-row items-center px-2 py-1 rounded-full ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}
+                          style={{ borderWidth: 1, borderColor: isDark ? '#374151' : '#E5E7EB' }}
+                        >
+                          <Text className={`text-xs font-semibold mr-1 ${isDark ? 'text-gray-100' : 'text-gray-800'}`}>
+                            {(user.firstName?.[0] || user.fullName?.[0] || '?').toUpperCase()}
+                          </Text>
+                          <Text className={`text-xs ${isDark ? 'text-gray-300' : 'text-gray-700'}`} numberOfLines={1}>
+                            {user.fullName}
+                          </Text>
+                        </View>
+                      ))}
+                      {task.assignedTo.length > 4 && (
+                        <TouchableOpacity
+                          onPress={() => setShowAssigneePopover(true)}
+                          className={`px-2 py-1 rounded-full ${isDark ? 'bg-blue-900/40' : 'bg-blue-50'}`}
+                          style={{ borderWidth: 1, borderColor: isDark ? '#1D4ED8' : '#BFDBFE' }}
+                        >
+                          <Text className={`text-xs font-semibold ${isDark ? 'text-blue-200' : 'text-blue-700'}`}>
+                            +{task.assignedTo.length - 1} more
+                          </Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
                   </View>
                 )}
 

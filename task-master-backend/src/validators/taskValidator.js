@@ -46,15 +46,22 @@ const validateTaskCreation = [
     .isIn(['low', 'medium', 'high'])
     .withMessage('Priority must be one of: low, medium, high'),
 
-  // Assigned user validation (optional, defaults to current user)
-  body('assignedTo')
-    .optional()
-    .custom((value) => {
-      if (!mongoose.Types.ObjectId.isValid(value)) {
-        throw new Error('Invalid user ID format for assignedTo');
-      }
-      return true;
-    }),
+// Assigned user validation (optional, defaults to current user)
+body('assignedTo')
+  .optional()
+  .custom((value) => {
+    const values = Array.isArray(value) ? value : [value];
+    if (values.length === 0) {
+      throw new Error('assignedTo cannot be empty');
+    }
+    if (values.some(val => !mongoose.Types.ObjectId.isValid(val))) {
+      throw new Error('Invalid user ID format for assignedTo');
+    }
+    if (values.length > 20) {
+      throw new Error('assignedTo cannot have more than 20 users');
+    }
+    return true;
+  }),
 
   // Due date validation
   body('dueDate')
@@ -158,8 +165,12 @@ const validateTaskUpdate = [
   body('assignedTo')
     .optional()
     .custom((value) => {
-      if (!mongoose.Types.ObjectId.isValid(value)) {
+      const values = Array.isArray(value) ? value : [value];
+      if (values.some(val => !mongoose.Types.ObjectId.isValid(val))) {
         throw new Error('Invalid user ID format for assignedTo');
+      }
+      if (values.length > 20) {
+        throw new Error('assignedTo cannot have more than 20 users');
       }
       return true;
     }),
@@ -503,8 +514,12 @@ const validateTaskAssignment = [
     .notEmpty()
     .withMessage('Assigned user ID is required')
     .custom((value) => {
-      if (!mongoose.Types.ObjectId.isValid(value)) {
+      const values = Array.isArray(value) ? value : [value];
+      if (values.some(val => !mongoose.Types.ObjectId.isValid(val))) {
         throw new Error('Invalid user ID format for assignedTo');
+      }
+      if (values.length > 20) {
+        throw new Error('assignedTo cannot have more than 20 users');
       }
       return true;
     }),

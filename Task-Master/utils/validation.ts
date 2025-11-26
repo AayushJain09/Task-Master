@@ -329,26 +329,34 @@ export class FormValidator {
    * @param assignedTo - User ID to validate
    * @returns Validation result
    */
-  static validateAssignedTo(assignedTo: string): { isValid: boolean; error?: string; sanitized: string } {
-    // assignedTo is optional - it can be empty for unassigned tasks
-    if (!assignedTo) {
-      return { isValid: true, sanitized: '' };
+  static validateAssignedTo(assignedTo: string | string[]): { isValid: boolean; error?: string; sanitized: string[] } {
+    const ids = Array.isArray(assignedTo) ? assignedTo : assignedTo ? [assignedTo] : [];
+
+    if (ids.length === 0) {
+      return { isValid: true, sanitized: [] }; // Optional; backend defaults to requester
     }
-    
-    // Basic sanitization for user ID
-    const sanitized = InputSanitizer.sanitizeText(assignedTo, {
-      maxLength: 100,
-      allowSpecialChars: false,
-      trim: true,
-      normalizeSpaces: true
-    });
-    
-    // Basic user ID format validation (assuming MongoDB ObjectId or similar)
-    if (sanitized && !/^[a-zA-Z0-9_-]{1,100}$/.test(sanitized)) {
-      return { isValid: false, error: 'Invalid user ID format', sanitized };
+
+    const sanitizedIds: string[] = [];
+    for (const id of ids) {
+      const sanitized = InputSanitizer.sanitizeText(id, {
+        maxLength: 100,
+        allowSpecialChars: false,
+        trim: true,
+        normalizeSpaces: true
+      });
+
+      if (sanitized && !/^[a-zA-Z0-9_-]{1,100}$/.test(sanitized)) {
+        return { isValid: false, error: 'Invalid user ID format', sanitized: [] };
+      }
+      if (sanitized) sanitizedIds.push(sanitized);
     }
-    
-    return { isValid: true, sanitized };
+
+    // Enforce max assignees client-side as well
+    if (sanitizedIds.length > 20) {
+      return { isValid: false, error: 'Too many assignees (max 20)', sanitized: sanitizedIds.slice(0, 20) };
+    }
+
+    return { isValid: true, sanitized: sanitizedIds };
   }
 
   /**
@@ -423,7 +431,7 @@ export class FormValidator {
     sanitizedData.estimatedHours = hoursValidation.sanitized;
     
     // Validate assignedTo (user ID)
-    const assignedToValidation = this.validateAssignedTo(formData.assignedTo || '');
+    const assignedToValidation = this.validateAssignedTo(formData.assignedTo || []);
     if (!assignedToValidation.isValid) {
       errors.assignedTo = assignedToValidation.error;
     }

@@ -123,9 +123,15 @@ const taskSchema = new mongoose.Schema(
 
     // User who is responsible for completing the task
     assignedTo: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: [mongoose.Schema.Types.ObjectId],
       ref: 'User',
-      required: [true, 'Task must be assigned to a user'],
+      required: [true, 'Task must be assigned to at least one user'],
+      validate: {
+        validator: function (arr) {
+          return Array.isArray(arr) && arr.length > 0;
+        },
+        message: 'Task must have at least one assignee',
+      },
       index: true, // Index for efficient queries
     },
 
@@ -326,7 +332,8 @@ taskSchema.virtual('timeVariance').get(function () {
  * @returns {Promise<void>}
  */
 taskSchema.methods.assignToUser = async function (userId, assignorId) {
-  this.assignedTo = userId;
+  const list = Array.isArray(userId) ? userId : [userId];
+  this.assignedTo = list;
   this.assignedBy = assignorId;
   await this.save();
 };

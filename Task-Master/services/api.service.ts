@@ -16,6 +16,15 @@ class ApiService {
     reject: (error: any) => void;
   }> = [];
 
+  private shouldLog = __DEV__ || process.env.NODE_ENV === 'development';
+
+  private logDebug(message: string, payload?: any) {
+    if (this.shouldLog) {
+      // eslint-disable-next-line no-console
+      console.log(message, payload ?? '');
+    }
+  }
+
   constructor() {
     this.client = axios.create({
       baseURL: API_CONFIG.BASE_URL,
@@ -37,6 +46,11 @@ class ApiService {
         if (tokens.accessToken) {
           config.headers.Authorization = `Bearer ${tokens.accessToken}`;
         }
+        // this.logDebug('[API][request]', {
+        //   method: config.method?.toUpperCase(),
+        //   url: config.url,
+        //   data: config.data,
+        // });
         return config;
       },
       (error) => {
@@ -46,11 +60,23 @@ class ApiService {
 
     // Response interceptor
     this.client.interceptors.response.use(
-      (response) => response,
+      (response) => {
+        // this.logDebug('[API][response]', {
+        //   url: response.config.url,
+        //   status: response.status,
+        //   data: response.data,
+        // });
+        return response;
+      },
       async (error: AxiosError) => {
         const originalRequest = error.config as AxiosRequestConfig & {
           _retry?: boolean;
         };
+        this.logDebug('[API][error]', {
+          url: originalRequest?.url,
+          status: error.response?.status,
+          data: error.response?.data,
+        });
 
         if (error.response?.status === 401 && !originalRequest._retry) {
           if (this.isRefreshing) {
