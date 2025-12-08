@@ -16,7 +16,7 @@ const userRoutes = require('./userRoutes');
 const taskRoutes = require('./taskRoutes');
 const reminderRoutes = require('./reminderRoutes');
 const dashboardRoutes = require('./dashboardRoutes');
-
+const pushTokenRoutes = require('./pushTokenRoutes')
 /**
  * Health Check Endpoint
  *
@@ -109,6 +109,7 @@ router.use('/users', userRoutes);
 router.use('/tasks', taskRoutes);
 router.use('/reminders', reminderRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/push', pushTokenRoutes);
 
 /**
  * Add more route modules here as your application grows

@@ -5,7 +5,10 @@
  * provided window while respecting timezone and cadence semantics.
  */
 
-const { ensureTimeZone, buildLocalizedDateTimeMetadata } = require('./timezone');
+const {
+  ensureTimeZone,
+  buildLocalizedDateTimeMetadata,
+} = require("./timezone");
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
@@ -19,9 +22,13 @@ const weekdayToIndex = {
   Sat: 6,
 };
 
+// Given a UTC Date and Find the local weekday in the reminder's timezone
 const getDayInTimeZone = (date, timeZone) => {
   const safeZone = ensureTimeZone(timeZone);
-  const label = date.toLocaleDateString('en-US', { weekday: 'short', timeZone: safeZone });
+  const label = date.toLocaleDateString("en-US", {
+    weekday: "short",
+    timeZone: safeZone,
+  });
   return weekdayToIndex[label] ?? date.getUTCDay();
 };
 
@@ -38,13 +45,17 @@ const expandReminderOccurrences = (reminder, windowStart, windowEnd) => {
   if (!reminder) return results;
 
   const recurrence = reminder.recurrence || {};
-  const cadence = recurrence.cadence || 'none';
-  const timeZone = ensureTimeZone(reminder.timezone || 'UTC');
-  const anchor = recurrence.anchorDate ? new Date(recurrence.anchorDate) : new Date(reminder.scheduledAt);
+  const cadence = recurrence.cadence || "none";
+  const timeZone = ensureTimeZone(reminder.timezone || "UTC");
+  // This is the date when the reminder should start repeating.
+  const anchor = recurrence.anchorDate
+    ? new Date(recurrence.anchorDate)
+    : new Date(reminder.scheduledAt);
   if (Number.isNaN(anchor.getTime())) return results;
 
   const clampWindowStart = windowStart || new Date();
-  const clampWindowEnd = windowEnd || new Date(clampWindowStart.getTime() + 90 * MS_IN_DAY);
+  const clampWindowEnd =
+    windowEnd || new Date(clampWindowStart.getTime() + 90 * MS_IN_DAY);
 
   const pushIfInWindow = (occurrenceDate) => {
     if (occurrenceDate < clampWindowStart || occurrenceDate > clampWindowEnd) return;
@@ -55,21 +66,23 @@ const expandReminderOccurrences = (reminder, windowStart, windowEnd) => {
     });
   };
 
-  if (cadence === 'none' || !recurrence.cadence) {
+  if (cadence === "none" || !recurrence.cadence) {
     pushIfInWindow(anchor);
     return results;
   }
 
   const maxOccurrences = 400;
 
-  if (cadence === 'daily') {
+  if (cadence === "daily") {
     const interval = Math.max(1, recurrence.interval || 1);
     const startOffset = Math.max(0, Math.floor((clampWindowStart - anchor) / MS_IN_DAY));
     let current = new Date(anchor.getTime() + startOffset * MS_IN_DAY);
     // Align to interval
     const offsetMod = startOffset % interval;
     if (offsetMod !== 0) {
-      current = new Date(current.getTime() + (interval - offsetMod) * MS_IN_DAY);
+      current = new Date(
+        current.getTime() + (interval - offsetMod) * MS_IN_DAY
+      );
     }
     while (current <= clampWindowEnd && results.length < maxOccurrences) {
       pushIfInWindow(current);
@@ -78,7 +91,7 @@ const expandReminderOccurrences = (reminder, windowStart, windowEnd) => {
     return results;
   }
 
-  if (cadence === 'weekly') {
+  if (cadence === "weekly") {
     const intervalWeeks = Math.max(1, recurrence.interval || 1);
     const daysOfWeek =
       recurrence.daysOfWeek && recurrence.daysOfWeek.length > 0
@@ -91,7 +104,8 @@ const expandReminderOccurrences = (reminder, windowStart, windowEnd) => {
       if (candidate > clampWindowEnd) break;
 
       const weeksSinceAnchor = Math.floor(dayOffset / 7);
-      if (weeksSinceAnchor < 0 || weeksSinceAnchor % intervalWeeks !== 0) continue;
+      if (weeksSinceAnchor < 0 || weeksSinceAnchor % intervalWeeks !== 0)
+        continue;
 
       const candidateWeekday = getDayInTimeZone(candidate, timeZone);
       if (!daysOfWeek.includes(candidateWeekday)) continue;
@@ -101,7 +115,7 @@ const expandReminderOccurrences = (reminder, windowStart, windowEnd) => {
     return results;
   }
 
-  if (cadence === 'monthly') {
+  if (cadence === "monthly") {
     const intervalMonths = Math.max(1, recurrence.interval || 1);
     const anchorDay = anchor.getUTCDate();
     const anchorTime = {
@@ -112,10 +126,32 @@ const expandReminderOccurrences = (reminder, windowStart, windowEnd) => {
     };
 
     const pushMonthlyOccurrence = (startMonthOffset) => {
-      const base = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth() + startMonthOffset, 1, anchorTime.hours, anchorTime.minutes, anchorTime.seconds, anchorTime.ms));
-      const daysInTargetMonth = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0)).getUTCDate();
+      const base = new Date(
+        Date.UTC(
+          anchor.getUTCFullYear(),
+          anchor.getUTCMonth() + startMonthOffset,
+          1,
+          anchorTime.hours,
+          anchorTime.minutes,
+          anchorTime.seconds,
+          anchorTime.ms
+        )
+      );
+      const daysInTargetMonth = new Date(
+        Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 0)
+      ).getUTCDate();
       const targetDay = Math.min(anchorDay, daysInTargetMonth);
-      const candidate = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), targetDay, anchorTime.hours, anchorTime.minutes, anchorTime.seconds, anchorTime.ms));
+      const candidate = new Date(
+        Date.UTC(
+          base.getUTCFullYear(),
+          base.getUTCMonth(),
+          targetDay,
+          anchorTime.hours,
+          anchorTime.minutes,
+          anchorTime.seconds,
+          anchorTime.ms
+        )
+      );
       pushIfInWindow(candidate);
       return candidate;
     };

@@ -14,6 +14,15 @@ const app = require('./app');
 const connectDB = require('./config/database');
 const appConfig = require('./config/app');
 
+
+/**
+  *LOAD AGENDA + NOTIFICATION SCHEDULER 
+ */
+const agenda = require("./scheduler/agenda");
+const { scheduleUpcomingReminders } = require("./scheduler/notificationScheduler");
+const registerJobs = require("./scheduler/jobs/sendNotification");
+
+
 /**
  * Server Port
  *
@@ -37,6 +46,15 @@ const initializeServer = async () => {
     // Connect to MongoDB database
     console.log('🔌 Connecting to database...');
     await connectDB();
+
+    // load job definitions BEFORE starting agenda 
+    // this calls sentnotification
+    registerJobs(agenda);
+
+    // start agenda
+    await agenda.start();
+    scheduleUpcomingReminders();
+    setInterval(scheduleUpcomingReminders, 60 * 1000); // re-run every 1 minute
 
     // Start Express server
     const server = app.listen(PORT, () => {

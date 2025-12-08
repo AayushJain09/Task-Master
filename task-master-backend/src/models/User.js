@@ -7,10 +7,10 @@
  * @module models/User
  */
 
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const jwtConfig = require('../config/jwt');
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const jwtConfig = require("../config/jwt");
 
 /**
  * User Schema Definition
@@ -35,13 +35,13 @@ const userSchema = new mongoose.Schema(
     // Email address - used as unique identifier for login
     email: {
       type: String,
-      required: [true, 'Email is required'],
+      required: [true, "Email is required"],
       unique: true,
       lowercase: true,
       trim: true,
       match: [
         /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/,
-        'Please provide a valid email address',
+        "Please provide a valid email address",
       ],
       index: true, // Index for faster queries
     },
@@ -49,35 +49,35 @@ const userSchema = new mongoose.Schema(
     // Password - stored as bcrypt hash
     password: {
       type: String,
-      required: [true, 'Password is required'],
-      minlength: [8, 'Password must be at least 8 characters long'],
+      required: [true, "Password is required"],
+      minlength: [8, "Password must be at least 8 characters long"],
       select: false, // Don't include password in query results by default
     },
 
     // First name of the user
     firstName: {
       type: String,
-      required: [true, 'First name is required'],
+      required: [true, "First name is required"],
       trim: true,
-      maxlength: [50, 'First name cannot exceed 50 characters'],
+      maxlength: [50, "First name cannot exceed 50 characters"],
     },
 
     // Last name of the user
     lastName: {
       type: String,
-      required: [true, 'Last name is required'],
+      required: [true, "Last name is required"],
       trim: true,
-      maxlength: [50, 'Last name cannot exceed 50 characters'],
+      maxlength: [50, "Last name cannot exceed 50 characters"],
     },
 
     // User role for authorization purposes
     role: {
       type: String,
       enum: {
-        values: ['user', 'admin', 'moderator'],
-        message: '{VALUE} is not a valid role',
+        values: ["user", "admin", "moderator"],
+        message: "{VALUE} is not a valid role",
       },
-      default: 'user',
+      default: "user",
     },
 
     // Email verification status
@@ -117,6 +117,12 @@ const userSchema = new mongoose.Schema(
       default: null,
       select: false, // Don't include in query results by default
     },
+
+    // A unique ID given by the firebase 
+    fcmTokens: {
+      type: [String], // Supports multiple devices
+      default: [],
+    },
   },
   {
     // Enable automatic timestamps
@@ -142,9 +148,9 @@ const userSchema = new mongoose.Schema(
  * Automatically hashes the password before saving to database
  * Only runs when password is modified or created
  */
-userSchema.pre('save', async function (next) {
+userSchema.pre("save", async function (next) {
   // Only hash the password if it has been modified (or is new)
-  if (!this.isModified('password')) {
+  if (!this.isModified("password")) {
     return next();
   }
 
@@ -175,7 +181,7 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
   try {
     return await bcrypt.compare(candidatePassword, this.password);
   } catch (error) {
-    throw new Error('Password comparison failed');
+    throw new Error("Password comparison failed");
   }
 };
 
@@ -215,7 +221,7 @@ userSchema.methods.generateRefreshToken = function () {
   // Payload for refresh token (minimal information)
   const payload = {
     userId: this._id,
-    type: 'refresh',
+    type: "refresh",
   };
 
   // Sign token with different secret and longer expiration
@@ -290,12 +296,12 @@ userSchema.methods.generateBiometricToken = function () {
   const payload = {
     userId: this._id,
     email: this.email,
-    type: 'biometric',
+    type: "biometric",
   };
 
   // Sign token with refresh token secret (same security level)
   return jwt.sign(payload, jwtConfig.refreshTokenSecret, {
-    expiresIn: '30d', // Biometric tokens last 30 days
+    expiresIn: "30d", // Biometric tokens last 30 days
     issuer: jwtConfig.issuer,
     audience: jwtConfig.audience,
   });
@@ -332,11 +338,11 @@ userSchema.methods.compareBiometricToken = async function (candidateToken) {
   if (!this.biometricToken || !this.biometricEnabled) {
     return false;
   }
-  
+
   try {
     return await bcrypt.compare(candidateToken, this.biometricToken);
   } catch (error) {
-    throw new Error('Biometric token comparison failed');
+    throw new Error("Biometric token comparison failed");
   }
 };
 
@@ -374,11 +380,14 @@ userSchema.statics.findByCredentials = async function (email, password) {
   const normalizedEmail = email.toLowerCase().trim();
 
   // Find user by email (including password and refreshTokens fields)
-  const user = await this.findOne({ email: normalizedEmail, isActive: true }).select('+password +refreshTokens');
+  const user = await this.findOne({
+    email: normalizedEmail,
+    isActive: true,
+  }).select("+password +refreshTokens");
 
   if (!user) {
-    const error = new Error('Invalid login credentials');
-    error.name = 'InvalidCredentialsError';
+    const error = new Error("Invalid login credentials");
+    error.name = "InvalidCredentialsError";
     throw error;
   }
 
@@ -386,8 +395,8 @@ userSchema.statics.findByCredentials = async function (email, password) {
   const isPasswordMatch = await user.comparePassword(password);
 
   if (!isPasswordMatch) {
-    const error = new Error('Invalid login credentials');
-    error.name = 'InvalidCredentialsError';
+    const error = new Error("Invalid login credentials");
+    error.name = "InvalidCredentialsError";
     throw error;
   }
 
@@ -406,13 +415,13 @@ userSchema.statics.findByCredentials = async function (email, password) {
  * @virtual
  * @returns {string} User's full name
  */
-userSchema.virtual('fullName').get(function () {
+userSchema.virtual("fullName").get(function () {
   return `${this.firstName} ${this.lastName}`;
 });
 
 // Ensure virtuals are included when converting to JSON
-userSchema.set('toJSON', { virtuals: true });
-userSchema.set('toObject', { virtuals: true });
+userSchema.set("toJSON", { virtuals: true });
+userSchema.set("toObject", { virtuals: true });
 
 /**
  * User Model
@@ -421,6 +430,6 @@ userSchema.set('toObject', { virtuals: true });
  *
  * @type {mongoose.Model}
  */
-const User = mongoose.model('User', userSchema);
+const User = mongoose.model("User", userSchema);
 
 module.exports = User;
