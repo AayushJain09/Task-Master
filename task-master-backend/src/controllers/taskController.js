@@ -19,9 +19,8 @@ const {
   getNowInTimeZone,
   buildLocalizedDateTimeMetadata,
 } = require("../utils/timezone");
-const sendNotificationToUsers = require("../utils/notificationHelper");
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
-
+const notificationService = require("../services/notificationService");
 /**
  * Determines overdue severity based on how many days a task is past due
  * and the task's inherent priority.
@@ -780,21 +779,17 @@ const createTask = async (req, res) => {
       context: "dashboard",
     });
 
-    // SEND NOTIFICATION:-ADITI
-    // try {
-    //   const {
-    //     sendNotificationToUsers,
-    //   } = require("../utils/notificationHelper");
-
-    //   const notifyUsers = [...uniqueAssignees, userId]; // assigned users + creator
-    //   await sendNotificationToUsers(
-    //     notifyUsers,
-    //     "New Task Assigned",
-    //     `Task "${task.title}" has been created.`
-    //   );
-    // } catch (notifyErr) {
-    //   console.error("Notification failed:", notifyErr);
-    // }
+    // === SEND NOTIFICATION === ADITI ===
+    try {
+      // Notify ONLY the assignees, not the creator
+      await notificationService.taskCreated(
+        task,
+        req.user, // creator object
+        uniqueAssignees // users who got assigned
+      );
+    } catch (notifyErr) {
+      console.error("Notification failed in the task creation:", notifyErr);
+    }
 
     res.status(201).json({
       success: true,
@@ -876,6 +871,9 @@ const updateTask = async (req, res) => {
       _id: taskId,
       isActive: true,
     });
+
+    // this will have old title
+    const oldTitle = task.title;
 
     if (!task) {
       return res.status(404).json({
@@ -1057,6 +1055,17 @@ const updateTask = async (req, res) => {
       });
     }
 
+    // Notify on task update === ADITI
+    if (genericFields.length > 0) {
+      await notificationService.taskUpdated(
+        task,
+        req.user,
+        currentAssignees,
+        genericFields,
+        oldTitle
+      );
+    }
+
     res.status(200).json({
       success: true,
       message: "Task updated successfully",
@@ -1147,6 +1156,13 @@ const deleteTask = async (req, res) => {
       description: `Archived task "${task.title}"`,
       metadata: { reason: "user_deleted" },
     });
+
+    // Notify on task deletion === ADITI
+    await notificationService.taskDeleted(
+      task,
+      req.user,
+      normalizeObjectIdArray(task.assignedTo)
+    );
 
     res.status(200).json({
       success: true,
@@ -1251,6 +1267,23 @@ const updateTaskStatus = async (req, res) => {
       },
     });
 
+    //notify on task completion === aditi
+    // const currentAssignees = task.assignedTo?.map((id) => id.toString()) || [];
+    const currentAssignees = (task.assignedTo || []).map((u) =>
+      (u._id || u).toString()
+    );
+
+    if (status === "done") {
+      await notificationService.taskCompleted(task, req.user, currentAssignees);
+    } else {
+      await notificationService.taskStatusChanged(
+        task,
+        req.user,
+        currentAssignees,
+        previousStatus
+      );
+    }
+
     console.log("[TaskStatus] Responding with enriched task", task.id);
     res.status(200).json({
       success: true,
@@ -1329,6 +1362,9 @@ const getOverdueTasks = async (req, res) => {
     overdueTasks = overdueTasks.map((task) =>
       enrichTaskWithTimezone(task, requestTimezone, nowInZone)
     );
+
+    // notify on task overdue === ADITI
+    await notificationService.taskOverdue(Task, assigneeIds);
 
     res.status(200).json({
       success: true,
