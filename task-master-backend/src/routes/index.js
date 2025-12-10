@@ -7,16 +7,17 @@
  * @module routes/index
  */
 
-const express = require('express');
+const express = require("express");
 const router = express.Router();
 
 // Import route modules
-const authRoutes = require('./authRoutes');
-const userRoutes = require('./userRoutes');
-const taskRoutes = require('./taskRoutes');
-const reminderRoutes = require('./reminderRoutes');
-const dashboardRoutes = require('./dashboardRoutes');
-const pushTokenRoutes = require('./pushTokenRoutes')
+const authRoutes = require("./authRoutes");
+const userRoutes = require("./userRoutes");
+const taskRoutes = require("./taskRoutes");
+const reminderRoutes = require("./reminderRoutes");
+const dashboardRoutes = require("./dashboardRoutes");
+const pushTokenRoutes = require("./pushTokenRoutes");
+const pushTestRoutes = require("./pushTestRoutes"); 
 /**
  * Health Check Endpoint
  *
@@ -34,10 +35,10 @@ const pushTokenRoutes = require('./pushTokenRoutes')
  *   uptime: 123.456
  * }
  */
-router.get('/health', (req, res) => {
+router.get("/health", (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'API is running',
+    message: "API is running",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
   });
@@ -48,7 +49,7 @@ router.get('/health', (req, res) => {
  *
  * Prevents noisy 404 logs from browsers requesting /favicon.ico.
  */
-router.get('/favicon.ico', (req, res) => {
+router.get("/favicon.ico", (req, res) => {
   res.status(204).end();
 });
 
@@ -72,22 +73,24 @@ router.get('/favicon.ico', (req, res) => {
  *   }
  * }
  */
-router.get('/', (req, res) => {
+router.get("/", (req, res) => {
   res.status(200).json({
     success: true,
     data: {
-      name: 'Task Master API',
-      version: '1.0.0',
-      description: 'RESTful API for Task Master application with JWT authentication',
+      name: "Task Master API",
+      version: "1.0.0",
+      description:
+        "RESTful API for Task Master application with JWT authentication",
       endpoints: {
-        health: '/health',
-        auth: '/auth',
-        users: '/users',
-        tasks: '/tasks',
-        reminders: '/reminders',
-        dashboard: '/dashboard',
+        health: "/health",
+        auth: "/auth",
+        users: "/users",
+        tasks: "/tasks",
+        reminders: "/reminders",
+        dashboard: "/dashboard",
+        push: "/push"
       },
-      documentation: 'See README.md for detailed API documentation',
+      documentation: "See README.md for detailed API documentation",
     },
   });
 });
@@ -104,12 +107,13 @@ router.get('/', (req, res) => {
  * All task management routes are prefixed with /tasks
  * Example: GET /api/v1/tasks
  */
-router.use('/auth', authRoutes);
-router.use('/users', userRoutes);
-router.use('/tasks', taskRoutes);
-router.use('/reminders', reminderRoutes);
-router.use('/dashboard', dashboardRoutes);
-router.use('/push', pushTokenRoutes);
+router.use("/auth", authRoutes);
+router.use("/users", userRoutes);
+router.use("/tasks", taskRoutes);
+router.use("/reminders", reminderRoutes);
+router.use("/dashboard", dashboardRoutes);
+router.use("/push", pushTokenRoutes);
+router.use("/push", pushTestRoutes);
 
 /**
  * Add more route modules here as your application grows

@@ -7,19 +7,19 @@
  * @module controllers/taskController
  */
 
-const Task = require('../models/Task');
-const User = require('../models/User');
-const ActivityLog = require('../models/ActivityLog');
-const { validationResult } = require('express-validator');
-const mongoose = require('mongoose');
+const Task = require("../models/Task");
+const User = require("../models/User");
+const ActivityLog = require("../models/ActivityLog");
+const { validationResult } = require("express-validator");
+const mongoose = require("mongoose");
 const {
   parseDateInputToUTC,
   getStartOfDayUTC,
   getEndOfDayUTC,
   getNowInTimeZone,
   buildLocalizedDateTimeMetadata,
-} = require('../utils/timezone');
-
+} = require("../utils/timezone");
+const sendNotificationToUsers = require("../utils/notificationHelper");
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
 /**
@@ -30,17 +30,20 @@ const MS_IN_DAY = 24 * 60 * 60 * 1000;
  * @param {'low'|'medium'|'high'} priority - Task priority hint
  * @returns {'critical'|'high'|'medium'|'low'} severity bucket
  */
-const classifyOverdueSeverity = (daysPastDue, priority = 'medium') => {
-  if (daysPastDue >= 7 || (priority === 'high' && daysPastDue >= 3)) {
-    return 'critical';
+const classifyOverdueSeverity = (daysPastDue, priority = "medium") => {
+  if (daysPastDue >= 7 || (priority === "high" && daysPastDue >= 3)) {
+    return "critical";
   }
-  if (daysPastDue >= 3 || ((priority === 'medium' || priority === 'high') && daysPastDue >= 1)) {
-    return 'high';
+  if (
+    daysPastDue >= 3 ||
+    ((priority === "medium" || priority === "high") && daysPastDue >= 1)
+  ) {
+    return "high";
   }
   if (daysPastDue >= 1) {
-    return 'medium';
+    return "medium";
   }
-  return 'low';
+  return "low";
 };
 
 /**
@@ -53,7 +56,7 @@ const classifyOverdueSeverity = (daysPastDue, priority = 'medium') => {
  * @returns {Object|null} Overdue metadata payload or null when not overdue
  */
 const buildOverdueMetadata = (task, referenceDate = new Date()) => {
-  if (!task?.dueDate || task.status === 'done') {
+  if (!task?.dueDate || task.status === "done") {
     return null;
   }
 
@@ -82,7 +85,7 @@ const recordTaskActivity = async (params) => {
   try {
     await ActivityLog.logTaskActivity(params);
   } catch (error) {
-    console.error('Activity logging failed:', error.message);
+    console.error("Activity logging failed:", error.message);
   }
 };
 
@@ -95,7 +98,7 @@ const recordTaskActivity = async (params) => {
  */
 const normalizeObjectId = (value) => {
   if (!value) return null;
-  if (typeof value === 'string') return value;
+  if (typeof value === "string") return value;
   if (Array.isArray(value)) {
     const [first] = value;
     if (!first) return null;
@@ -103,7 +106,7 @@ const normalizeObjectId = (value) => {
     return String(first);
   }
   if (value._id) return value._id.toString();
-  if (typeof value.toString === 'function') return value.toString();
+  if (typeof value.toString === "function") return value.toString();
   return String(value);
 };
 
@@ -113,18 +116,18 @@ const normalizeObjectIdArray = (value) => {
   return list
     .map((item) => {
       if (!item) return null;
-      if (typeof item === 'string') return item;
+      if (typeof item === "string") return item;
       if (item._id) return item._id.toString();
-      if (typeof item.toString === 'function') return item.toString();
+      if (typeof item.toString === "function") return item.toString();
       return String(item);
     })
     .filter(Boolean);
 };
 
-const PRIVILEGED_TASK_ROLES = new Set(['admin', 'moderator']);
+const PRIVILEGED_TASK_ROLES = new Set(["admin", "moderator"]);
 
 const toPlainTask = (task) =>
-  task && typeof task.toObject === 'function' ? task.toObject() : { ...task };
+  task && typeof task.toObject === "function" ? task.toObject() : { ...task };
 
 const enrichTaskWithTimezone = (task, timezone, referenceDate = new Date()) => {
   const plain = toPlainTask(task);
@@ -143,7 +146,7 @@ const enrichTaskWithTimezone = (task, timezone, referenceDate = new Date()) => {
   if (overdueMetadata) {
     plain.overdueMetadata = overdueMetadata;
     plain.isOverdue = true;
-  } else if (plain.status !== 'done') {
+  } else if (plain.status !== "done") {
     plain.isOverdue = false;
   }
 
@@ -186,11 +189,12 @@ const hasTaskManagementPermission = (task, user = {}) => {
  */
 const getAllTasks = async (req, res) => {
   try {
-    const requestTimezone = req.requestedTimezone || 'UTC';
+    const requestTimezone = req.requestedTimezone || "UTC";
     if (!PRIVILEGED_TASK_ROLES.has(req.user?.role)) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied. Only administrators or moderators can view all tasks.',
+        message:
+          "Access denied. Only administrators or moderators can view all tasks.",
       });
     }
 
@@ -201,8 +205,8 @@ const getAllTasks = async (req, res) => {
       overdue,
       page = 1,
       limit = 20,
-      sortBy = 'createdAt',
-      sortOrder = 'desc',
+      sortBy = "createdAt",
+      sortOrder = "desc",
     } = req.query;
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -230,24 +234,25 @@ const getAllTasks = async (req, res) => {
       }
     }
 
-    if (overdue === 'true') {
+    if (overdue === "true") {
       const nowUTC = getNowInTimeZone(requestTimezone).date;
       filters.dueDate = { $lt: nowUTC };
       if (!status) {
-        filters.status = { $ne: 'done' };
+        filters.status = { $ne: "done" };
       }
     }
 
     const referenceDate = getNowInTimeZone(requestTimezone).date;
-    const transformTask = (task) => enrichTaskWithTimezone(task, requestTimezone, referenceDate);
+    const transformTask = (task) =>
+      enrichTaskWithTimezone(task, requestTimezone, referenceDate);
 
     let tasks = [];
     let totalTasks = 0;
 
-    if (sortBy === 'daysPastDue') {
+    if (sortBy === "daysPastDue") {
       const allTasks = await Task.find(filters)
-        .populate('assignedBy', 'firstName lastName email role')
-        .populate('assignedTo', 'firstName lastName email role');
+        .populate("assignedBy", "firstName lastName email role")
+        .populate("assignedTo", "firstName lastName email role");
 
       totalTasks = allTasks.length;
       tasks = allTasks.map(transformTask);
@@ -255,18 +260,18 @@ const getAllTasks = async (req, res) => {
       tasks.sort((a, b) => {
         const aDays = a.overdueMetadata?.daysPastDue || 0;
         const bDays = b.overdueMetadata?.daysPastDue || 0;
-        return sortOrder === 'asc' ? aDays - bDays : bDays - aDays;
+        return sortOrder === "asc" ? aDays - bDays : bDays - aDays;
       });
 
       const startIndex = (pageNum - 1) * limitNum;
       const endIndex = startIndex + limitNum;
       tasks = tasks.slice(startIndex, endIndex);
     } else {
-      const sortOptions = { [sortBy]: sortOrder === 'asc' ? 1 : -1 };
+      const sortOptions = { [sortBy]: sortOrder === "asc" ? 1 : -1 };
       const [tasksRaw, count] = await Promise.all([
         Task.find(filters)
-          .populate('assignedBy', 'firstName lastName email role')
-          .populate('assignedTo', 'firstName lastName email role')
+          .populate("assignedBy", "firstName lastName email role")
+          .populate("assignedTo", "firstName lastName email role")
           .sort(sortOptions)
           .skip((pageNum - 1) * limitNum)
           .limit(limitNum),
@@ -281,7 +286,7 @@ const getAllTasks = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Tasks retrieved successfully',
+      message: "Tasks retrieved successfully",
       data: {
         tasks,
         pagination: {
@@ -301,11 +306,14 @@ const getAllTasks = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Get all tasks error:', error);
+    console.error("Get all tasks error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve tasks',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      message: "Failed to retrieve tasks",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 };
@@ -373,7 +381,7 @@ const getAllTasks = async (req, res) => {
  */
 const getTasksByStatus = async (req, res) => {
   try {
-    const requestTimezone = req.requestedTimezone || 'UTC';
+    const requestTimezone = req.requestedTimezone || "UTC";
     const userId = req.user.userId;
     const {
       status, // Required parameter
@@ -383,26 +391,26 @@ const getTasksByStatus = async (req, res) => {
       search,
       page = 1,
       limit = 10, // Smaller default for column-specific pagination
-      sortBy = 'updatedAt', // Default to most recently updated
-      sortOrder = 'desc',
+      sortBy = "updatedAt", // Default to most recently updated
+      sortOrder = "desc",
     } = req.query;
 
     // Validate required status parameter
     if (!status) {
       return res.status(400).json({
         success: false,
-        message: 'Status parameter is required',
-        error: 'Please specify one of: todo, in_progress, done',
+        message: "Status parameter is required",
+        error: "Please specify one of: todo, in_progress, done",
       });
     }
 
     // Validate status value
-    const validStatuses = ['todo', 'in_progress', 'done'];
+    const validStatuses = ["todo", "in_progress", "done"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid status parameter',
-        error: `Status must be one of: ${validStatuses.join(', ')}`,
+        message: "Invalid status parameter",
+        error: `Status must be one of: ${validStatuses.join(", ")}`,
       });
     }
 
@@ -421,7 +429,7 @@ const getTasksByStatus = async (req, res) => {
 
     // Priority filter
     if (priority) {
-      const validPriorities = ['low', 'medium', 'high'];
+      const validPriorities = ["low", "medium", "high"];
       if (validPriorities.includes(priority)) {
         additionalFilters.priority = priority;
       }
@@ -439,10 +447,10 @@ const getTasksByStatus = async (req, res) => {
     }
 
     // Overdue filter (only for non-done tasks)
-    if (overdue === 'true' && status !== 'done') {
+    if (overdue === "true" && status !== "done") {
       const nowUTC = getNowInTimeZone(requestTimezone).date;
       additionalFilters.dueDate = { $lt: nowUTC };
-      additionalFilters.status = { $ne: 'done' };
+      additionalFilters.status = { $ne: "done" };
     }
 
     // Get base tasks for the specified status using the model method
@@ -451,9 +459,9 @@ const getTasksByStatus = async (req, res) => {
 
     // Apply additional filters
     if (Object.keys(additionalFilters).length > 0) {
-      tasks = tasks.filter(task => {
+      tasks = tasks.filter((task) => {
         return Object.entries(additionalFilters).every(([key, value]) => {
-          if (key === 'dueDate' && typeof value === 'object') {
+          if (key === "dueDate" && typeof value === "object") {
             if (!task.dueDate) return false;
             const taskDate = new Date(task.dueDate);
             if (value.$lt) return taskDate < value.$lt;
@@ -461,7 +469,7 @@ const getTasksByStatus = async (req, res) => {
               return taskDate >= value.$gte && taskDate < value.$lt;
             }
           }
-          if (key === 'status' && value.$ne) {
+          if (key === "status" && value.$ne) {
             return task.status !== value.$ne;
           }
           return task[key] === value;
@@ -471,43 +479,45 @@ const getTasksByStatus = async (req, res) => {
 
     // Apply search filter across multiple fields
     if (search) {
-      const searchRegex = new RegExp(search, 'i');
-      tasks = tasks.filter(task => {
+      const searchRegex = new RegExp(search, "i");
+      tasks = tasks.filter((task) => {
         return (
-          searchRegex.test(task.title || '') ||
-          searchRegex.test(task.description || '') ||
-          (task.tags && task.tags.some(tag => searchRegex.test(tag))) ||
-          searchRegex.test(task.category || '')
+          searchRegex.test(task.title || "") ||
+          searchRegex.test(task.description || "") ||
+          (task.tags && task.tags.some((tag) => searchRegex.test(tag))) ||
+          searchRegex.test(task.category || "")
         );
       });
     }
 
     const referenceDate = getNowInTimeZone(requestTimezone).date;
-    tasks = tasks.map(task => enrichTaskWithTimezone(task, requestTimezone, referenceDate));
+    tasks = tasks.map((task) =>
+      enrichTaskWithTimezone(task, requestTimezone, referenceDate)
+    );
 
     // Sort tasks with enhanced sorting options
     tasks.sort((a, b) => {
       let aValue, bValue;
 
       switch (sortBy) {
-        case 'priority':
+        case "priority":
           // Sort by priority: high > medium > low
-          const priorityOrder = { 'high': 3, 'medium': 2, 'low': 1 };
+          const priorityOrder = { high: 3, medium: 2, low: 1 };
           aValue = priorityOrder[a.priority] || 0;
           bValue = priorityOrder[b.priority] || 0;
           break;
-        case 'dueDate':
+        case "dueDate":
           // Handle null due dates (put them last)
-          aValue = a.dueDate ? new Date(a.dueDate) : new Date('9999-12-31');
-          bValue = b.dueDate ? new Date(b.dueDate) : new Date('9999-12-31');
+          aValue = a.dueDate ? new Date(a.dueDate) : new Date("9999-12-31");
+          bValue = b.dueDate ? new Date(b.dueDate) : new Date("9999-12-31");
           break;
-        case 'daysPastDue':
+        case "daysPastDue":
           aValue = a.overdueMetadata?.daysPastDue || 0;
           bValue = b.overdueMetadata?.daysPastDue || 0;
           break;
-        case 'title':
-          aValue = (a.title || '').toLowerCase();
-          bValue = (b.title || '').toLowerCase();
+        case "title":
+          aValue = (a.title || "").toLowerCase();
+          bValue = (b.title || "").toLowerCase();
           break;
         default:
           // Default to date-based sorting
@@ -515,7 +525,7 @@ const getTasksByStatus = async (req, res) => {
           bValue = new Date(b[sortBy] || b.createdAt);
       }
 
-      const multiplier = sortOrder === 'desc' ? -1 : 1;
+      const multiplier = sortOrder === "desc" ? -1 : 1;
 
       if (aValue < bValue) return -1 * multiplier;
       if (aValue > bValue) return 1 * multiplier;
@@ -534,13 +544,15 @@ const getTasksByStatus = async (req, res) => {
       status,
       totalInStatus: totalTasks,
       currentPageCount: paginatedTasks.length,
-      hasOverdue: status !== 'done' && paginatedTasks.some(task => task.overdueMetadata?.isOverdue),
+      hasOverdue:
+        status !== "done" &&
+        paginatedTasks.some((task) => task.overdueMetadata?.isOverdue),
     };
 
     // Enhanced response with comprehensive metadata
     res.status(200).json({
       success: true,
-      message: `${status.replace('_', ' ')} tasks retrieved successfully`,
+      message: `${status.replace("_", " ")} tasks retrieved successfully`,
       data: {
         tasks: paginatedTasks,
         pagination: {
@@ -570,8 +582,11 @@ const getTasksByStatus = async (req, res) => {
     console.error(`Get tasks by status (${req.query.status}) error:`, error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve tasks by status',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      message: "Failed to retrieve tasks by status",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 };
@@ -589,7 +604,7 @@ const getTasksByStatus = async (req, res) => {
  */
 const getTaskById = async (req, res) => {
   try {
-    const requestTimezone = req.requestedTimezone || 'UTC';
+    const requestTimezone = req.requestedTimezone || "UTC";
     const { taskId } = req.params;
     const userId = req.user.userId;
 
@@ -597,7 +612,7 @@ const getTaskById = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(taskId)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid task ID format',
+        message: "Invalid task ID format",
       });
     }
 
@@ -606,30 +621,37 @@ const getTaskById = async (req, res) => {
       $or: [{ assignedTo: userId }, { assignedBy: userId }],
       isActive: true,
     })
-      .populate('assignedBy', 'firstName lastName email')
-      .populate('assignedTo', 'firstName lastName email');
+      .populate("assignedBy", "firstName lastName email")
+      .populate("assignedTo", "firstName lastName email");
 
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Task not found or access denied',
+        message: "Task not found or access denied",
       });
     }
 
     const referenceDate = getNowInTimeZone(requestTimezone).date;
-    const responseTask = enrichTaskWithTimezone(task, requestTimezone, referenceDate);
+    const responseTask = enrichTaskWithTimezone(
+      task,
+      requestTimezone,
+      referenceDate
+    );
 
     res.status(200).json({
       success: true,
-      message: 'Task retrieved successfully',
+      message: "Task retrieved successfully",
       data: { task: responseTask },
     });
   } catch (error) {
-    console.error('Get task by ID error:', error);
+    console.error("Get task by ID error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve task',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      message: "Failed to retrieve task",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 };
@@ -647,13 +669,13 @@ const getTaskById = async (req, res) => {
  */
 const createTask = async (req, res) => {
   try {
-    const requestTimezone = req.requestedTimezone || 'UTC';
+    const requestTimezone = req.requestedTimezone || "UTC";
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
+        message: "Validation failed",
         errors: errors.array(),
       });
     }
@@ -662,35 +684,48 @@ const createTask = async (req, res) => {
     const {
       title,
       description,
-      priority = 'medium',
+      priority = "medium",
       assignedTo,
       dueDate,
       tags = [],
-      category = 'General',
+      category = "General",
       estimatedHours,
     } = req.body;
 
     // Validate assigned user exists
     // Prefer explicit assigneesCsv (comma-separated) > assignees (array/string) > assignedTo
-    let rawAssignees = req.body.assigneesCsv || req.body.assignees || assignedTo;
-    if (typeof rawAssignees === 'string' && rawAssignees.includes(',')) {
-      rawAssignees = rawAssignees.split(',').map(val => val.trim()).filter(Boolean);
+    let rawAssignees =
+      req.body.assigneesCsv || req.body.assignees || assignedTo;
+    if (typeof rawAssignees === "string" && rawAssignees.includes(",")) {
+      rawAssignees = rawAssignees
+        .split(",")
+        .map((val) => val.trim())
+        .filter(Boolean);
     }
-    const assigneeIds = Array.isArray(rawAssignees) ? rawAssignees : rawAssignees ? [rawAssignees] : [userId];
-    console.log('[Tasks] create payload received', { body: req.body, assigneeIds });
+    const assigneeIds = Array.isArray(rawAssignees)
+      ? rawAssignees
+      : rawAssignees
+        ? [rawAssignees]
+        : [userId];
+    console.log("[Tasks] create payload received", {
+      body: req.body,
+      assigneeIds,
+    });
     const uniqueAssignees = [...new Set(assigneeIds.map(String))];
-    const assigneeCount = await User.countDocuments({ _id: { $in: uniqueAssignees } });
+    const assigneeCount = await User.countDocuments({
+      _id: { $in: uniqueAssignees },
+    });
     if (assigneeCount !== uniqueAssignees.length) {
       return res.status(404).json({
         success: false,
-        message: 'One or more assigned users were not found',
+        message: "One or more assigned users were not found",
       });
     }
 
     // Create task data
     const taskData = {
       title: title.trim(),
-      description: description?.trim() || '',
+      description: description?.trim() || "",
       priority,
       assignedBy: userId,
       assignedTo: uniqueAssignees, // Supports multi-assign; defaults to requester
@@ -708,8 +743,8 @@ const createTask = async (req, res) => {
       } catch (conversionError) {
         return res.status(400).json({
           success: false,
-          message: 'Invalid due date format',
-          code: 'INVALID_DUE_DATE_FORMAT',
+          message: "Invalid due date format",
+          code: "INVALID_DUE_DATE_FORMAT",
         });
       }
     }
@@ -723,50 +758,73 @@ const createTask = async (req, res) => {
     await task.save();
 
     // Populate user references and enrich with timezone metadata for the response
-    await task.populate('assignedBy', 'firstName lastName email');
-    await task.populate('assignedTo', 'firstName lastName email');
+    await task.populate("assignedBy", "firstName lastName email");
+    await task.populate("assignedTo", "firstName lastName email");
     const referenceDate = getNowInTimeZone(requestTimezone).date;
-    const responseTask = enrichTaskWithTimezone(task, requestTimezone, referenceDate);
+    const responseTask = enrichTaskWithTimezone(
+      task,
+      requestTimezone,
+      referenceDate
+    );
 
     // Log activity asynchronously (fire-and-forget)
     recordTaskActivity({
       task,
       performedBy: userId,
-      action: 'task_created',
+      action: "task_created",
       description: `Created task "${task.title}"`,
       metadata: {
         priority: task.priority,
         dueDate: task.dueDate,
       },
-      context: 'dashboard',
+      context: "dashboard",
     });
+
+    // SEND NOTIFICATION:-ADITI
+    // try {
+    //   const {
+    //     sendNotificationToUsers,
+    //   } = require("../utils/notificationHelper");
+
+    //   const notifyUsers = [...uniqueAssignees, userId]; // assigned users + creator
+    //   await sendNotificationToUsers(
+    //     notifyUsers,
+    //     "New Task Assigned",
+    //     `Task "${task.title}" has been created.`
+    //   );
+    // } catch (notifyErr) {
+    //   console.error("Notification failed:", notifyErr);
+    // }
 
     res.status(201).json({
       success: true,
-      message: 'Task created successfully',
+      message: "Task created successfully",
       data: { task: responseTask },
     });
   } catch (error) {
-    console.error('Create task error:', error);
-    
+    console.error("Create task error:", error);
+
     // Handle mongoose validation errors
-    if (error.name === 'ValidationError') {
-      const validationErrors = Object.values(error.errors).map(err => ({
+    if (error.name === "ValidationError") {
+      const validationErrors = Object.values(error.errors).map((err) => ({
         field: err.path,
         message: err.message,
       }));
-      
+
       return res.status(400).json({
         success: false,
-        message: 'Task validation failed',
+        message: "Task validation failed",
         errors: validationErrors,
       });
     }
 
     res.status(500).json({
       success: false,
-      message: 'Failed to create task',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      message: "Failed to create task",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 };
@@ -784,28 +842,32 @@ const createTask = async (req, res) => {
  */
 const updateTask = async (req, res) => {
   try {
-    console.log('[TaskStatus] Requested change:', { params: req.params, body: req.body, user: req.user?.userId });
+    console.log("[TaskStatus] Requested change:", {
+      params: req.params,
+      body: req.body,
+      user: req.user?.userId,
+    });
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      console.warn('[TaskStatus] Validation failed', errors.array());
+      console.warn("[TaskStatus] Validation failed", errors.array());
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
+        message: "Validation failed",
         errors: errors.array(),
       });
     }
 
-    const requestTimezone = req.requestedTimezone || 'UTC';
+    const requestTimezone = req.requestedTimezone || "UTC";
     const { taskId } = req.params;
     const userId = req.user.userId?.toString();
 
     // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(taskId)) {
-      console.warn('[TaskStatus] Invalid taskId', taskId);
+      console.warn("[TaskStatus] Invalid taskId", taskId);
       return res.status(400).json({
         success: false,
-        message: 'Invalid task ID format',
+        message: "Invalid task ID format",
       });
     }
 
@@ -818,7 +880,7 @@ const updateTask = async (req, res) => {
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Task not found',
+        message: "Task not found",
       });
     }
 
@@ -826,8 +888,9 @@ const updateTask = async (req, res) => {
     if (!hasTaskManagementPermission(task, req.user)) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied. Only the task creator, moderators, or admins can edit this task.',
-        code: 'EDIT_PERMISSION_DENIED'
+        message:
+          "Access denied. Only the task creator, moderators, or admins can edit this task.",
+        code: "EDIT_PERMISSION_DENIED",
       });
     }
 
@@ -858,21 +921,38 @@ const updateTask = async (req, res) => {
     if (tags !== undefined) updateData.tags = Array.isArray(tags) ? tags : [];
 
     // Handle user assignment
-    if (assignedTo !== undefined || req.body.assignees !== undefined || req.body.assigneesCsv !== undefined) {
-      let rawAssignees = req.body.assigneesCsv !== undefined
-        ? req.body.assigneesCsv
-        : (req.body.assignees !== undefined ? req.body.assignees : assignedTo);
-      if (typeof rawAssignees === 'string' && rawAssignees.includes(',')) {
-        rawAssignees = rawAssignees.split(',').map(val => val.trim()).filter(Boolean);
+    if (
+      assignedTo !== undefined ||
+      req.body.assignees !== undefined ||
+      req.body.assigneesCsv !== undefined
+    ) {
+      let rawAssignees =
+        req.body.assigneesCsv !== undefined
+          ? req.body.assigneesCsv
+          : req.body.assignees !== undefined
+            ? req.body.assignees
+            : assignedTo;
+      if (typeof rawAssignees === "string" && rawAssignees.includes(",")) {
+        rawAssignees = rawAssignees
+          .split(",")
+          .map((val) => val.trim())
+          .filter(Boolean);
       }
-      const assigneeIds = Array.isArray(rawAssignees) ? rawAssignees : [rawAssignees];
-      console.log('[Tasks] update payload received', { body: req.body, assigneeIds });
+      const assigneeIds = Array.isArray(rawAssignees)
+        ? rawAssignees
+        : [rawAssignees];
+      console.log("[Tasks] update payload received", {
+        body: req.body,
+        assigneeIds,
+      });
       const uniqueAssignees = [...new Set(assigneeIds.map(String))];
-      const assigneeCount = await User.countDocuments({ _id: { $in: uniqueAssignees } });
+      const assigneeCount = await User.countDocuments({
+        _id: { $in: uniqueAssignees },
+      });
       if (assigneeCount !== uniqueAssignees.length) {
         return res.status(404).json({
           success: false,
-          message: 'One or more assigned users were not found',
+          message: "One or more assigned users were not found",
         });
       }
       updateData.assignedTo = uniqueAssignees;
@@ -889,8 +969,8 @@ const updateTask = async (req, res) => {
         } catch (conversionError) {
           return res.status(400).json({
             success: false,
-            message: 'Invalid due date format',
-            code: 'INVALID_DUE_DATE_FORMAT',
+            message: "Invalid due date format",
+            code: "INVALID_DUE_DATE_FORMAT",
           });
         }
       } else {
@@ -900,7 +980,9 @@ const updateTask = async (req, res) => {
 
     // Handle numeric fields
     if (estimatedHours !== undefined) {
-      updateData.estimatedHours = estimatedHours ? parseFloat(estimatedHours) : null;
+      updateData.estimatedHours = estimatedHours
+        ? parseFloat(estimatedHours)
+        : null;
     }
 
     // Update the task
@@ -911,23 +993,27 @@ const updateTask = async (req, res) => {
     await task.save();
 
     // Populate user references for response
-    await task.populate('assignedBy', 'firstName lastName email');
-    await task.populate('assignedTo', 'firstName lastName email');
+    await task.populate("assignedBy", "firstName lastName email");
+    await task.populate("assignedTo", "firstName lastName email");
     const referenceDate = getNowInTimeZone(requestTimezone).date;
-    const responseTask = enrichTaskWithTimezone(task, requestTimezone, referenceDate);
+    const responseTask = enrichTaskWithTimezone(
+      task,
+      requestTimezone,
+      referenceDate
+    );
 
     const changedFields = Object.keys(updateData);
     const currentAssignees = normalizeObjectIdArray(task.assignedTo);
 
     if (status !== undefined && status !== previousStatus) {
-      const isCompletion = task.status === 'done';
+      const isCompletion = task.status === "done";
       recordTaskActivity({
         task,
         performedBy: userId,
-        action: isCompletion ? 'task_completed' : 'task_status_changed',
+        action: isCompletion ? "task_completed" : "task_status_changed",
         description: isCompletion
           ? `Completed task "${task.title}"`
-          : `Moved task "${task.title}" to ${task.status.replace('_', ' ')}`,
+          : `Moved task "${task.title}" to ${task.status.replace("_", " ")}`,
         metadata: {
           previousStatus,
           newStatus: task.status,
@@ -940,12 +1026,12 @@ const updateTask = async (req, res) => {
       const currSet = new Set(currentAssignees);
       const hasDifference =
         previousAssignees.length !== currentAssignees.length ||
-        previousAssignees.some(id => !currSet.has(id));
+        previousAssignees.some((id) => !currSet.has(id));
       if (hasDifference) {
         recordTaskActivity({
           task,
           performedBy: userId,
-          action: 'task_reassigned',
+          action: "task_reassigned",
           description: `Reassigned task "${task.title}"`,
           metadata: {
             previousAssignees,
@@ -956,15 +1042,15 @@ const updateTask = async (req, res) => {
     }
 
     const genericFields = changedFields.filter(
-      field => !['status', 'assignedTo'].includes(field)
+      (field) => !["status", "assignedTo"].includes(field)
     );
 
     if (genericFields.length > 0) {
       recordTaskActivity({
         task,
         performedBy: userId,
-        action: 'task_updated',
-        description: `Updated ${genericFields.join(', ')} on "${task.title}"`,
+        action: "task_updated",
+        description: `Updated ${genericFields.join(", ")} on "${task.title}"`,
         metadata: {
           changedFields: genericFields,
         },
@@ -973,30 +1059,33 @@ const updateTask = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Task updated successfully',
+      message: "Task updated successfully",
       data: { task: responseTask },
     });
   } catch (error) {
-    console.error('Update task error:', error);
-    
+    console.error("Update task error:", error);
+
     // Handle mongoose validation errors
-    if (error.name === 'ValidationError') {
-      const validationErrors = Object.values(error.errors).map(err => ({
+    if (error.name === "ValidationError") {
+      const validationErrors = Object.values(error.errors).map((err) => ({
         field: err.path,
         message: err.message,
       }));
-      
+
       return res.status(400).json({
         success: false,
-        message: 'Task validation failed',
+        message: "Task validation failed",
         errors: validationErrors,
       });
     }
 
     res.status(500).json({
       success: false,
-      message: 'Failed to update task',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      message: "Failed to update task",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 };
@@ -1021,7 +1110,7 @@ const deleteTask = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(taskId)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid task ID format',
+        message: "Invalid task ID format",
       });
     }
 
@@ -1034,14 +1123,15 @@ const deleteTask = async (req, res) => {
     if (!task) {
       return res.status(404).json({
         success: false,
-        message: 'Task not found',
+        message: "Task not found",
       });
     }
 
     if (!hasTaskManagementPermission(task, req.user)) {
       return res.status(403).json({
         success: false,
-        message: 'Access denied. Only the task creator, moderators, or admins can delete this task.',
+        message:
+          "Access denied. Only the task creator, moderators, or admins can delete this task.",
       });
     }
 
@@ -1053,22 +1143,25 @@ const deleteTask = async (req, res) => {
     recordTaskActivity({
       task,
       performedBy: userId,
-      action: 'task_deleted',
+      action: "task_deleted",
       description: `Archived task "${task.title}"`,
-      metadata: { reason: 'user_deleted' },
+      metadata: { reason: "user_deleted" },
     });
 
     res.status(200).json({
       success: true,
-      message: 'Task deleted successfully',
+      message: "Task deleted successfully",
       data: { taskId: task._id },
     });
   } catch (error) {
-    console.error('Delete task error:', error);
+    console.error("Delete task error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to delete task',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      message: "Failed to delete task",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 };
@@ -1091,7 +1184,7 @@ const updateTaskStatus = async (req, res) => {
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
+        message: "Validation failed",
         errors: errors.array(),
       });
     }
@@ -1104,7 +1197,7 @@ const updateTaskStatus = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(taskId)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid task ID format',
+        message: "Invalid task ID format",
       });
     }
 
@@ -1116,10 +1209,10 @@ const updateTaskStatus = async (req, res) => {
     });
 
     if (!task) {
-      console.warn('[TaskStatus] Task not found or no access', taskId);
+      console.warn("[TaskStatus] Task not found or no access", taskId);
       return res.status(404).json({
         success: false,
-        message: 'Task not found or access denied',
+        message: "Task not found or access denied",
       });
     }
 
@@ -1127,40 +1220,52 @@ const updateTaskStatus = async (req, res) => {
 
     // Update the status using the model method
     await task.updateStatus(status);
-    console.log('[TaskStatus] Persistence complete', { taskId: task.id, previousStatus, newStatus: status });
+    console.log("[TaskStatus] Persistence complete", {
+      taskId: task.id,
+      previousStatus,
+      newStatus: status,
+    });
 
     // Populate user references and rebuild the response payload with timezone metadata
-    await task.populate('assignedBy', 'firstName lastName email');
-    await task.populate('assignedTo', 'firstName lastName email');
-    const requestTimezone = req.requestedTimezone || 'UTC';
+    await task.populate("assignedBy", "firstName lastName email");
+    await task.populate("assignedTo", "firstName lastName email");
+    const requestTimezone = req.requestedTimezone || "UTC";
     const referenceDate = getNowInTimeZone(requestTimezone).date;
-    const responseTask = enrichTaskWithTimezone(task, requestTimezone, referenceDate);
+    const responseTask = enrichTaskWithTimezone(
+      task,
+      requestTimezone,
+      referenceDate
+    );
 
     recordTaskActivity({
       task,
       performedBy: userId,
-      action: status === 'done' ? 'task_completed' : 'task_status_changed',
-      description: status === 'done'
-        ? `Completed task "${task.title}"`
-        : `Updated status of "${task.title}" to ${status.replace('_', ' ')}`,
+      action: status === "done" ? "task_completed" : "task_status_changed",
+      description:
+        status === "done"
+          ? `Completed task "${task.title}"`
+          : `Updated status of "${task.title}" to ${status.replace("_", " ")}`,
       metadata: {
         previousStatus,
         newStatus: status,
       },
     });
 
-    console.log('[TaskStatus] Responding with enriched task', task.id);
+    console.log("[TaskStatus] Responding with enriched task", task.id);
     res.status(200).json({
       success: true,
-      message: 'Task status updated successfully',
+      message: "Task status updated successfully",
       data: { task: responseTask },
     });
   } catch (error) {
-    console.error('Update task status error:', error);
+    console.error("Update task status error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to update task status',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      message: "Failed to update task status",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 };
@@ -1178,7 +1283,7 @@ const updateTaskStatus = async (req, res) => {
  */
 const getTaskStatistics = async (req, res) => {
   try {
-    const requestTimezone = req.requestedTimezone || 'UTC';
+    const requestTimezone = req.requestedTimezone || "UTC";
     const userId = req.user.userId;
     const nowInZone = getNowInTimeZone(requestTimezone).date;
 
@@ -1187,15 +1292,18 @@ const getTaskStatistics = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      message: 'Task statistics retrieved successfully',
+      message: "Task statistics retrieved successfully",
       data: { statistics: stats },
     });
   } catch (error) {
-    console.error('Get task statistics error:', error);
+    console.error("Get task statistics error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve task statistics',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      message: "Failed to retrieve task statistics",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 };
@@ -1213,27 +1321,32 @@ const getTaskStatistics = async (req, res) => {
  */
 const getOverdueTasks = async (req, res) => {
   try {
-    const requestTimezone = req.requestedTimezone || 'UTC';
+    const requestTimezone = req.requestedTimezone || "UTC";
     const userId = req.user.userId;
 
     const nowInZone = getNowInTimeZone(requestTimezone).date;
     let overdueTasks = await Task.findOverdueTasks(userId, nowInZone);
-    overdueTasks = overdueTasks.map(task => enrichTaskWithTimezone(task, requestTimezone, nowInZone));
+    overdueTasks = overdueTasks.map((task) =>
+      enrichTaskWithTimezone(task, requestTimezone, nowInZone)
+    );
 
     res.status(200).json({
       success: true,
-      message: 'Overdue tasks retrieved successfully',
+      message: "Overdue tasks retrieved successfully",
       data: {
         tasks: overdueTasks,
         count: overdueTasks.length,
       },
     });
   } catch (error) {
-    console.error('Get overdue tasks error:', error);
+    console.error("Get overdue tasks error:", error);
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve overdue tasks',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      message: "Failed to retrieve overdue tasks",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 };
@@ -1289,13 +1402,13 @@ const getOverdueTasks = async (req, res) => {
  */
 const getOverdueTasksByStatus = async (req, res) => {
   try {
-    const requestTimezone = req.requestedTimezone || 'UTC';
+    const requestTimezone = req.requestedTimezone || "UTC";
     // Check for validation errors
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({
         success: false,
-        message: 'Validation failed',
+        message: "Validation failed",
         errors: errors.array(),
       });
     }
@@ -1304,7 +1417,7 @@ const getOverdueTasksByStatus = async (req, res) => {
     const {
       status, // Required parameter
       priority,
-      role = 'both', // 'assignee', 'assignor', or 'both'
+      role = "both", // 'assignee', 'assignor', or 'both'
       category,
       tags,
       search,
@@ -1312,8 +1425,8 @@ const getOverdueTasksByStatus = async (req, res) => {
       severity,
       page = 1,
       limit = 10, // Smaller default for overdue-specific pagination
-      sortBy = 'dueDate', // Default to due date for overdue tasks
-      sortOrder = 'asc', // Ascending to show most overdue first
+      sortBy = "dueDate", // Default to due date for overdue tasks
+      sortOrder = "asc", // Ascending to show most overdue first
     } = req.query;
 
     // Build query options for Task.findByUser
@@ -1329,7 +1442,7 @@ const getOverdueTasksByStatus = async (req, res) => {
     let additionalFilters = {
       // Base overdue filter: due date earlier than "now" in the requester's timezone and not done
       dueDate: { $lt: nowInZone },
-      status: { $ne: 'done' }, // Redundant but explicit
+      status: { $ne: "done" }, // Redundant but explicit
     };
 
     // Priority filter
@@ -1339,12 +1452,12 @@ const getOverdueTasksByStatus = async (req, res) => {
 
     // Category filter (case-insensitive partial match)
     if (category) {
-      additionalFilters.category = new RegExp(category, 'i');
+      additionalFilters.category = new RegExp(category, "i");
     }
 
     // Tags filter (comma-separated string to array)
     if (tags) {
-      const tagArray = tags.split(',').map(tag => tag.trim().toLowerCase());
+      const tagArray = tags.split(",").map((tag) => tag.trim().toLowerCase());
       additionalFilters.tags = { $in: tagArray };
     }
 
@@ -1352,7 +1465,9 @@ const getOverdueTasksByStatus = async (req, res) => {
     if (daysPast) {
       const daysPastNum = parseInt(daysPast);
       if (!Number.isNaN(daysPastNum)) {
-        const cutoffDate = new Date(nowInZone.getTime() - daysPastNum * MS_IN_DAY);
+        const cutoffDate = new Date(
+          nowInZone.getTime() - daysPastNum * MS_IN_DAY
+        );
         additionalFilters.dueDate = { $lt: cutoffDate };
       }
     }
@@ -1362,18 +1477,18 @@ const getOverdueTasksByStatus = async (req, res) => {
 
     // Apply additional filters
     if (Object.keys(additionalFilters).length > 0) {
-      tasks = tasks.filter(task => {
+      tasks = tasks.filter((task) => {
         return Object.entries(additionalFilters).every(([key, value]) => {
-          if (key === 'category' && value instanceof RegExp) {
+          if (key === "category" && value instanceof RegExp) {
             return value.test(task.category);
           }
-          if (key === 'tags' && value.$in) {
-            return task.tags.some(tag => value.$in.includes(tag));
+          if (key === "tags" && value.$in) {
+            return task.tags.some((tag) => value.$in.includes(tag));
           }
-          if (key === 'dueDate' && typeof value === 'object') {
+          if (key === "dueDate" && typeof value === "object") {
             if (value.$lt) return new Date(task.dueDate) < value.$lt;
           }
-          if (key === 'status') {
+          if (key === "status") {
             if (value.$ne) return task.status !== value.$ne;
           }
           return task[key] === value;
@@ -1382,60 +1497,67 @@ const getOverdueTasksByStatus = async (req, res) => {
     }
 
     tasks = tasks.map(toPlainTask);
-    tasks = tasks.map(task => enrichTaskWithTimezone(task, requestTimezone, nowInZone));
+    tasks = tasks.map((task) =>
+      enrichTaskWithTimezone(task, requestTimezone, nowInZone)
+    );
 
     if (daysPast) {
       const minDays = parseInt(daysPast, 10);
       if (!Number.isNaN(minDays)) {
-        tasks = tasks.filter(task => (task.overdueMetadata?.daysPastDue || 0) >= minDays);
+        tasks = tasks.filter(
+          (task) => (task.overdueMetadata?.daysPastDue || 0) >= minDays
+        );
       }
     }
 
     // Apply severity filter if specified
     if (severity) {
-      tasks = tasks.filter(task => task.overdueMetadata?.severity === severity);
+      tasks = tasks.filter(
+        (task) => task.overdueMetadata?.severity === severity
+      );
     }
 
     // Apply search filter (title, description, tags)
     if (search) {
       const searchLower = search.toLowerCase();
-      tasks = tasks.filter(task => {
+      tasks = tasks.filter((task) => {
         return (
           task.title.toLowerCase().includes(searchLower) ||
-          (task.description && task.description.toLowerCase().includes(searchLower)) ||
-          task.tags.some(tag => tag.toLowerCase().includes(searchLower))
+          (task.description &&
+            task.description.toLowerCase().includes(searchLower)) ||
+          task.tags.some((tag) => tag.toLowerCase().includes(searchLower))
         );
       });
     }
 
     // Sort tasks
-    const sortOrderNum = sortOrder === 'desc' ? -1 : 1;
+    const sortOrderNum = sortOrder === "desc" ? -1 : 1;
     tasks.sort((a, b) => {
       let aVal, bVal;
-      
+
       switch (sortBy) {
-        case 'daysPastDue':
+        case "daysPastDue":
           aVal = a.overdueMetadata?.daysPastDue || 0;
           bVal = b.overdueMetadata?.daysPastDue || 0;
           break;
-        case 'dueDate':
+        case "dueDate":
           aVal = new Date(a.dueDate);
           bVal = new Date(b.dueDate);
           break;
-        case 'priority':
+        case "priority":
           const priorityOrder = { low: 1, medium: 2, high: 3 };
           aVal = priorityOrder[a.priority] || 0;
           bVal = priorityOrder[b.priority] || 0;
           break;
-        case 'title':
+        case "title":
           aVal = a.title.toLowerCase();
           bVal = b.title.toLowerCase();
           break;
-        case 'createdAt':
+        case "createdAt":
           aVal = new Date(a.createdAt);
           bVal = new Date(b.createdAt);
           break;
-        case 'updatedAt':
+        case "updatedAt":
           aVal = new Date(a.updatedAt);
           bVal = new Date(b.updatedAt);
           break;
@@ -1443,18 +1565,21 @@ const getOverdueTasksByStatus = async (req, res) => {
           aVal = new Date(a.dueDate);
           bVal = new Date(b.dueDate);
       }
-      
+
       if (aVal < bVal) return -1 * sortOrderNum;
       if (aVal > bVal) return 1 * sortOrderNum;
       return 0;
     });
 
     // Calculate overdue severity breakdown
-    const severityBreakdown = tasks.reduce((acc, task) => {
-      const sev = task.overdueMetadata?.severity || 'low';
-      acc[sev] = (acc[sev] || 0) + 1;
-      return acc;
-    }, { critical: 0, high: 0, medium: 0, low: 0 });
+    const severityBreakdown = tasks.reduce(
+      (acc, task) => {
+        const sev = task.overdueMetadata?.severity || "low";
+        acc[sev] = (acc[sev] || 0) + 1;
+        return acc;
+      },
+      { critical: 0, high: 0, medium: 0, low: 0 }
+    );
 
     // Pagination
     const pageNum = parseInt(page);
@@ -1471,19 +1596,28 @@ const getOverdueTasksByStatus = async (req, res) => {
       totalOverdueInStatus: totalTasks,
       currentPageCount: paginatedTasks.length,
       severityBreakdown,
-      averageDaysPastDue: totalTasks > 0 
-        ? Math.round(tasks.reduce((sum, task) => sum + (task.overdueMetadata?.daysPastDue || 0), 0) / totalTasks)
-        : 0,
+      averageDaysPastDue:
+        totalTasks > 0
+          ? Math.round(
+              tasks.reduce(
+                (sum, task) => sum + (task.overdueMetadata?.daysPastDue || 0),
+                0
+              ) / totalTasks
+            )
+          : 0,
       criticalTasksCount: severityBreakdown.critical,
-      oldestOverdueTask: totalTasks > 0 
-        ? Math.max(...tasks.map(task => task.overdueMetadata?.daysPastDue || 0))
-        : 0,
+      oldestOverdueTask:
+        totalTasks > 0
+          ? Math.max(
+              ...tasks.map((task) => task.overdueMetadata?.daysPastDue || 0)
+            )
+          : 0,
     };
 
     // Enhanced response with comprehensive overdue metadata
     res.status(200).json({
       success: true,
-      message: `Overdue ${status.replace('_', ' ')} tasks retrieved successfully`,
+      message: `Overdue ${status.replace("_", " ")} tasks retrieved successfully`,
       data: {
         tasks: paginatedTasks,
         pagination: {
@@ -1513,11 +1647,17 @@ const getOverdueTasksByStatus = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error(`Get overdue tasks by status (${req.query.status}) error:`, error);
+    console.error(
+      `Get overdue tasks by status (${req.query.status}) error:`,
+      error
+    );
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve overdue tasks by status',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      message: "Failed to retrieve overdue tasks by status",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 };

@@ -8,20 +8,20 @@
  */
 
 // Load environment variables from .env file
-require('dotenv').config();
+require("dotenv").config();
 
-const app = require('./app');
-const connectDB = require('./config/database');
-const appConfig = require('./config/app');
-
+const app = require("./app");
+const connectDB = require("./config/database");
+const appConfig = require("./config/app");
 
 /**
   *LOAD AGENDA + NOTIFICATION SCHEDULER 
- */
+//  */
 const agenda = require("./scheduler/agenda");
-const { scheduleUpcomingReminders } = require("./scheduler/notificationScheduler");
-const registerJobs = require("./scheduler/jobs/sendNotification");
-
+const {
+  scheduleUpcomingReminders,
+} = require("./scheduler/notificationScheduler");
+const registerJobs = require("./scheduler/sentnotification");
 
 /**
  * Server Port
@@ -44,25 +44,18 @@ const PORT = appConfig.server.port;
 const initializeServer = async () => {
   try {
     // Connect to MongoDB database
-    console.log('🔌 Connecting to database...');
+    console.log("🔌 Connecting to database...");
     await connectDB();
-
-    // load job definitions BEFORE starting agenda 
-    // this calls sentnotification
-    registerJobs(agenda);
-
-    // start agenda
-    await agenda.start();
-    scheduleUpcomingReminders();
-    setInterval(scheduleUpcomingReminders, 60 * 1000); // re-run every 1 minute
 
     // Start Express server
     const server = app.listen(PORT, () => {
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       console.log(`🚀 Server running in ${appConfig.server.env} mode`);
       console.log(`📡 Listening on port ${PORT}`);
-      console.log(`🌐 API URL: http://localhost:${PORT}${appConfig.server.apiPrefix}`);
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      console.log(
+        `🌐 API URL: http://localhost:${PORT}${appConfig.server.apiPrefix}`
+      );
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     });
 
     /**
@@ -79,33 +72,33 @@ const initializeServer = async () => {
 
       // Stop accepting new connections
       server.close(async () => {
-        console.log('✅ HTTP server closed');
+        console.log("✅ HTTP server closed");
 
         try {
           // Close database connection
-          const mongoose = require('mongoose');
+          const mongoose = require("mongoose");
           await mongoose.connection.close();
-          console.log('✅ Database connection closed');
+          console.log("✅ Database connection closed");
 
           // Exit process
-          console.log('👋 Server shutdown complete');
+          console.log("👋 Server shutdown complete");
           process.exit(0);
         } catch (error) {
-          console.error('❌ Error during shutdown:', error.message);
+          console.error("❌ Error during shutdown:", error.message);
           process.exit(1);
         }
       });
 
       // Force shutdown after 10 seconds
       setTimeout(() => {
-        console.error('⚠️  Forced shutdown after timeout');
+        console.error("⚠️  Forced shutdown after timeout");
         process.exit(1);
       }, 10000);
     };
 
     // Listen for termination signals
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+    process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
     /**
      * Unhandled Rejection Handler
@@ -113,12 +106,12 @@ const initializeServer = async () => {
      * Catches unhandled promise rejections and logs them.
      * In production, this should be monitored and alerted.
      */
-    process.on('unhandledRejection', (reason, promise) => {
-      console.error('❌ Unhandled Rejection at:', promise);
-      console.error('❌ Reason:', reason);
+    process.on("unhandledRejection", (reason, promise) => {
+      console.error("❌ Unhandled Rejection at:", promise);
+      console.error("❌ Reason:", reason);
       // In production, you might want to shut down gracefully
-      if (appConfig.server.env === 'production') {
-        gracefulShutdown('UNHANDLED_REJECTION');
+      if (appConfig.server.env === "production") {
+        gracefulShutdown("UNHANDLED_REJECTION");
       }
     });
 
@@ -128,16 +121,24 @@ const initializeServer = async () => {
      * Catches uncaught exceptions and logs them.
      * Server should be restarted after uncaught exceptions.
      */
-    process.on('uncaughtException', (error) => {
-      console.error('❌ Uncaught Exception:', error.message);
-      console.error('❌ Stack:', error.stack);
+    process.on("uncaughtException", (error) => {
+      console.error("❌ Uncaught Exception:", error.message);
+      console.error("❌ Stack:", error.stack);
       // Always shut down on uncaught exceptions
-      gracefulShutdown('UNCAUGHT_EXCEPTION');
+      gracefulShutdown("UNCAUGHT_EXCEPTION");
     });
 
+    // load job definitions BEFORE starting agenda
+    // this calls sentnotification
+    // registerJobs(agenda);
+
+    // start agenda
+    // await agenda.start();
+    // scheduleUpcomingReminders();
+    // setInterval(scheduleUpcomingReminders, 60 * 1000); // re-run every 1 minute
   } catch (error) {
-    console.error('❌ Failed to initialize server:', error.message);
-    console.error('❌ Stack:', error.stack);
+    console.error("❌ Failed to initialize server:", error.message);
+    console.error("❌ Stack:", error.stack);
     process.exit(1);
   }
 };
