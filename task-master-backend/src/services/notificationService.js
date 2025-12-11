@@ -104,4 +104,5 @@ module.exports = {
       metadata: { taskId: task._id, dueDate: task.dueDate },
     });
   },
+  saveAndSend,
 };

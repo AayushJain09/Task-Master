@@ -20,6 +20,8 @@ const {
   isDateOnlyString,
 } = require('../utils/timezone');
 const { expandReminderOccurrences } = require('../utils/recurrence');
+const {rescheduleReminder,cancelJobsForReminder,} = require('../lib/reminderScheduler');
+
 
 const pickReminderFields = (payload = {}) => {
   const sanitized = {};
@@ -307,6 +309,8 @@ const createReminder = async (req, res) => {
       clientUpdatedAt: req.body.clientUpdatedAt ? new Date(req.body.clientUpdatedAt) : null,
     });
 
+    await rescheduleReminder(reminder);
+
     res.status(201).json({
       success: true,
       message: 'Reminder created successfully',
@@ -373,6 +377,9 @@ const updateReminder = async (req, res) => {
       message: 'Reminder updated successfully',
       data: formatReminderResponse(reminder, requestTimezone),
     });
+
+    await rescheduleReminder(reminder);
+
   } catch (error) {
     console.error('Update reminder failed:', error);
     res.status(500).json({
@@ -415,6 +422,9 @@ const deleteReminder = async (req, res) => {
       success: true,
       message: 'Reminder deleted successfully',
     });
+
+    await cancelJobsForReminder(reminderId);
+
   } catch (error) {
     console.error('Delete reminder failed:', error);
     res.status(500).json({

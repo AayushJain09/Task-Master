@@ -35,6 +35,17 @@ async function initAgenda({
     defaultLockLifetime: lockLifetime,
   });
 
+  // logs for debug
+  agenda.on("start", (job) =>
+    console.log(`Agenda job starting: ${job.attrs.name}`, job.attrs.data)
+  );
+  agenda.on("complete", (job) =>
+    console.log(`Agenda job finished: ${job.attrs.name}`, job.attrs.data)
+  );
+  agenda.on("fail", (err, job) =>
+    console.error(`Agenda job failed: ${job.attrs.name}`, err, job.attrs.data)
+  );
+
   // Define job processor
   agenda.define(
     "sendReminder",
@@ -54,9 +65,6 @@ async function initAgenda({
           return done();
         }
 
-        // If scheduledAt drift or user changed schedule, ensure this occurrence is still relevant:
-        const occDate = new Date(occurrenceDate);
-
         // If occurrence is in future by a margin, re-schedule (rare)
         // if (occDate.getTime() > Date.now() + 5 * 60 * 1000) {
         //   // This job fired early or schedule changed -- re-schedule for exact time
@@ -74,7 +82,7 @@ async function initAgenda({
           timeZone: reminder.timezone || "UTC",
         });
 
-        // Early-trigger or schedule changed → re-schedule at correct UTC time
+        // schedule changed re-schedule at correct UTC time
         if (occDateUTC.getTime() > nowUTC.getTime() + 5 * 60 * 1000) {
           await agenda.schedule(occDateUTC, "sendReminder", {
             reminderId,
@@ -83,7 +91,7 @@ async function initAgenda({
           return done();
         }
 
-        // Use your notification service to save & send. Adapt payload as needed.
+        // Using notification service to save & send
         const usersToNotify = reminder.user ? [reminder.user] : [];
         await notificationService.saveAndSend(usersToNotify, null, {
           type: "reminder",
@@ -108,17 +116,6 @@ async function initAgenda({
           reminder.recurrence.cadence &&
           reminder.recurrence.cadence !== "none"
         ) {
-          // Expand a small future window to create upcoming jobs (e.g., next 30 days)
-          //   const now = new Date();
-          //   const futureWindowEnd = new Date(
-          //     now.getTime() + 30 * 24 * 60 * 60 * 1000
-          //   );
-          //   const occurrences = expandReminderOccurrences(
-          //     reminder,
-          //     now,
-          //     futureWindowEnd
-          //   );
-
           const nowZoned = parseDateInputToUTC(new Date(), {
             timeZone: reminder.timezone || "UTC",
           });
