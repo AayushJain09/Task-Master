@@ -15,15 +15,6 @@ const connectDB = require("./config/database");
 const appConfig = require("./config/app");
 
 /**
-  *LOAD AGENDA + NOTIFICATION SCHEDULER 
-//  */
-const agenda = require("./scheduler/agenda");
-const {
-  scheduleUpcomingReminders,
-} = require("./scheduler/notificationScheduler");
-const registerJobs = require("./scheduler/sentnotification");
-
-/**
  * Server Port
  *
  * Port number for the server to listen on.
@@ -128,14 +119,6 @@ const initializeServer = async () => {
       gracefulShutdown("UNCAUGHT_EXCEPTION");
     });
 
-    // load job definitions BEFORE starting agenda
-    // this calls sentnotification
-    // registerJobs(agenda);
-
-    // start agenda
-    // await agenda.start();
-    // scheduleUpcomingReminders();
-    // setInterval(scheduleUpcomingReminders, 60 * 1000); // re-run every 1 minute
   } catch (error) {
     console.error("❌ Failed to initialize server:", error.message);
     console.error("❌ Stack:", error.stack);

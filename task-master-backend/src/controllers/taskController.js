@@ -779,7 +779,7 @@ const createTask = async (req, res) => {
       context: "dashboard",
     });
 
-    // === SEND NOTIFICATION === ADITI ===
+    // === SEND NOTIFICATION 
     try {
       // Notify ONLY the assignees, not the creator
       await notificationService.taskCreated(
@@ -1055,7 +1055,7 @@ const updateTask = async (req, res) => {
       });
     }
 
-    // Notify on task update === ADITI
+    // Notify on task update 
     if (genericFields.length > 0) {
       await notificationService.taskUpdated(
         task,
@@ -1157,7 +1157,7 @@ const deleteTask = async (req, res) => {
       metadata: { reason: "user_deleted" },
     });
 
-    // Notify on task deletion === ADITI
+    // Notify on task deletion  
     await notificationService.taskDeleted(
       task,
       req.user,
@@ -1267,7 +1267,7 @@ const updateTaskStatus = async (req, res) => {
       },
     });
 
-    //notify on task completion === aditi
+    //notify on task completion  
     // const currentAssignees = task.assignedTo?.map((id) => id.toString()) || [];
     const currentAssignees = (task.assignedTo || []).map((u) =>
       (u._id || u).toString()
@@ -1363,7 +1363,7 @@ const getOverdueTasks = async (req, res) => {
       enrichTaskWithTimezone(task, requestTimezone, nowInZone)
     );
 
-    // notify on task overdue === ADITI
+    // notify on task overdue  
     await notificationService.taskOverdue(Task, assigneeIds);
 
     res.status(200).json({
