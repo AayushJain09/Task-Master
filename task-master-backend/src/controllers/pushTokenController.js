@@ -4,7 +4,7 @@ const saveFCMToken = async (req, res) => {
   try {
     // console.log("ajbdfiad", req);
     const { token } = req.body;
-    console.log("token received from the backend", token);
+    console.log("token received from the frontend", token);
     if (!token) {
       console.log("no token received");
       return res
