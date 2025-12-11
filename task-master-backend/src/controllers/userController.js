@@ -17,7 +17,7 @@ const {
   mapUserDeletionToResponse,
   mapUserStatsToResponse,
 } = require('../dtos');
-
+const notificationService = require('../services/notificationService')
 /**
  * Get Assignable Users
  *
@@ -296,7 +296,7 @@ const updateUserStatus = asyncHandler(async (req, res) => {
 
   user.isActive = isActive;
   await user.save();
-
+  await notificationService.userStatusUpdated(req.user, user);
   // If deactivating, clear all refresh tokens
   if (!isActive) {
     await user.clearAllRefreshTokens();
@@ -353,6 +353,7 @@ const updateUserRole = asyncHandler(async (req, res) => {
 
   user.role = role;
   await user.save();
+  await notificationService.userRoleUpdated(req.user, user);
 
   // Map to DTO and send success response
   res.status(200).json(mapUserUpdateToResponse(user, 'User role updated successfully'));
@@ -390,6 +391,7 @@ const deleteUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'You cannot delete your own account');
   }
 
+  await notificationService.userDeleted(req.user, user);
   // Find and delete user
   const user = await User.findByIdAndDelete(id);
 

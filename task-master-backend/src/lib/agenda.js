@@ -149,7 +149,7 @@ async function initAgenda({
         return done();
       } catch (err) {
         console.error("sendReminder job failed", err);
-        return done(err);
+        return done(err); 
       }
     }
   );

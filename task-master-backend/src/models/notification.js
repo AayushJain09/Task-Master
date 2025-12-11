@@ -13,6 +13,9 @@ const NotificationSchema = new mongoose.Schema({
       'task_overdue',
       'task_status_changed',
       'reminder',
+      'update_user_status',
+      'update_user_role',
+      'delete_user'
     ],
     required: true,
   },

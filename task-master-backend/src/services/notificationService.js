@@ -104,5 +104,33 @@ module.exports = {
       metadata: { taskId: task._id, dueDate: task.dueDate },
     });
   },
+
+  async userStatusUpdated(admin, user) {
+    await saveAndSend([user._id], admin, {
+      type: "update_user_status",
+      title: "Account Status Updated",
+      message: `${admin.firstName}: changed your account status to ${user.isActive ? "Active" : "Inactive"}.`,
+      metadata: { userId: user._id },
+    });
+  },
+
+  async userRoleUpdated(admin, user) {
+    await saveAndSend([user._id], admin, {
+      type: "update_user_role",
+      title: "Role Updated",
+      message: `${admin.firstName}: updated your role to ${user.role}.`,
+      metadata: { userId: user._id },
+    });
+  },
+
+  async userDeleted(admin, user) {
+    await saveAndSend([user._id], admin, {
+      type: "delete_user",
+      title: "Account Deleted",
+      message: `${admin.firstName}: deleted your account.`,
+      metadata: { userId: user._id },
+    });
+  },
+  
   saveAndSend,
 };
