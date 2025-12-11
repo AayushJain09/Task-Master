@@ -12,6 +12,7 @@ const NotificationSchema = new mongoose.Schema({
       'task_deleted',
       'task_overdue',
       'task_status_changed',
+      'reminder',
     ],
     required: true,
   },

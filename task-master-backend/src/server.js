@@ -13,7 +13,7 @@ require("dotenv").config();
 const app = require("./app");
 const connectDB = require("./config/database");
 const appConfig = require("./config/app");
-
+const { initAgenda } = require("./lib/agenda");
 /**
  * Server Port
  *
@@ -49,6 +49,7 @@ const initializeServer = async () => {
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     });
 
+    await initAgenda({ mongoCollection: "agendaJobs" });
     /**
      * Graceful Shutdown Handler
      *
