@@ -12,7 +12,7 @@ function formatStatus(text) {
   return text
     .replace(/_/g, " ")
     .split(" ")
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 }
 
@@ -72,20 +72,20 @@ module.exports = {
   },
 
   async taskStatusChanged(task, user, assigneeIds, previousStatus) {
-  console.log("inside taskStatusChanged");
+    console.log("inside taskStatusChanged");
 
-  const oldStatus = formatStatus(previousStatus);  
-  const newStatus = formatStatus(task.status);
+    const oldStatus = formatStatus(previousStatus);
+    const newStatus = formatStatus(task.status);
 
-  await saveAndSend(assigneeIds, user, {
-    type: "task_status_changed",
-    title: "Task Status Updated",
-    message: `${user.firstName} moved task "${task.title}" from ${oldStatus} → ${newStatus}`,
-    metadata: { taskId: task._id },
-  });
+    await saveAndSend(assigneeIds, user, {
+      type: "task_status_changed",
+      title: "Task Status Updated",
+      message: `${user.firstName} moved task "${task.title}" from ${oldStatus} → ${newStatus}`,
+      metadata: { taskId: task._id },
+    });
 
-  console.log("going out from taskStatusChanged");
-},
+    console.log("going out from taskStatusChanged");
+  },
 
   async taskDeleted(task, user, assigneeIds) {
     await saveAndSend(assigneeIds, user, {
@@ -96,12 +96,16 @@ module.exports = {
     });
   },
 
-  async taskOverdue(task, assigneeIds) {
+  async taskOverdue(task, assigneeIds, daysOverdue) {
     await saveAndSend(assigneeIds, null, {
       type: "task_overdue",
       title: "Task Overdue",
-      message: `${task.title} is overdue!`,
-      metadata: { taskId: task._id, dueDate: task.dueDate },
+      message: `"${task.title}" is overdue by ${daysOverdue} days`,
+      metadata: {
+        taskId: task._id,
+        dueDate: task.dueDate,
+        daysOverdue,
+      },
     });
   },
 
@@ -131,6 +135,6 @@ module.exports = {
       metadata: { userId: user._id },
     });
   },
-  
+
   saveAndSend,
 };

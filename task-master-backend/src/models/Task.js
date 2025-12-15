@@ -7,7 +7,7 @@
  * @module models/Task
  */
 
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 /**
  * Applies consistent serialization rules for task documents so that every
@@ -64,28 +64,28 @@ const taskSchema = new mongoose.Schema(
     // Task title - concise description of what needs to be done
     title: {
       type: String,
-      required: [true, 'Task title is required'],
+      required: [true, "Task title is required"],
       trim: true,
-      maxlength: [200, 'Task title cannot exceed 200 characters'],
-      minlength: [3, 'Task title must be at least 3 characters long'],
+      maxlength: [200, "Task title cannot exceed 200 characters"],
+      minlength: [3, "Task title must be at least 3 characters long"],
     },
 
     // Detailed description of the task
     description: {
       type: String,
       trim: true,
-      maxlength: [2000, 'Task description cannot exceed 2000 characters'],
-      default: '',
+      maxlength: [2000, "Task description cannot exceed 2000 characters"],
+      default: "",
     },
 
     // Current status of the task
     status: {
       type: String,
       enum: {
-        values: ['todo', 'in_progress', 'done'],
-        message: '{VALUE} is not a valid task status',
+        values: ["todo", "in_progress", "done"],
+        message: "{VALUE} is not a valid task status",
       },
-      default: 'todo',
+      default: "todo",
       index: true, // Index for efficient filtering
     },
 
@@ -93,10 +93,10 @@ const taskSchema = new mongoose.Schema(
     priority: {
       type: String,
       enum: {
-        values: ['low', 'medium', 'high'],
-        message: '{VALUE} is not a valid priority level',
+        values: ["low", "medium", "high"],
+        message: "{VALUE} is not a valid priority level",
       },
-      default: 'medium',
+      default: "medium",
       index: true, // Index for efficient filtering
     },
 
@@ -105,32 +105,32 @@ const taskSchema = new mongoose.Schema(
       type: [String],
       default: [],
       validate: {
-        validator: function(tags) {
+        validator: function (tags) {
           // Limit to 10 tags maximum
           return tags.length <= 10;
         },
-        message: 'Cannot have more than 10 tags per task',
+        message: "Cannot have more than 10 tags per task",
       },
     },
 
     // User who created/assigned the task
     assignedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: [true, 'Task must have an assignor'],
+      ref: "User",
+      required: [true, "Task must have an assignor"],
       index: true, // Index for efficient queries
     },
 
     // User who is responsible for completing the task
     assignedTo: {
       type: [mongoose.Schema.Types.ObjectId],
-      ref: 'User',
-      required: [true, 'Task must be assigned to at least one user'],
+      ref: "User",
+      required: [true, "Task must be assigned to at least one user"],
       validate: {
         validator: function (arr) {
           return Array.isArray(arr) && arr.length > 0;
         },
-        message: 'Task must have at least one assignee',
+        message: "Task must have at least one assignee",
       },
       index: true, // Index for efficient queries
     },
@@ -140,12 +140,12 @@ const taskSchema = new mongoose.Schema(
       type: Date,
       default: null,
       validate: {
-        validator: function(dueDate) {
+        validator: function (dueDate) {
           // Check if date is valid
           if (dueDate && isNaN(dueDate.getTime())) {
             return false;
           }
-          
+
           // Due date should not be in the past (be very permissive with timezone differences)
           if (this.isNew && dueDate) {
             const now = new Date();
@@ -155,7 +155,7 @@ const taskSchema = new mongoose.Schema(
           }
           return true;
         },
-        message: 'Due date cannot be in the past',
+        message: "Due date cannot be in the past",
       },
     },
 
@@ -175,16 +175,16 @@ const taskSchema = new mongoose.Schema(
     // Estimated time to complete (in hours)
     estimatedHours: {
       type: Number,
-      min: [0.1, 'Estimated hours must be at least 0.1'],
-      max: [1000, 'Estimated hours cannot exceed 1000'],
+      min: [0.1, "Estimated hours must be at least 0.1"],
+      max: [1000, "Estimated hours cannot exceed 1000"],
       default: null,
     },
 
     // Actual time spent (in hours)
     actualHours: {
       type: Number,
-      min: [0, 'Actual hours cannot be negative'],
-      max: [1000, 'Actual hours cannot exceed 1000'],
+      min: [0, "Actual hours cannot be negative"],
+      max: [1000, "Actual hours cannot exceed 1000"],
       default: 0,
     },
 
@@ -193,7 +193,7 @@ const taskSchema = new mongoose.Schema(
       totalSeconds: {
         type: Number,
         default: 0,
-        min: [0, 'Tracked time cannot be negative'],
+        min: [0, "Tracked time cannot be negative"],
       },
       lastStartedAt: {
         type: Date,
@@ -209,8 +209,15 @@ const taskSchema = new mongoose.Schema(
     category: {
       type: String,
       trim: true,
-      maxlength: [50, 'Category cannot exceed 50 characters'],
-      default: 'General',
+      maxlength: [50, "Category cannot exceed 50 characters"],
+      default: "General",
+    },
+    // Task schema
+    overdueNotifications: {
+      day0: { type: Boolean, default: false },
+      day2: { type: Boolean, default: false },
+      day5: { type: Boolean, default: false },
+      day8: { type: Boolean, default: false },
     },
   },
   {
@@ -247,7 +254,7 @@ taskSchema.index({ dueDate: 1, priority: -1 });
 taskSchema.index({ assignedTo: 1, isActive: 1 });
 
 // Text index for full-text search on title and description
-taskSchema.index({ title: 'text', description: 'text', tags: 'text' });
+taskSchema.index({ title: "text", description: "text", tags: "text" });
 
 /**
  * Pre-save Middleware
@@ -255,23 +262,34 @@ taskSchema.index({ title: 'text', description: 'text', tags: 'text' });
  * Automatically sets completedAt timestamp when task status changes to 'done'
  * and clears it if status changes away from 'done'
  */
-taskSchema.pre('save', function (next) {
-  // If status is changed to 'done', set completedAt timestamp
-  if (this.isModified('status')) {
-    if (this.status === 'done' && !this.completedAt) {
+taskSchema.pre("save", function (next) {
+  // completedAt logic
+  if (this.isModified("status")) {
+    if (this.status === "done" && !this.completedAt) {
       this.completedAt = new Date();
-    } else if (this.status !== 'done' && this.completedAt) {
+    } else if (this.status !== "done" && this.completedAt) {
       this.completedAt = null;
     }
   }
 
-  // Normalize tags: remove duplicates, trim whitespace, convert to lowercase
-  if (this.isModified('tags')) {
-    this.tags = [...new Set(this.tags.map(tag => tag.trim().toLowerCase()).filter(tag => tag.length > 0))];
+  // RESET overdue escalation when task is completed
+  if (this.isModified("status") && this.status === "done") {
+    this.overdueNotifications = {
+      day0: false,
+      day2: false,
+      day5: false,
+      day8: false,
+    };
+  }
+
+  // normalize tags
+  if (this.isModified("tags")) {
+    this.tags = [...new Set(this.tags.map(t => t.trim().toLowerCase()))];
   }
 
   next();
 });
+
 
 /**
  * Virtual Property: Is Overdue
@@ -281,8 +299,8 @@ taskSchema.pre('save', function (next) {
  * @virtual
  * @returns {boolean} True if task is overdue, false otherwise
  */
-taskSchema.virtual('isOverdue').get(function () {
-  if (!this.dueDate || this.status === 'done') {
+taskSchema.virtual("isOverdue").get(function () {
+  if (!this.dueDate || this.status === "done") {
     return false;
   }
   return new Date() > this.dueDate;
@@ -296,7 +314,7 @@ taskSchema.virtual('isOverdue').get(function () {
  * @virtual
  * @returns {number|null} Number of days until due (negative if overdue), null if no due date
  */
-taskSchema.virtual('daysUntilDue').get(function () {
+taskSchema.virtual("daysUntilDue").get(function () {
   if (!this.dueDate) {
     return null;
   }
@@ -313,7 +331,7 @@ taskSchema.virtual('daysUntilDue').get(function () {
  * @virtual
  * @returns {number|null} Time variance in hours (positive if over estimate)
  */
-taskSchema.virtual('timeVariance').get(function () {
+taskSchema.virtual("timeVariance").get(function () {
   if (!this.estimatedHours || this.actualHours === 0) {
     return null;
   }
@@ -349,9 +367,9 @@ taskSchema.methods.assignToUser = async function (userId, assignorId) {
  * @returns {Promise<void>}
  */
 taskSchema.methods.updateStatus = async function (newStatus) {
-  const validStatuses = ['todo', 'in_progress', 'done'];
+  const validStatuses = ["todo", "in_progress", "done"];
   if (!validStatuses.includes(newStatus)) {
-    throw new Error('Invalid task status');
+    throw new Error("Invalid task status");
   }
 
   const previousStatus = this.status;
@@ -390,7 +408,7 @@ taskSchema.methods.addTag = async function (tag) {
  */
 taskSchema.methods.removeTag = async function (tag) {
   const normalizedTag = tag.trim().toLowerCase();
-  this.tags = this.tags.filter(t => t !== normalizedTag);
+  this.tags = this.tags.filter((t) => t !== normalizedTag);
   await this.save();
 };
 
@@ -414,7 +432,8 @@ taskSchema.methods.ensureWorkTimer = function () {
  */
 taskSchema.methods.syncActualHoursFromTimer = function () {
   this.ensureWorkTimer();
-  const roundedHours = Math.round((this.workTimer.totalSeconds / 3600) * 100) / 100;
+  const roundedHours =
+    Math.round((this.workTimer.totalSeconds / 3600) * 100) / 100;
   this.actualHours = Number.isFinite(roundedHours) ? roundedHours : 0;
 };
 
@@ -482,9 +501,9 @@ taskSchema.methods.applyStatusTimerChange = function (previousStatus = null) {
   const next = this.status;
 
   if (!previousStatus) {
-    if (next === 'in_progress') {
+    if (next === "in_progress") {
       this.startWorkTimer();
-    } else if (next === 'done') {
+    } else if (next === "done") {
       this.pauseWorkTimer();
     }
     return;
@@ -494,14 +513,16 @@ taskSchema.methods.applyStatusTimerChange = function (previousStatus = null) {
     return;
   }
 
-  const enteredInProgress = next === 'in_progress' && previousStatus !== 'in_progress';
-  const leftInProgress = previousStatus === 'in_progress' && next !== 'in_progress';
+  const enteredInProgress =
+    next === "in_progress" && previousStatus !== "in_progress";
+  const leftInProgress =
+    previousStatus === "in_progress" && next !== "in_progress";
 
   if (enteredInProgress) {
     this.startWorkTimer();
   }
 
-  if (leftInProgress || next === 'done') {
+  if (leftInProgress || next === "done") {
     this.pauseWorkTimer();
   }
 };
@@ -509,7 +530,7 @@ taskSchema.methods.applyStatusTimerChange = function (previousStatus = null) {
 /**
  * Virtual property that exposes the live (not-yet persisted) tracked hours.
  */
-taskSchema.virtual('trackedActualHours').get(function () {
+taskSchema.virtual("trackedActualHours").get(function () {
   return this.getLiveActualHours();
 });
 
@@ -529,32 +550,32 @@ taskSchema.virtual('trackedActualHours').get(function () {
  * @returns {Promise<Array>} Array of task documents
  */
 taskSchema.statics.findByUser = async function (userId, options = {}) {
-  const { role = 'both', status, activeOnly = true } = options;
-  
+  const { role = "both", status, activeOnly = true } = options;
+
   let query = {};
-  
+
   // Build query based on role
-  if (role === 'assignee') {
+  if (role === "assignee") {
     query.assignedTo = userId;
-  } else if (role === 'assignor') {
+  } else if (role === "assignor") {
     query.assignedBy = userId;
   } else {
     query.$or = [{ assignedTo: userId }, { assignedBy: userId }];
   }
-  
+
   // Add status filter if provided
   if (status) {
     query.status = status;
   }
-  
+
   // Add active filter
   if (activeOnly) {
     query.isActive = true;
   }
-  
+
   return this.find(query)
-    .populate('assignedBy', 'firstName lastName email')
-    .populate('assignedTo', 'firstName lastName email')
+    .populate("assignedBy", "firstName lastName email")
+    .populate("assignedTo", "firstName lastName email")
     .sort({ createdAt: -1 });
 };
 
@@ -571,20 +592,23 @@ taskSchema.statics.findByUser = async function (userId, options = {}) {
  * @param {Date} [referenceDate=new Date()] - Reference "now" in UTC
  * @returns {Promise<Array>} Array of overdue task documents
  */
-taskSchema.statics.findOverdueTasks = async function (userId = null, referenceDate = new Date()) {
+taskSchema.statics.findOverdueTasks = async function (
+  userId = null,
+  referenceDate = new Date()
+) {
   const query = {
     dueDate: { $lt: referenceDate },
-    status: { $ne: 'done' },
+    status: { $ne: "done" },
     isActive: true,
   };
-  
+
   if (userId) {
     query.assignedTo = userId;
   }
-  
+
   return this.find(query)
-    .populate('assignedBy', 'firstName lastName email')
-    .populate('assignedTo', 'firstName lastName email')
+    .populate("assignedBy", "firstName lastName email")
+    .populate("assignedTo", "firstName lastName email")
     .sort({ dueDate: 1 });
 };
 
@@ -600,28 +624,32 @@ taskSchema.statics.findOverdueTasks = async function (userId = null, referenceDa
  * @param {Date} [referenceDate=new Date()] - Reference "now" in UTC for overdue calculations
  * @returns {Promise<Object>} Task statistics object
  */
-taskSchema.statics.getTaskStatistics = async function (userId, referenceDate = new Date()) {
+taskSchema.statics.getTaskStatistics = async function (
+  userId,
+  referenceDate = new Date()
+) {
   const matchStage = {
     assignedTo: new mongoose.Types.ObjectId(userId),
     isActive: true,
   };
 
   // Helper expressions reused across aggregations
-  const now = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+  const now =
+    referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
   const overdueActiveExpr = {
     $and: [
-      { $ne: ['$dueDate', null] },
-      { $lt: ['$dueDate', now] },
-      { $ne: ['$status', 'done'] },
+      { $ne: ["$dueDate", null] },
+      { $lt: ["$dueDate", now] },
+      { $ne: ["$status", "done"] },
     ],
   };
 
   const overdueCompletedExpr = {
     $and: [
-      { $eq: ['$status', 'done'] },
-      { $ne: ['$dueDate', null] },
-      { $ne: ['$completedAt', null] },
-      { $gt: ['$completedAt', '$dueDate'] },
+      { $eq: ["$status", "done"] },
+      { $ne: ["$dueDate", null] },
+      { $ne: ["$completedAt", null] },
+      { $gt: ["$completedAt", "$dueDate"] },
     ],
   };
 
@@ -631,15 +659,17 @@ taskSchema.statics.getTaskStatistics = async function (userId, referenceDate = n
       $group: {
         _id: null,
         total: { $sum: 1 },
-        todo: { $sum: { $cond: [{ $eq: ['$status', 'todo'] }, 1, 0] } },
-        in_progress: { $sum: { $cond: [{ $eq: ['$status', 'in_progress'] }, 1, 0] } },
-        done: { $sum: { $cond: [{ $eq: ['$status', 'done'] }, 1, 0] } },
-        actualHoursSum: { $sum: { $ifNull: ['$actualHours', 0] } },
+        todo: { $sum: { $cond: [{ $eq: ["$status", "todo"] }, 1, 0] } },
+        in_progress: {
+          $sum: { $cond: [{ $eq: ["$status", "in_progress"] }, 1, 0] },
+        },
+        done: { $sum: { $cond: [{ $eq: ["$status", "done"] }, 1, 0] } },
+        actualHoursSum: { $sum: { $ifNull: ["$actualHours", 0] } },
         overdueActiveTotal: { $sum: { $cond: [overdueActiveExpr, 1, 0] } },
         overdueTodo: {
           $sum: {
             $cond: [
-              { $and: [{ $eq: ['$status', 'todo'] }, overdueActiveExpr] },
+              { $and: [{ $eq: ["$status", "todo"] }, overdueActiveExpr] },
               1,
               0,
             ],
@@ -648,19 +678,23 @@ taskSchema.statics.getTaskStatistics = async function (userId, referenceDate = n
         overdueInProgress: {
           $sum: {
             $cond: [
-              { $and: [{ $eq: ['$status', 'in_progress'] }, overdueActiveExpr] },
+              {
+                $and: [{ $eq: ["$status", "in_progress"] }, overdueActiveExpr],
+              },
               1,
               0,
             ],
           },
         },
-        overdueCompletedTotal: { $sum: { $cond: [overdueCompletedExpr, 1, 0] } },
+        overdueCompletedTotal: {
+          $sum: { $cond: [overdueCompletedExpr, 1, 0] },
+        },
         normalTodo: {
           $sum: {
             $cond: [
               {
                 $and: [
-                  { $eq: ['$status', 'todo'] },
+                  { $eq: ["$status", "todo"] },
                   { $not: [overdueActiveExpr] },
                 ],
               },
@@ -674,7 +708,7 @@ taskSchema.statics.getTaskStatistics = async function (userId, referenceDate = n
             $cond: [
               {
                 $and: [
-                  { $eq: ['$status', 'in_progress'] },
+                  { $eq: ["$status", "in_progress"] },
                   { $not: [overdueActiveExpr] },
                 ],
               },
@@ -688,7 +722,7 @@ taskSchema.statics.getTaskStatistics = async function (userId, referenceDate = n
             $cond: [
               {
                 $and: [
-                  { $eq: ['$status', 'done'] },
+                  { $eq: ["$status", "done"] },
                   { $not: [overdueCompletedExpr] },
                 ],
               },
@@ -760,6 +794,6 @@ taskSchema.statics.getTaskStatistics = async function (userId, referenceDate = n
  *
  * @type {mongoose.Model}
  */
-const Task = mongoose.model('Task', taskSchema);
+const Task = mongoose.model("Task", taskSchema);
 
 module.exports = Task;

@@ -1363,9 +1363,6 @@ const getOverdueTasks = async (req, res) => {
       enrichTaskWithTimezone(task, requestTimezone, nowInZone)
     );
 
-    // notify on task overdue  
-    await notificationService.taskOverdue(Task, assigneeIds);
-
     res.status(200).json({
       success: true,
       message: "Overdue tasks retrieved successfully",

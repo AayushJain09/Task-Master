@@ -3,9 +3,7 @@ const mongoose = require("mongoose");
 const notificationService = require("../services/notificationService"); //centralized notification module
 const Reminder = require("../models/Reminder");
 const { expandReminderOccurrences } = require("../utils/recurrence");
-const {
-  parseDateInputToUTC,
-} = require("../utils/timezone");
+const { parseDateInputToUTC } = require("../utils/timezone");
 
 let agenda;
 
@@ -149,13 +147,77 @@ async function initAgenda({
         return done();
       } catch (err) {
         console.error("sendReminder job failed", err);
-        return done(err); 
+        return done(err);
+      }
+    }
+  );
+
+  agenda.define(
+    "checkOverdueTasks",
+    { concurrency: 1, lockLifetime },
+    async (job, done) => {
+      try {
+        const now = new Date();
+
+        const overdueTasks = await mongoose
+          .model("Task")
+          .find({
+            isActive: true,
+            status: { $ne: "done" },
+            dueDate: { $lt: now },
+          })
+          .populate("assignedTo", "_id")
+          .lean({ virtuals: true }); // IMPORTANT for daysUntilDue
+
+        for (const task of overdueTasks) {
+          if (!task.daysUntilDue) continue;
+
+          const daysOverdue = Math.abs(task.daysUntilDue);
+          const assignees = (task.assignedTo || []).map((u) => u._id);
+
+          const updates = {};
+          let shouldSave = false;
+
+          const send = async (flag) => {
+            await notificationService.taskOverdue(task, assignees, daysOverdue);
+            updates[`overdueNotifications.${flag}`] = true;
+            shouldSave = true;
+          };
+
+          if (daysOverdue >= 0 && !task.overdueNotifications?.day0) {
+            await send("day0");
+          }
+
+          if (daysOverdue >= 2 && !task.overdueNotifications?.day2) {
+            await send("day2");
+          }
+
+          if (daysOverdue >= 5 && !task.overdueNotifications?.day5) {
+            await send("day5");
+          }
+
+          if (daysOverdue >= 8 && !task.overdueNotifications?.day8) {
+            await send("day8");
+          }
+
+          if (shouldSave) {
+            await mongoose
+              .model("Task")
+              .updateOne({ _id: task._id }, { $set: updates });
+          }
+        }
+
+        done();
+      } catch (err) {
+        console.error("checkOverdueTasks failed", err);
+        done(err);
       }
     }
   );
 
   // Start agenda
   await agenda.start();
+  await agenda.every("1 day", "checkOverdueTasks");
   console.log("Agenda started");
   return agenda;
 }
