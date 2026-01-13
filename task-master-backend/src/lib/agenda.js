@@ -167,7 +167,8 @@ async function initAgenda({
             dueDate: { $lt: now },
           })
           .populate("assignedTo", "_id")
-          .lean({ virtuals: true }); // IMPORTANT for daysUntilDue
+          .lean({ virtuals: true }); 
+          console.log("Overdue tasks found:", overdueTasks.length);
 
         for (const task of overdueTasks) {
           if (!task.daysUntilDue) continue;
@@ -218,6 +219,14 @@ async function initAgenda({
   // Start agenda
   await agenda.start();
   await agenda.every("1 day", "checkOverdueTasks");
+  // console for ensuring agenda job has been created
+  const jobs = await agenda.jobs({ name: "checkOverdueTasks" });
+  console.log("Scheduled checkOverdueTasks jobs:", jobs.length);
+
+  jobs.forEach((job) => {
+    console.log("Job next run at:", job.attrs.nextRunAt);
+  });
+
   console.log("Agenda started");
   return agenda;
 }

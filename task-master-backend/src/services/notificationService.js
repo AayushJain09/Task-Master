@@ -97,6 +97,11 @@ module.exports = {
   },
 
   async taskOverdue(task, assigneeIds, daysOverdue) {
+    console.log("taskOverdue notification", {
+      taskId: task._id,
+      assigneeIds,
+      daysOverdue,
+    });
     await saveAndSend(assigneeIds, null, {
       type: "task_overdue",
       title: "Task Overdue",
