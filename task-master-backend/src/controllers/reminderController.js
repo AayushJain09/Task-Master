@@ -1,8 +1,7 @@
 /**
  * Reminder Controller
  *
- * Handles reminder creation, filtering, snoozing, and
- * offline synchronization workflows.
+ * Handles reminder creation, filtering, and offline synchronization workflows.
  *
  * @module controllers/reminderController
  */
@@ -10,18 +9,26 @@
 const { validationResult } = require('express-validator');
 const mongoose = require('mongoose');
 const Reminder = require('../models/Reminder');
+const ActivityLog = require('../models/ActivityLog');
 const { parsePagination, buildPaginationResponse } = require('../utils/helpers');
 const {
-  getStartOfDayUTC,
-  getEndOfDayUTC,
   parseDateInputToUTC,
   buildLocalizedDateTimeMetadata,
   ensureTimeZone,
   isDateOnlyString,
 } = require('../utils/timezone');
 const { expandReminderOccurrences } = require('../utils/recurrence');
-const {rescheduleReminder,cancelJobsForReminder,} = require('../lib/reminderScheduler');
+const {
+  rescheduleReminder,
+  cancelJobsForReminder,
+} = require('../lib/reminderScheduler');
 
+/**
+ * Normalizes request payload fields to safe reminder-ready values.
+ *
+ * @param {Object} payload - Incoming reminder payload
+ * @returns {Object} Sanitized reminder fields
+ */
 
 const pickReminderFields = (payload = {}) => {
   const sanitized = {};
@@ -52,6 +59,19 @@ const pickReminderFields = (payload = {}) => {
   }
 
   return sanitized;
+};
+
+/**
+ * Safely records reminder activity without blocking the main request.
+ *
+ * @param {Object} params - Parameters accepted by ActivityLog.logReminderActivity
+ */
+const recordReminderActivity = async (params) => {
+  try {
+    await ActivityLog.logReminderActivity(params);
+  } catch (error) {
+    console.error('Reminder activity logging failed:', error.message);
+  }
 };
 
 /**
@@ -311,6 +331,21 @@ const createReminder = async (req, res) => {
 
     await rescheduleReminder(reminder);
 
+    // Log reminder creation for recent activity feeds (fire-and-forget).
+    recordReminderActivity({
+      reminder,
+      performedBy: userId,
+      action: 'reminder_created',
+      description: `Created reminder "${reminder.title}"`,
+      metadata: {
+        scheduledAt: reminder.scheduledAt,
+        timezone: reminder.timezone,
+        category: reminder.category,
+        priority: reminder.priority,
+      },
+      context: 'reminders',
+    });
+
     res.status(201).json({
       success: true,
       message: 'Reminder created successfully',
@@ -348,6 +383,10 @@ const updateReminder = async (req, res) => {
       });
     }
 
+    // Capture the pre-update snapshot for activity metadata.
+    const previousScheduledAt = reminder.scheduledAt;
+    const previousStatus = reminder.status;
+
     Object.assign(reminder, pickReminderFields(req.body));
 
     let targetTimezone = reminder.timezone || requestTimezone;
@@ -371,6 +410,23 @@ const updateReminder = async (req, res) => {
     reminder.clientUpdatedAt = new Date();
     reminder.syncStatus = 'pending';
     await reminder.save();
+
+    // Log reminder updates for recent activity feeds (fire-and-forget).
+    const updatedFields = Object.keys(req.body || {}).filter(key => key);
+    recordReminderActivity({
+      reminder,
+      performedBy: userId,
+      action: 'reminder_updated',
+      description: `Updated reminder "${reminder.title}"`,
+      metadata: {
+        updatedFields,
+        previousScheduledAt,
+        updatedScheduledAt: reminder.scheduledAt,
+        previousStatus,
+        updatedStatus: reminder.status,
+      },
+      context: 'reminders',
+    });
 
     res.status(200).json({
       success: true,
@@ -417,6 +473,20 @@ const deleteReminder = async (req, res) => {
         message: 'Reminder not found',
       });
     }
+
+    // Log reminder deletion for recent activity feeds (fire-and-forget).
+    recordReminderActivity({
+      reminder,
+      performedBy: userId,
+      action: 'reminder_deleted',
+      description: `Deleted reminder "${reminder.title}"`,
+      metadata: {
+        deletedAt: reminder.deletedAt,
+        scheduledAt: reminder.scheduledAt,
+        status: reminder.status,
+      },
+      context: 'reminders',
+    });
 
     res.status(200).json({
       success: true,

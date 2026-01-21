@@ -1,8 +1,8 @@
 /**
  * Reminder Routes
  *
- * Defines API endpoints for reminder management including filtering,
- * snoozing, and offline synchronization.
+ * Defines API endpoints for reminder management including filtering
+ * and offline synchronization.
  *
  * @module routes/reminderRoutes
  */

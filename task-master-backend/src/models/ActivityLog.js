@@ -14,7 +14,7 @@ const mongoose = require('mongoose');
 
 const activityLogSchema = new mongoose.Schema(
   {
-    // High-level verb that describes the action
+    // High-level verb that describes the action (task + reminder flows).
     action: {
       type: String,
       required: true,
@@ -25,16 +25,18 @@ const activityLogSchema = new mongoose.Schema(
         'task_completed',
         'task_reassigned',
         'task_deleted',
-        'task_comment_added',
+        'reminder_created',
+        'reminder_updated',
+        'reminder_deleted',
       ],
     },
 
-    // Entity metadata allows filtering by resource type
+    // Entity metadata allows filtering by resource type.
     entityType: {
       type: String,
       required: true,
       default: 'task',
-      enum: ['task', 'user', 'system'],
+      enum: ['task', 'reminder', 'user', 'system'],
     },
     entityId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -155,6 +157,75 @@ activityLogSchema.statics.logTaskActivity = async function ({
       taskTitle: task.title,
       priority: task.priority,
       status: task.status,
+      ...metadata,
+    },
+    context,
+    participants,
+  });
+};
+
+/**
+ * Records a reminder-related activity and ensures the reminder owner (plus
+ * performer) can see the event in the activity feed.
+ *
+ * @async
+ * @method logReminderActivity
+ * @param {Object} params - Activity parameters
+ * @param {Object} params.reminder - Reminder mongoose document or plain object
+ * @param {string} params.performedBy - User ID of actor
+ * @param {string} params.action - Activity verb
+ * @param {string} params.description - Human-readable summary
+ * @param {Object} [params.metadata={}] - Structured metadata payload
+ * @param {string|null} [params.context=null] - Additional context flag
+ * @returns {Promise<ActivityLog>}
+ */
+activityLogSchema.statics.logReminderActivity = async function ({
+  reminder,
+  performedBy,
+  action,
+  description,
+  metadata = {},
+  context = null,
+}) {
+  if (!reminder?._id) {
+    throw new Error('Reminder reference is required to log activity');
+  }
+
+  // Normalize ids for reminder owner + performer to build participant list.
+  const normalizeId = (value) => {
+    if (!value) return null;
+    if (typeof value === 'string') return value;
+    if (value instanceof mongoose.Types.ObjectId) return value.toString();
+    if (value._id) return value._id.toString();
+    return null;
+  };
+
+  const participantSet = new Set();
+  const ownerId = normalizeId(reminder.user || reminder.userId);
+  if (ownerId) {
+    participantSet.add(ownerId);
+  }
+
+  const performerId = normalizeId(performedBy);
+  if (performerId) {
+    participantSet.add(performerId);
+  }
+
+  const participants = Array.from(participantSet).map(id => new mongoose.Types.ObjectId(id));
+
+  return this.create({
+    action,
+    entityType: 'reminder',
+    entityId: reminder._id,
+    performedBy,
+    description,
+    metadata: {
+      reminderId: reminder._id,
+      title: reminder.title,
+      scheduledAt: reminder.scheduledAt,
+      status: reminder.status,
+      category: reminder.category,
+      priority: reminder.priority,
       ...metadata,
     },
     context,

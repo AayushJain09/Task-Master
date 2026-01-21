@@ -67,7 +67,7 @@ const swaggerDefinition = {
     },
     {
       name: 'Reminders',
-      description: 'Reminder management endpoints including scheduling, snoozing, and offline sync',
+      description: 'Reminder management endpoints including scheduling and offline sync',
     },
     {
       name: 'Notifications',

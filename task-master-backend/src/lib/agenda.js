@@ -56,7 +56,7 @@ async function initAgenda({
           throw new Error("Missing reminderId in job data");
         }
 
-        // Re-fetch reminder to get latest state (deleted? snoozed? cancelled?)
+        // Re-fetch reminder to get latest state (deleted? cancelled?)
         const reminder = await Reminder.findById(reminderId).lean();
         if (!reminder || reminder.isDeleted) {
           // Nothing to do — cancel any future jobs for this reminder
