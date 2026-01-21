@@ -22,25 +22,30 @@ async function saveAndSend(users, currentUser, data) {
 
   // Remove the performer from notification list
   users = excludeSelf(users, currentUser && (currentUser._id || currentUser));
-  console.log("users after extraction:", users);
 
   // If no one left to notify, skip
   if (!users.length) return;
 
-  const { type, title, message, metadata } = data;
+  const { type, title, message, metadata, priority = 'medium' } = data;
 
-  // Save notifications
-  const docs = users.map((user) => ({
-    user,
-    type,
-    title,
-    message,
-    metadata,
-  }));
-  await Notification.insertMany(docs);
+  try {
+    // Save notifications
+    const docs = users.map((user) => ({
+      user,
+      type,
+      title,
+      message,
+      metadata,
+      priority,
+    }));
+    await Notification.insertMany(docs);
 
-  // Send push
-  await firebaseSender.sendToUsers(users, { title, body: message });
+    // Send push notifications
+    await firebaseSender.sendToUsers(users, { title, body: message });
+  } catch (error) {
+    console.error('Error in saveAndSend:', error);
+    // Don't throw - we want to continue even if notification fails
+  }
 }
 
 module.exports = {
@@ -50,6 +55,7 @@ module.exports = {
       title: "New Task Assigned",
       message: `${creator.firstName} assigned: ${task.title}`,
       metadata: { taskId: task._id },
+      priority: 'medium',
     });
   },
 
@@ -59,6 +65,7 @@ module.exports = {
       title: "Task Updated",
       message: `${user.firstName} updated: ${oldTitle}`,
       metadata: { taskId: task._id, changedFields },
+      priority: 'low',
     });
   },
 
@@ -68,12 +75,11 @@ module.exports = {
       title: "Task Completed",
       message: `${user.firstName} completed: ${task.title}`,
       metadata: { taskId: task._id },
+      priority: 'low',
     });
   },
 
   async taskStatusChanged(task, user, assigneeIds, previousStatus) {
-    console.log("inside taskStatusChanged");
-
     const oldStatus = formatStatus(previousStatus);
     const newStatus = formatStatus(task.status);
 
@@ -82,9 +88,8 @@ module.exports = {
       title: "Task Status Updated",
       message: `${user.firstName} moved task "${task.title}" from ${oldStatus} → ${newStatus}`,
       metadata: { taskId: task._id },
+      priority: 'low',
     });
-
-    console.log("going out from taskStatusChanged");
   },
 
   async taskDeleted(task, user, assigneeIds) {
@@ -93,15 +98,13 @@ module.exports = {
       title: "Task Deleted",
       message: `${user.firstName} deleted: ${task.title}`,
       metadata: { taskId: task._id },
+      priority: 'low',
     });
   },
 
   async taskOverdue(task, assigneeIds, daysOverdue) {
-    console.log("taskOverdue notification", {
-      taskId: task._id,
-      assigneeIds,
-      daysOverdue,
-    });
+    const priority = daysOverdue >= 5 ? 'urgent' : daysOverdue >= 2 ? 'high' : 'medium';
+
     await saveAndSend(assigneeIds, null, {
       type: "task_overdue",
       title: "Task Overdue",
@@ -111,6 +114,7 @@ module.exports = {
         dueDate: task.dueDate,
         daysOverdue,
       },
+      priority,
     });
   },
 
@@ -120,6 +124,7 @@ module.exports = {
       title: "Account Status Updated",
       message: `${admin.firstName}: changed your account status to ${user.isActive ? "Active" : "Inactive"}.`,
       metadata: { userId: user._id },
+      priority: 'high',
     });
   },
 
@@ -129,6 +134,7 @@ module.exports = {
       title: "Role Updated",
       message: `${admin.firstName}: updated your role to ${user.role}.`,
       metadata: { userId: user._id },
+      priority: 'high',
     });
   },
 
@@ -138,8 +144,10 @@ module.exports = {
       title: "Account Deleted",
       message: `${admin.firstName}: deleted your account.`,
       metadata: { userId: user._id },
+      priority: 'urgent',
     });
   },
 
   saveAndSend,
 };
+

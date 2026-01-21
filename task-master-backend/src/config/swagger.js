@@ -69,6 +69,10 @@ const swaggerDefinition = {
       name: 'Reminders',
       description: 'Reminder management endpoints including scheduling, snoozing, and offline sync',
     },
+    {
+      name: 'Notifications',
+      description: 'Notification management endpoints for users and admins, including push notifications',
+    },
   ],
   components: {
     securitySchemes: {
@@ -1223,6 +1227,253 @@ const swaggerDefinition = {
               success: false,
               message: 'Internal server error',
             },
+          },
+        },
+      },
+      Notification: {
+        type: 'object',
+        properties: {
+          _id: {
+            type: 'string',
+            description: 'Notification ID',
+            example: '507f1f77bcf86cd799439011',
+          },
+          user: {
+            type: 'string',
+            description: 'User ID who receives the notification',
+            example: '507f1f77bcf86cd799439012',
+          },
+          type: {
+            type: 'string',
+            enum: [
+              'task_assigned',
+              'task_updated',
+              'task_completed',
+              'task_deleted',
+              'task_overdue',
+              'task_status_changed',
+              'reminder',
+              'update_user_status',
+              'update_user_role',
+              'delete_user',
+              'system_announcement',
+            ],
+            description: 'Notification type',
+            example: 'task_assigned',
+          },
+          title: {
+            type: 'string',
+            maxLength: 200,
+            description: 'Notification title',
+            example: 'New Task Assigned',
+          },
+          message: {
+            type: 'string',
+            maxLength: 1000,
+            description: 'Notification message body',
+            example: 'John assigned: Design new landing page',
+          },
+          isRead: {
+            type: 'boolean',
+            description: 'Read status',
+            example: false,
+          },
+          priority: {
+            type: 'string',
+            enum: ['low', 'medium', 'high', 'urgent'],
+            description: 'Notification priority level',
+            example: 'medium',
+          },
+          metadata: {
+            type: 'object',
+            description: 'Additional context data',
+            example: { taskId: '507f1f77bcf86cd799439013' },
+          },
+          createdAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Creation timestamp',
+            example: '2024-01-15T10:30:00.000Z',
+          },
+          updatedAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Last update timestamp',
+            example: '2024-01-15T10:30:00.000Z',
+          },
+        },
+      },
+      NotificationList: {
+        type: 'object',
+        properties: {
+          notifications: {
+            type: 'array',
+            items: {
+              $ref: '#/components/schemas/Notification',
+            },
+          },
+          pagination: {
+            type: 'object',
+            properties: {
+              total: {
+                type: 'integer',
+                example: 45,
+              },
+              page: {
+                type: 'integer',
+                example: 1,
+              },
+              limit: {
+                type: 'integer',
+                example: 20,
+              },
+              totalPages: {
+                type: 'integer',
+                example: 3,
+              },
+              hasNextPage: {
+                type: 'boolean',
+                example: true,
+              },
+              hasPrevPage: {
+                type: 'boolean',
+                example: false,
+              },
+            },
+          },
+        },
+      },
+      NotificationStats: {
+        type: 'object',
+        properties: {
+          overall: {
+            type: 'object',
+            properties: {
+              total: {
+                type: 'integer',
+                example: 150,
+              },
+              unread: {
+                type: 'integer',
+                example: 25,
+              },
+              read: {
+                type: 'integer',
+                example: 125,
+              },
+            },
+          },
+          byType: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                _id: {
+                  type: 'string',
+                  example: 'task_assigned',
+                },
+                count: {
+                  type: 'integer',
+                  example: 45,
+                },
+              },
+            },
+          },
+          byPriority: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                _id: {
+                  type: 'string',
+                  example: 'medium',
+                },
+                count: {
+                  type: 'integer',
+                  example: 80,
+                },
+              },
+            },
+          },
+        },
+      },
+      SendNotificationRequest: {
+        type: 'object',
+        required: ['userIds', 'title', 'message'],
+        properties: {
+          userIds: {
+            type: 'array',
+            items: {
+              type: 'string',
+            },
+            minItems: 1,
+            maxItems: 1000,
+            description: 'Array of user IDs to send notification to',
+            example: ['507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012'],
+          },
+          title: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 200,
+            description: 'Notification title',
+            example: 'System Maintenance',
+          },
+          message: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 1000,
+            description: 'Notification message',
+            example: 'Scheduled maintenance on Sunday at 2 AM',
+          },
+          type: {
+            type: 'string',
+            enum: [
+              'task_assigned',
+              'task_updated',
+              'task_completed',
+              'task_deleted',
+              'task_overdue',
+              'task_status_changed',
+              'reminder',
+              'update_user_status',
+              'update_user_role',
+              'delete_user',
+              'system_announcement',
+            ],
+            description: 'Notification type',
+            example: 'system_announcement',
+          },
+          priority: {
+            type: 'string',
+            enum: ['low', 'medium', 'high', 'urgent'],
+            description: 'Notification priority',
+            example: 'high',
+          },
+          metadata: {
+            type: 'object',
+            description: 'Additional context data',
+            example: {},
+          },
+          sendPush: {
+            type: 'boolean',
+            description: 'Whether to send push notification',
+            example: true,
+          },
+        },
+      },
+      MarkManyAsReadRequest: {
+        type: 'object',
+        required: ['notificationIds'],
+        properties: {
+          notificationIds: {
+            type: 'array',
+            items: {
+              type: 'string',
+            },
+            minItems: 1,
+            maxItems: 100,
+            description: 'Array of notification IDs to mark as read',
+            example: ['507f1f77bcf86cd799439011', '507f1f77bcf86cd799439012'],
           },
         },
       },

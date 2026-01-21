@@ -17,7 +17,8 @@ const taskRoutes = require("./taskRoutes");
 const reminderRoutes = require("./reminderRoutes");
 const dashboardRoutes = require("./dashboardRoutes");
 const pushTokenRoutes = require("./pushTokenRoutes");
-const pushTestRoutes = require("./pushTestRoutes"); 
+const pushTestRoutes = require("./pushTestRoutes");
+const notificationRoutes = require("./notificationRoutes");
 /**
  * Health Check Endpoint
  *
@@ -88,7 +89,8 @@ router.get("/", (req, res) => {
         tasks: "/tasks",
         reminders: "/reminders",
         dashboard: "/dashboard",
-        push: "/push"
+        push: "/push",
+        notifications: "/notifications"
       },
       documentation: "See README.md for detailed API documentation",
     },
@@ -114,6 +116,7 @@ router.use("/reminders", reminderRoutes);
 router.use("/dashboard", dashboardRoutes);
 router.use("/push", pushTokenRoutes);
 router.use("/push", pushTestRoutes);
+router.use("/notifications", notificationRoutes);
 
 /**
  * Add more route modules here as your application grows
