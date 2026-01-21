@@ -4,6 +4,7 @@ const notificationService = require("../services/notificationService"); //centra
 const Reminder = require("../models/Reminder");
 const { expandReminderOccurrences } = require("../utils/recurrence");
 const { parseDateInputToUTC } = require("../utils/timezone");
+const { runTokenCleanup } = require("./tokenCleanup");
 
 let agenda;
 
@@ -167,8 +168,8 @@ async function initAgenda({
             dueDate: { $lt: now },
           })
           .populate("assignedTo", "_id")
-          .lean({ virtuals: true }); 
-          console.log("Overdue tasks found:", overdueTasks.length);
+          .lean({ virtuals: true });
+        console.log("Overdue tasks found:", overdueTasks.length);
 
         for (const task of overdueTasks) {
           if (!task.daysUntilDue) continue;
@@ -216,18 +217,48 @@ async function initAgenda({
     }
   );
 
+  // Define token cleanup job
+  agenda.define(
+    "cleanupTokens",
+    { concurrency: 1, lockLifetime },
+    async (job, done) => {
+      try {
+        console.log("Running scheduled token cleanup...");
+        const results = await runTokenCleanup();
+        console.log("Token cleanup results:", results);
+        done();
+      } catch (err) {
+        console.error("Token cleanup job failed:", err);
+        done(err);
+      }
+    }
+  );
+
   // Start agenda
   await agenda.start();
-  await agenda.every("1 day", "checkOverdueTasks");
-  // console for ensuring agenda job has been created
-  const jobs = await agenda.jobs({ name: "checkOverdueTasks" });
-  console.log("Scheduled checkOverdueTasks jobs:", jobs.length);
 
-  jobs.forEach((job) => {
-    console.log("Job next run at:", job.attrs.nextRunAt);
+  // Schedule daily overdue task check
+  await agenda.every("1 day", "checkOverdueTasks");
+
+  // Schedule weekly token cleanup (runs every Sunday at 2 AM)
+  await agenda.every("1 week", "cleanupTokens");
+
+  // Log scheduled jobs
+  const overdueJobs = await agenda.jobs({ name: "checkOverdueTasks" });
+  const tokenJobs = await agenda.jobs({ name: "cleanupTokens" });
+
+  console.log("Scheduled checkOverdueTasks jobs:", overdueJobs.length);
+  console.log("Scheduled cleanupTokens jobs:", tokenJobs.length);
+
+  overdueJobs.forEach((job) => {
+    console.log("Overdue check next run at:", job.attrs.nextRunAt);
   });
 
-  console.log("Agenda started");
+  tokenJobs.forEach((job) => {
+    console.log("Token cleanup next run at:", job.attrs.nextRunAt);
+  });
+
+  console.log("Agenda started with all scheduled jobs");
   return agenda;
 }
 
