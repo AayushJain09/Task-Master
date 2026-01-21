@@ -9,8 +9,8 @@ import {
   StyleSheet,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { Calendar as CalendarIcon, Clock, Tag as TagIcon, MapPin, X } from 'lucide-react-native';
-import type { Reminder, ReminderCategory } from '@/types/reminder.types';
+import { Calendar as CalendarIcon, Clock, Tag as TagIcon, MapPin, X, RefreshCcw } from 'lucide-react-native';
+import type { Reminder, ReminderCategory, ReminderStatus } from '@/types/reminder.types';
 import { palette } from './data';
 import { formatDateKeyForDisplay, formatDateTimeInTimeZone } from '@/utils/timezone';
 interface ReminderDetailsModalProps {
@@ -61,6 +61,8 @@ const ReminderDetailsModal: React.FC<ReminderDetailsModalProps> = ({
       minute: '2-digit',
     }) || reminder.localScheduledTime || '';
   const categoryValue = (reminder.category || 'personal') as ReminderCategory;
+  const recurrenceSummary = buildRecurrenceSummary(reminder);
+  const statusAccent = getStatusAccent(reminder.status as ReminderStatus);
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
@@ -91,32 +93,78 @@ const ReminderDetailsModal: React.FC<ReminderDetailsModalProps> = ({
               contentContainerStyle={{ paddingBottom: 32 }}
               showsVerticalScrollIndicator={false}
             >
-              <InfoCard
-                icon={<CalendarIcon size={16} color={isDark ? '#CBD5F5' : '#475569'} />}
-                label="Scheduled for"
-                value={`${formattedDate} at ${timeLabel}`}
-                isDark={isDark}
-              />
-              <InfoCard
-                icon={<Clock size={16} color={isDark ? '#CBD5F5' : '#475569'} />}
-                label="Priority"
-                value={reminder.priority}
-                pillColor={getPriorityAccent(reminder.priority)}
-                isDark={isDark}
-              />
-              <InfoCard
-                icon={<MapPin size={16} color={isDark ? '#CBD5F5' : '#475569'} />}
-                label="Timezone"
-                value={timezone}
-                isDark={isDark}
-              />
-              <InfoCard
-                icon={<TagIcon size={16} color={isDark ? '#CBD5F5' : '#475569'} />}
-                label="Category"
-                value={categoryValue}
-                pillColor={palette[categoryValue] || '#818CF8'}
-                isDark={isDark}
-              />
+              <View
+                style={[
+                  styles.heroCard,
+                  {
+                    backgroundColor: isDark ? 'rgba(15,23,42,0.7)' : '#F8FAFF',
+                    borderColor: isDark ? '#1F2937' : '#E2E8F0',
+                  },
+                ]}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 12,
+                      backgroundColor: isDark ? '#0EA5E930' : '#DBEAFE',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <CalendarIcon size={20} color={isDark ? '#93C5FD' : '#1D4ED8'} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: isDark ? '#E5E7EB' : '#0F172A', fontWeight: '700', fontSize: 16 }}>
+                      Scheduled
+                    </Text>
+                    <Text style={{ color: isDark ? '#CBD5E1' : '#475569' }}>
+                      {formattedDate} · {timeLabel}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                  <Chip label={`Priority: ${reminder.priority}`} color={getPriorityAccent(reminder.priority)} isDark={isDark} />
+                  <Chip label={`Status: ${reminder.status}`} color={statusAccent} isDark={isDark} />
+                  <Chip label={`Category: ${categoryValue}`} color={palette[categoryValue] || '#6366F1'} isDark={isDark} />
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                <MiniCard
+                  icon={<MapPin size={14} color={isDark ? '#CBD5F5' : '#475569'} />}
+                  label="Timezone"
+                  value={timezone}
+                  isDark={isDark}
+                />
+                <MiniCard
+                  icon={<RefreshCcw size={14} color={isDark ? '#CBD5F5' : '#475569'} />}
+                  label="Recurrence"
+                  value={recurrenceSummary}
+                  isDark={isDark}
+                />
+              </View>
+
+              {reminder.description ? (
+                <View style={{ marginTop: 16 }}>
+                  <Text style={[styles.sectionLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>
+                    Description
+                  </Text>
+                  <View
+                    style={[
+                      styles.notesBlock,
+                      {
+                        backgroundColor: isDark ? 'rgba(15,23,42,0.6)' : 'rgba(226,232,240,0.4)',
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: isDark ? '#E2E8F0' : '#0F172A', lineHeight: 20 }}>
+                      {reminder.description}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
 
               {reminder.tags?.length ? (
                 <View style={{ marginTop: 16 }}>
@@ -152,6 +200,55 @@ const ReminderDetailsModal: React.FC<ReminderDetailsModalProps> = ({
                   </View>
                 </View>
               ) : null}
+
+              {(reminder.clientReference?.id ||
+                reminder.clientReference?.device ||
+                reminder.clientUpdatedAt ||
+                reminder.syncStatus) && (
+                <View style={{ marginTop: 16 }}>
+                  <Text style={[styles.sectionLabel, { color: isDark ? '#94A3B8' : '#475569' }]}>
+                    Sync
+                  </Text>
+                  <View
+                    style={[
+                      styles.infoCard,
+                      {
+                        borderColor: isDark ? 'rgba(148,163,184,0.3)' : 'rgba(15,23,42,0.08)',
+                        backgroundColor: isDark ? 'rgba(15,23,42,0.65)' : '#FFFFFF',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        gap: 6,
+                      },
+                    ]}
+                  >
+                    {reminder.syncStatus ? (
+                      <Text style={{ color: isDark ? '#F8FAFC' : '#0F172A', fontWeight: '700' }}>
+                        Status: <Text style={{ color: isDark ? '#A5B4FC' : '#2563EB' }}>{reminder.syncStatus}</Text>
+                      </Text>
+                    ) : null}
+                    {reminder.clientReference?.id ? (
+                      <Text style={{ color: isDark ? '#E5E7EB' : '#1F2937' }}>
+                        Client ID: {reminder.clientReference.id}
+                      </Text>
+                    ) : null}
+                    {reminder.clientReference?.device ? (
+                      <Text style={{ color: isDark ? '#E5E7EB' : '#1F2937' }}>
+                        Device: {reminder.clientReference.device}
+                      </Text>
+                    ) : null}
+                    {reminder.clientUpdatedAt ? (
+                      <Text style={{ color: isDark ? '#E5E7EB' : '#1F2937' }}>
+                        Updated: {formatDateTimeInTimeZone(reminder.clientUpdatedAt, timezone, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              )}
             </ScrollView>
           </View>
         </Animated.View>
@@ -159,47 +256,6 @@ const ReminderDetailsModal: React.FC<ReminderDetailsModalProps> = ({
     </Modal>
   );
 };
-
-const InfoCard = ({
-  icon,
-  label,
-  value,
-  isDark,
-  pillColor,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  isDark: boolean;
-  pillColor?: string;
-}) => (
-  <View
-    style={[
-      styles.infoCard,
-      {
-        borderColor: isDark ? 'rgba(148,163,184,0.3)' : 'rgba(15,23,42,0.08)',
-        backgroundColor: isDark ? 'rgba(15,23,42,0.65)' : '#FFFFFF',
-      },
-    ]}
-  >
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-      {icon}
-      <Text style={{ color: isDark ? '#CBD5F5' : '#64748B', fontSize: 13 }}>{label}</Text>
-    </View>
-    <Text
-      style={[
-        styles.infoValue,
-        {
-          color: isDark ? '#F8FAFC' : '#0F172A',
-          backgroundColor: pillColor ? `${pillColor}22` : 'transparent',
-          borderColor: pillColor ? `${pillColor}55` : 'transparent',
-        },
-      ]}
-    >
-      {value}
-    </Text>
-  </View>
-);
 
 const getPriorityAccent = (priority: ReminderPriority = 'medium') => {
   switch (priority) {
@@ -214,6 +270,42 @@ const getPriorityAccent = (priority: ReminderPriority = 'medium') => {
     default:
       return '#818CF8';
   }
+};
+
+const getStatusAccent = (status: ReminderStatus = 'pending') => {
+  switch (status) {
+    case 'completed':
+      return '#10B981';
+    case 'cancelled':
+      return '#EF4444';
+    case 'pending':
+    default:
+      return '#F59E0B';
+  }
+};
+
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const buildRecurrenceSummary = (reminder: Reminder) => {
+  const rec = reminder.recurrence;
+  if (!rec || rec.cadence === 'none') return 'Does not repeat';
+
+  const intervalText = rec.interval && rec.interval > 1 ? `every ${rec.interval}` : 'every';
+  if (rec.cadence === 'daily') return `${intervalText} day${rec.interval && rec.interval > 1 ? 's' : ''}`;
+
+  if (rec.cadence === 'weekly') {
+    const days =
+      rec.daysOfWeek && rec.daysOfWeek.length
+        ? rec.daysOfWeek.map(d => dayNames[d] || '').filter(Boolean).join(', ')
+        : 'day';
+    return `${intervalText} week${rec.interval && rec.interval > 1 ? 's' : ''} on ${days}`;
+  }
+
+  if (rec.cadence === 'monthly') {
+    return `${intervalText} month${rec.interval && rec.interval > 1 ? 's' : ''}`;
+  }
+
+  return 'Repeats';
 };
 
 const styles = StyleSheet.create({
@@ -287,6 +379,63 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 14,
   },
+  heroCard: {
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 12,
+  },
+  miniCard: {
+    flexGrow: 1,
+    minWidth: '48%',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
 });
 
 export default ReminderDetailsModal;
+
+const Chip = ({ label, color, isDark }: { label: string; color: string; isDark: boolean }) => (
+  <View
+    style={{
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor: `${color}22`,
+      borderWidth: 1,
+      borderColor: `${color}55`,
+    }}
+  >
+    <Text style={{ color: isDark ? '#E5E7EB' : '#0F172A', fontWeight: '700', fontSize: 12 }}>{label}</Text>
+  </View>
+);
+
+const MiniCard = ({
+  icon,
+  label,
+  value,
+  isDark,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  isDark: boolean;
+}) => (
+  <View
+    style={[
+      styles.miniCard,
+      {
+        borderColor: isDark ? 'rgba(148,163,184,0.3)' : 'rgba(15,23,42,0.08)',
+        backgroundColor: isDark ? 'rgba(15,23,42,0.65)' : '#FFFFFF',
+      },
+    ]}
+  >
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+      {icon}
+      <Text style={{ color: isDark ? '#CBD5F5' : '#475569', fontSize: 12, fontWeight: '600' }}>{label}</Text>
+    </View>
+    <Text style={{ color: isDark ? '#E5E7EB' : '#0F172A', fontWeight: '700' }}>{value}</Text>
+  </View>
+);

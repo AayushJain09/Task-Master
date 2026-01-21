@@ -1504,9 +1504,11 @@
  *                 description: Task priority level
  *                 example: high
  *               assignedTo:
- *                 type: string
- *                 description: User ID to assign task to (defaults to current user if not specified)
- *                 example: "507f1f77bcf86cd799439013"
+ *                 type: array
+ *                 description: One or more user IDs to assign the task to
+ *                 items:
+ *                   type: string
+ *                 example: ["507f1f77bcf86cd799439013","507f1f77bcf86cd799439014"]
  *               dueDate:
  *                 type: string
  *                 format: date-time
@@ -2116,9 +2118,11 @@
  *                 description: Task priority level
  *                 example: high
  *               assignedTo:
- *                 type: string
- *                 description: User ID to reassign task to (only assignor can reassign)
- *                 example: "507f1f77bcf86cd799439013"
+ *                 type: array
+ *                 description: Full replacement list of assignee user IDs (only assignor can reassign)
+ *                 items:
+ *                   type: string
+ *                 example: ["507f1f77bcf86cd799439013","507f1f77bcf86cd799439014"]
  *               dueDate:
  *                 type: string
  *                 format: date-time

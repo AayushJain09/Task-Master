@@ -373,7 +373,7 @@ const swaggerDefinition = {
       },
       Task: {
         type: 'object',
-        required: ['title', 'assignedBy', 'assignedTo'],
+        required: ['title', 'assignedBy'],
         properties: {
           _id: {
             type: 'string',
@@ -429,17 +429,19 @@ const swaggerDefinition = {
             description: 'User who assigned the task (can be populated)',
           },
           assignedTo: {
-            oneOf: [
-              {
-                type: 'string',
-                description: 'User ID assigned to complete the task',
-                example: '507f1f77bcf86cd799439013',
-              },
-              {
-                $ref: '#/components/schemas/User',
-              },
-            ],
-            description: 'User assigned to complete the task (can be populated)',
+            type: 'array',
+            description: 'One or more users assigned to complete the task (can be populated)',
+            items: {
+              oneOf: [
+                {
+                  type: 'string',
+                  description: 'User ID assigned to the task',
+                  example: '507f1f77bcf86cd799439013',
+                },
+                { $ref: '#/components/schemas/User' },
+              ],
+            },
+            minItems: 1,
           },
           dueDate: {
             type: 'string',
